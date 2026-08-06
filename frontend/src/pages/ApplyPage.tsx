@@ -56,14 +56,55 @@ export const ApplyPage: React.FC = () => {
     setReasonToJoin('');
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
 
-    setTimeout(() => {
-      setIsSubmitting(false);
+    const payload = formType === 'join-club' ? {
+      fullName,
+      pinNumber,
+      email,
+      mobile,
+      branch,
+      yearOfStudy,
+      section,
+      interests,
+      skills,
+      reasonToJoin
+    } : {
+      fullName,
+      pinNumber,
+      email,
+      mobile,
+      branch,
+      yearOfStudy,
+      section,
+      eventName,
+      notes
+    };
+
+    const endpoint = formType === 'join-club' ? 'club' : 'event';
+
+    try {
+      const response = await fetch(`http://localhost:5000/api/apply/${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || 'Server error occurred');
+      }
+
       setIsSuccess(true);
-    }, 1500);
+    } catch (err: any) {
+      alert(`Submission failed: ${err.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (

@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { Header } from './components/Header';
 import { Hero } from './components/Hero';
 import { About } from './components/About';
@@ -20,6 +20,12 @@ import { TeamPage } from './pages/TeamPage';
 import { FAQPage } from './pages/FAQPage';
 import { ContactPage } from './pages/ContactPage';
 import { ApplyPage } from './pages/ApplyPage';
+
+// Admin Pages
+import { AdminLoginPage } from './pages/AdminLoginPage';
+import { AdminDashboardPage } from './pages/AdminDashboardPage';
+import { AdminUsersPage } from './pages/AdminUsersPage';
+
 
 // Scroll Restoration Hook
 const ScrollToTop: React.FC = () => {
@@ -48,14 +54,45 @@ const HomePage: React.FC = () => {
   );
 };
 
-const MainContent: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+// Protected Router Guard for Admin Privileges
+const ProtectedRoute: React.FC<{ children: React.ReactNode; allowedRoles?: string[] }> = ({ children, allowedRoles }) => {
+  const token = localStorage.getItem('admin_token');
+  const adminUser = JSON.parse(localStorage.getItem('admin_user') || '{}');
+  const role = adminUser.role || '';
+
+  if (!token) {
+    return <Navigate to="/admin/login" replace />;
+  }
+
+  if (allowedRoles && !allowedRoles.includes(role)) {
+    return <Navigate to="/admin/dashboard" replace />;
+  }
+
+  return <>{children}</>;
+};
+
+// Main Layout Wrapper
+const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
+  const isAdminPath = location.pathname.startsWith('/admin');
   const isHome = location.pathname === '/';
-  
+
+  if (isAdminPath) {
+    return (
+      <main style={{ minHeight: '100vh' }}>
+        {children}
+      </main>
+    );
+  }
+
   return (
-    <main style={{ minHeight: 'calc(100vh - 10rem)', paddingTop: isHome ? '0' : '5rem' }}>
-      {children}
-    </main>
+    <>
+      <Header />
+      <main style={{ minHeight: 'calc(100vh - 10rem)', paddingTop: isHome ? '0' : '5rem' }}>
+        {children}
+      </main>
+      <Footer />
+    </>
   );
 };
 
@@ -63,9 +100,8 @@ function App() {
   return (
     <Router>
       <ScrollToTop />
-      <Header />
       
-      <MainContent>
+      <MainLayout>
         <Routes>
           {/* Home Route */}
           <Route path="/" element={<HomePage />} />
@@ -79,10 +115,45 @@ function App() {
           <Route path="/faqs" element={<FAQPage />} />
           <Route path="/contact" element={<ContactPage />} />
           <Route path="/apply" element={<ApplyPage />} />
-        </Routes>
-      </MainContent>
 
-      <Footer />
+          {/* Admin Routes */}
+          <Route path="/admin/login" element={<AdminLoginPage />} />
+          
+          <Route
+            path="/admin/dashboard"
+            element={<Navigate to="/admin/club" replace />}
+          />
+
+          <Route
+            path="/admin/club"
+            element={
+              <ProtectedRoute>
+                <AdminDashboardPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin/events"
+            element={
+              <ProtectedRoute>
+                <AdminDashboardPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin/users"
+            element={
+              <ProtectedRoute allowedRoles={['developer', 'superadmin']}>
+                <AdminUsersPage />
+              </ProtectedRoute>
+            }
+          />
+
+
+        </Routes>
+      </MainLayout>
     </Router>
   );
 }

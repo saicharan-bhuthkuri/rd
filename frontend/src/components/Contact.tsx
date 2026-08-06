@@ -69,14 +69,39 @@ export const Contact: React.FC<ContactProps> = ({ isOverview }) => {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
 
     setIsSubmitting(true);
-    // Simulate API request
-    setTimeout(() => {
-      setIsSubmitting(false);
+
+    const payload = {
+      fullName: formData.name,
+      pinNumber: "Quick Submit",
+      email: formData.email,
+      mobile: "N/A",
+      branch: formData.majorYear,
+      yearOfStudy: "Other",
+      section: "N/A",
+      interests: formData.domain,
+      skills: formData.portfolio || "N/A",
+      reasonToJoin: formData.pitch
+    };
+
+    try {
+      const response = await fetch('http://localhost:5000/api/apply/club', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || 'Server error occurred');
+      }
+
       setIsSuccess(true);
       setFormData({
         name: '',
@@ -86,7 +111,11 @@ export const Contact: React.FC<ContactProps> = ({ isOverview }) => {
         pitch: '',
         portfolio: ''
       });
-    }, 1500);
+    } catch (err: any) {
+      alert(`Submission failed: ${err.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (

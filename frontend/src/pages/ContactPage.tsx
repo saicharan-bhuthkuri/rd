@@ -28,12 +28,24 @@ export const ContactPage: React.FC = () => {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
 
-    setTimeout(() => {
-      setIsSubmitting(false);
+    try {
+      const response = await fetch('http://localhost:5000/api/contact', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || 'Server error occurred');
+      }
+
       setIsSuccess(true);
       setFormData({
         name: '',
@@ -41,7 +53,11 @@ export const ContactPage: React.FC = () => {
         subject: 'Collaboration Proposal',
         message: ''
       });
-    }, 1500);
+    } catch (err: any) {
+      alert(`Submission failed: ${err.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
