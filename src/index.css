@@ -3143,3 +3143,124 @@ button, input, textarea, select {
   font-weight: 400;
   margin-left: 0.25rem;
 }
+
+/* Landscape Apply Page Layout */
+.apply-split-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 3rem;
+  align-items: start;
+}
+
+@media (min-width: 992px) {
+  .apply-split-layout {
+    grid-template-columns: 1fr 1.15fr;
+    gap: 4.5rem;
+  }
+}
+
+.apply-info-panel {
+  position: sticky;
+  top: 6.5rem;
+  text-align: left;
+}
+
+.apply-panel-title {
+  font-family: 'Outfit', sans-serif;
+  font-size: 2.5rem;
+  font-weight: 800;
+  line-height: 1.15;
+  color: var(--text-main);
+  margin-top: 1rem;
+  margin-bottom: 1.25rem;
+  letter-spacing: -0.02em;
+}
+
+@media (min-width: 768px) {
+  .apply-panel-title {
+    font-size: 3rem;
+  }
+}
+
+.apply-panel-desc {
+  font-size: 1.0625rem;
+  color: var(--text-secondary);
+  line-height: 1.7;
+  margin-bottom: 3rem;
+}
+
+.apply-features-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.apply-feature-item {
+  display: flex;
+  gap: 1.25rem;
+  align-items: flex-start;
+}
+
+.feature-icon-box {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--primary-light);
+  color: var(--primary);
+  border: 1px solid hsla(var(--primary-hsl), 0.1);
+  flex-shrink: 0;
+}
+
+.feature-icon-box.text-emerald {
+  background-color: var(--secondary-light);
+  color: var(--secondary);
+  border-color: hsla(var(--secondary-hsl), 0.1);
+}
+
+.feature-icon-box.text-indigo {
+  background-color: var(--accent-light);
+  color: var(--accent);
+  border-color: hsla(var(--accent-hsl), 0.1);
+}
+
+.feature-item-text h4 {
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 0.375rem;
+}
+
+.feature-item-text p {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.apply-options-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.apply-card-horizontal {
+  display: flex;
+  gap: 1.25rem;
+  align-items: flex-start;
+  text-align: left;
+}
+
+.apply-card-desc h3 {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 0.25rem;
+}
+
+.apply-card-desc p {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
