@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom';
+import { API_BASE_URL } from './config';
 import { Header } from './components/Header';
 import { Hero } from './components/Hero';
 import { About } from './components/About';
@@ -102,7 +103,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
 function App() {
   useEffect(() => {
-    const eventSource = new EventSource('http://localhost:5000/api/sync-stream');
+    const eventSource = new EventSource(`${API_BASE_URL}/api/sync-stream`);
     
     eventSource.onmessage = (event) => {
       try {

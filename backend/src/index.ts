@@ -956,23 +956,50 @@ function replacePlaceholdersInPptx(templateBuffer: Buffer, outputPath: string, r
   fs.writeFileSync(outputPath, buffer);
 }
 
-// Convert PPTX to PDF using native Windows PowerPoint COM
+// Convert PPTX to PDF (Cross-platform support: PowerPoint COM on Windows, LibreOffice soffice on Linux/others)
 function convertPptxToPdf(inputPptxPath: string, outputPdfPath: string) {
   const absInput = path.resolve(inputPptxPath);
   const absOutput = path.resolve(outputPdfPath);
 
-  const escapedInput = absInput.replace(/\\/g, '\\\\');
-  const escapedOutput = absOutput.replace(/\\/g, '\\\\');
+  // 1. If on Windows, try Native PowerPoint COM automation first
+  if (process.platform === 'win32') {
+    try {
+      const escapedInput = absInput.replace(/\\/g, '\\\\');
+      const escapedOutput = absOutput.replace(/\\/g, '\\\\');
 
-  const psCommand = `
-    $PowerPoint = New-Object -ComObject PowerPoint.Application;
-    $Presentation = $PowerPoint.Presentations.Open('${escapedInput}');
-    $Presentation.SaveAs('${escapedOutput}', 32);
-    $Presentation.Close();
-    $PowerPoint.Quit();
-  `;
+      const psCommand = `
+        $PowerPoint = New-Object -ComObject PowerPoint.Application;
+        $Presentation = $PowerPoint.Presentations.Open('${escapedInput}');
+        $Presentation.SaveAs('${escapedOutput}', 32);
+        $Presentation.Close();
+        $PowerPoint.Quit();
+      `;
 
-  execSync(`powershell -Command "${psCommand.replace(/\n/g, ' ')}"`);
+      execSync(`powershell -Command "${psCommand.replace(/\n/g, ' ')}"`);
+      return;
+    } catch (err: any) {
+      console.warn("PowerPoint COM conversion failed. Falling back to LibreOffice...", err.message);
+    }
+  }
+
+  // 2. Headless LibreOffice conversion (soffice) for Linux/others
+  try {
+    const outputDir = path.dirname(absOutput);
+    execSync(`soffice --headless --convert-to pdf --outdir "${outputDir}" "${absInput}"`);
+    
+    // LibreOffice auto-saves output as [<pptx_basename>].pdf in outdir.
+    // Verify file and rename to the requested outputPdfPath if needed.
+    const expectedName = path.basename(absInput, path.extname(absInput)) + '.pdf';
+    const tempOutput = path.join(outputDir, expectedName);
+    
+    if (tempOutput !== absOutput && fs.existsSync(tempOutput)) {
+      if (fs.existsSync(absOutput)) fs.unlinkSync(absOutput);
+      fs.renameSync(tempOutput, absOutput);
+    }
+  } catch (err: any) {
+    console.error("LibreOffice PDF conversion failed:", err.message);
+    throw new Error(`PDF generation failed: No conversion engine (PowerPoint COM or LibreOffice) is available on this environment. Details: ${err.message}`);
+  }
 }
 
 // 14. Bulk Send Offer Letters to Approved Coordinators

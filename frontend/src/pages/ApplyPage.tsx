@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { API_BASE_URL } from '../config';
 import { ArrowLeft, User, Mail, Phone, GraduationCap, Calendar, Sparkles, Check, Loader2, Code, Users, Server } from 'lucide-react';
 
 type FormType = 'none' | 'join-club' | 'event';
@@ -39,7 +40,7 @@ export const ApplyPage: React.FC = () => {
   useEffect(() => {
     const fetchEvents = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/events');
+        const response = await fetch(`${API_BASE_URL}/api/events`);
         if (response.ok) {
           const data = await response.json();
           const titles = data.map((evt: any) => evt.title);
@@ -63,7 +64,7 @@ export const ApplyPage: React.FC = () => {
 
     const fetchBranches = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/branches');
+        const response = await fetch(`${API_BASE_URL}/api/branches`);
         if (response.ok) {
           const data = await response.json();
           const names = data.map((b: any) => b.name);
@@ -138,7 +139,7 @@ export const ApplyPage: React.FC = () => {
     const endpoint = formType === 'join-club' ? 'club' : 'event';
 
     try {
-      const response = await fetch(`http://localhost:5000/api/apply/${endpoint}`, {
+      const response = await fetch(`${API_BASE_URL}/api/apply/${endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

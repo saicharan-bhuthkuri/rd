@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { API_BASE_URL } from '../config';
 import { AdminLayout } from '../components/AdminLayout';
 import { Download, Check, X, Layers, Calendar, Mail, Loader2 } from 'lucide-react';
 
@@ -63,7 +64,7 @@ export const AdminDashboardPage: React.FC = () => {
     }
 
     try {
-      const response = await fetch('http://localhost:5000/api/admin/applications', {
+      const response = await fetch(`${API_BASE_URL}/api/admin/applications`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -165,7 +166,7 @@ export const AdminDashboardPage: React.FC = () => {
     const token = localStorage.getItem('admin_token');
 
     try {
-      const response = await fetch('http://localhost:5000/api/admin/bulk-send/offers', {
+      const response = await fetch(`${API_BASE_URL}/api/admin/bulk-send/offers`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -246,7 +247,7 @@ export const AdminDashboardPage: React.FC = () => {
     const token = localStorage.getItem('admin_token');
 
     try {
-      const response = await fetch('http://localhost:5000/api/admin/bulk-send/certificates', {
+      const response = await fetch(`${API_BASE_URL}/api/admin/bulk-send/certificates`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -329,7 +330,7 @@ export const AdminDashboardPage: React.FC = () => {
   const handleUpdateStatus = async (type: 'club' | 'event', id: number, status: 'approved' | 'rejected') => {
     const token = localStorage.getItem('admin_token');
     try {
-      const response = await fetch('http://localhost:5000/api/admin/applications/status', {
+      const response = await fetch(`${API_BASE_URL}/api/admin/applications/status`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

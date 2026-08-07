@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { API_BASE_URL } from '../config';
 import { AdminLayout } from '../components/AdminLayout';
 import { Calendar, Plus, Trash2 } from 'lucide-react';
 
@@ -25,7 +26,7 @@ export const AdminManageEventsPage: React.FC = () => {
   const fetchEvents = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/api/events');
+      const response = await fetch(`${API_BASE_URL}/api/events`);
       if (!response.ok) {
         throw new Error('Failed to load technical events list.');
       }
@@ -65,7 +66,7 @@ export const AdminManageEventsPage: React.FC = () => {
     const token = localStorage.getItem('admin_token');
 
     try {
-      const response = await fetch(`http://localhost:5000/api/admin/events/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/api/admin/events/${id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`

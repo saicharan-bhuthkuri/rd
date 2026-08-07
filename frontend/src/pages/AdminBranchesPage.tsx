@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../config';
 import { AdminLayout } from '../components/AdminLayout';
 import { Plus, Trash2, Layers, AlertCircle, Check } from 'lucide-react';
 
@@ -26,7 +27,7 @@ export const AdminBranchesPage: React.FC = () => {
   const fetchBranches = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/api/branches');
+      const response = await fetch(`${API_BASE_URL}/api/branches`);
       if (response.ok) {
         const data = await response.json();
         setBranches(data);
@@ -64,7 +65,7 @@ export const AdminBranchesPage: React.FC = () => {
     const token = localStorage.getItem('admin_token');
 
     try {
-      const response = await fetch('http://localhost:5000/api/admin/branches', {
+      const response = await fetch(`${API_BASE_URL}/api/admin/branches`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -98,7 +99,7 @@ export const AdminBranchesPage: React.FC = () => {
     const token = localStorage.getItem('admin_token');
 
     try {
-      const response = await fetch(`http://localhost:5000/api/admin/branches/${branchId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/admin/branches/${branchId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`

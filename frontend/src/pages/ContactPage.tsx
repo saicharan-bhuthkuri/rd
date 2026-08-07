@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { API_BASE_URL } from '../config';
 import { ArrowLeft, Mail, Phone, Send, Check, Loader2, Info } from 'lucide-react';
 
 interface ContactMessage {
@@ -33,7 +34,7 @@ export const ContactPage: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch('http://localhost:5000/api/contact', {
+      const response = await fetch(`${API_BASE_URL}/api/contact`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

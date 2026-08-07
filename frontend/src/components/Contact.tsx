@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { API_BASE_URL } from '../config';
 import { Mail, MapPin, Clock, Send, Check, Loader2 } from 'lucide-react';
 
 interface FormData {
@@ -89,7 +90,7 @@ export const Contact: React.FC<ContactProps> = ({ isOverview }) => {
     };
 
     try {
-      const response = await fetch('http://localhost:5000/api/apply/club', {
+      const response = await fetch(`${API_BASE_URL}/api/apply/club`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
