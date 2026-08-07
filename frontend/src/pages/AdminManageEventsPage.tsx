@@ -112,7 +112,7 @@ export const AdminManageEventsPage: React.FC = () => {
             No technical events are scheduled. Create one to populate the registry.
           </div>
         ) : (
-          <div className="admin-table-container">
+          <div className="admin-table-container events-table">
             <table className="admin-table">
               <thead>
                 <tr>

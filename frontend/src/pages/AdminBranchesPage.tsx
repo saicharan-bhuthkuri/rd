@@ -139,7 +139,7 @@ export const AdminBranchesPage: React.FC = () => {
           </div>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '2rem', alignItems: 'start' }}>
+        <div className="branches-grid-layout">
           
           {/* Add branch form panel */}
           <div className="card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -183,7 +183,7 @@ export const AdminBranchesPage: React.FC = () => {
               <span className="badge" style={{ margin: 0 }}>{branches.length} Total</span>
             </div>
 
-            <div style={{ overflowX: 'auto' }}>
+            <div className="admin-table-container branches-table">
               <table className="admin-table">
                 <thead>
                   <tr>

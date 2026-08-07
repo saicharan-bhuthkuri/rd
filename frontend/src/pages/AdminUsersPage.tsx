@@ -125,7 +125,7 @@ export const AdminUsersPage: React.FC = () => {
         ) : error ? (
           <div className="alert alert-danger">{error}</div>
         ) : (
-          <div className="admin-table-container">
+          <div className="admin-table-container users-table">
             <table className="admin-table">
               <thead>
                 <tr>

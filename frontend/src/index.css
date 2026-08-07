@@ -4051,15 +4051,140 @@ button, input, textarea, select {
     width: 100%;
   }
 
-  /* Scrollable tables inside card wrappers */
+  /* Table-to-Card transformation on mobile devices */
   .admin-table-container {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+    background: none;
+    border: none;
+    box-shadow: none;
+    overflow: visible;
   }
 
-  .admin-table th, .admin-table td {
-    padding: 0.75rem 1rem;
-    font-size: 0.8125rem;
+  .admin-table {
+    display: block;
+    width: 100%;
+  }
+
+  .admin-table thead {
+    display: none; /* Hide standard column headers */
+  }
+
+  .admin-table tbody {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    width: 100%;
+  }
+
+  .admin-table tr {
+    display: flex;
+    flex-direction: column;
+    background-color: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1.25rem;
+    box-shadow: var(--shadow-sm);
+    gap: 0.875rem;
+  }
+
+  .admin-table td {
+    display: block;
+    padding: 0 !important;
+    border: none !important;
+    background: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    text-align: left;
+  }
+
+  /* Add column header labels above data using pseudo-elements */
+  .admin-table td::before {
+    font-weight: 700;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    display: block;
+    margin-bottom: 0.25rem;
+  }
+
+  /* Custom labels for applications-table (Club Membership & Event Registrations) */
+  .applications-table .admin-table td:nth-child(1)::before {
+    content: "Student Info";
+  }
+  .applications-table .admin-table td:nth-child(2)::before {
+    content: "Academic Profile";
+  }
+  .applications-table .admin-table td:nth-child(3)::before {
+    content: "Application Details";
+  }
+  .applications-table .admin-table td:nth-child(4)::before {
+    content: "Statement / Notes";
+  }
+  .applications-table .admin-table td:nth-child(5)::before {
+    content: "Status";
+  }
+  .applications-table .admin-table td:nth-child(6)::before {
+    content: "Actions";
+  }
+
+  /* Custom labels for events-table (Manage Events) */
+  .events-table .admin-table td:nth-child(1)::before {
+    content: "Event Details";
+  }
+  .events-table .admin-table td:nth-child(2)::before {
+    content: "Schedule & Venue";
+  }
+  .events-table .admin-table td:nth-child(3)::before {
+    content: "Presenter / Speaker";
+  }
+  .events-table .admin-table td:nth-child(4)::before {
+    content: "Actions";
+  }
+
+  /* Custom labels for users-table (Manage Admins) */
+  .users-table .admin-table td:nth-child(1)::before {
+    content: "Username";
+  }
+  .users-table .admin-table td:nth-child(2)::before {
+    content: "Role Privilege";
+  }
+  .users-table .admin-table td:nth-child(3)::before {
+    content: "Created At";
+  }
+  .users-table .admin-table td:nth-child(4)::before {
+    content: "Actions";
+  }
+
+  /* Custom labels for branches-table (Manage Branches) */
+  .branches-table .admin-table td:nth-child(1)::before {
+    content: "Branch / Department Name";
+  }
+  .branches-table .admin-table td:nth-child(2)::before {
+    content: "Created On";
+  }
+  .branches-table .admin-table td:nth-child(3)::before {
+    content: "Actions";
+  }
+
+  /* Actions and Status cells layout adjustments */
+  .admin-table td:nth-last-child(2) {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid var(--border) !important;
+    padding-top: 0.75rem !important;
+  }
+  
+  .admin-table td:last-child {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px dashed var(--border) !important;
+    padding-top: 0.75rem !important;
+  }
+
+  .admin-table td:last-child .actions-cell {
+    margin-left: auto;
   }
 
   /* Terminal console modal sizing */
@@ -4093,6 +4218,21 @@ button, input, textarea, select {
 
   .log-item-row .log-user {
     font-size: 0.8125rem;
+  }
+}
+
+/* Branch Grid Desktop & Mobile */
+.branches-grid-layout {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 2rem;
+  align-items: start;
+}
+
+@media (max-width: 768px) {
+  .branches-grid-layout {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
   }
 }
 

@@ -658,7 +658,7 @@ export const AdminDashboardPage: React.FC = () => {
       ) : error ? (
         <div className="alert alert-danger">{error}</div>
       ) : (
-        <div className="admin-table-container">
+        <div className="admin-table-container applications-table">
           <table className="admin-table">
             <thead>
               {activeTab === 'club' ? (
