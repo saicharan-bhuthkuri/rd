@@ -46,6 +46,16 @@ export const AdminManageEventsPage: React.FC = () => {
       return;
     }
     fetchEvents();
+
+    const handleSync = (e: Event) => {
+      const eventType = (e as CustomEvent).detail;
+      if (eventType === 'REFRESH_EVENTS') {
+        fetchEvents();
+      }
+    };
+
+    window.addEventListener('app-sync', handleSync);
+    return () => window.removeEventListener('app-sync', handleSync);
   }, []);
 
   const handleDeleteEvent = async (id: number, eventTitle: string) => {

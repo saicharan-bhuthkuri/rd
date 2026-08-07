@@ -375,6 +375,32 @@ async function setupDatabase() {
 
 // Endpoints
 
+// Real-time synchronization connection pool
+const syncClients: any[] = [];
+
+const notifySyncClients = (type: string) => {
+  syncClients.forEach(client => {
+    client.write(`data: ${JSON.stringify({ type })}\n\n`);
+  });
+};
+
+// GET /api/sync-stream (SSE sync endpoint)
+app.get('/api/sync-stream', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  syncClients.push(res);
+
+  req.on('close', () => {
+    const idx = syncClients.indexOf(res);
+    if (idx !== -1) {
+      syncClients.splice(idx, 1);
+    }
+  });
+});
+
 // 1. Club Membership Application endpoint
 app.post('/api/apply/club', async (req, res) => {
   const {
@@ -413,6 +439,7 @@ app.post('/api/apply/club', async (req, res) => {
       ]
     });
 
+    notifySyncClients("REFRESH_APPLICATIONS");
     return res.status(201).json({
       success: true,
       message: "Application recorded successfully.",
@@ -460,6 +487,7 @@ app.post('/api/apply/event', async (req, res) => {
       ]
     });
 
+    notifySyncClients("REFRESH_APPLICATIONS");
     return res.status(201).json({
       success: true,
       message: "Event registration recorded successfully.",
@@ -619,6 +647,7 @@ app.post('/api/admin/applications/status', authenticateToken, async (req: Authen
       ]
     });
 
+    notifySyncClients("REFRESH_APPLICATIONS");
     return res.status(200).json({
       success: true,
       message: `Successfully updated application status to ${status}.`
@@ -690,6 +719,7 @@ app.post('/api/admin/users', authenticateToken, async (req: AuthenticatedRequest
       ]
     });
 
+    notifySyncClients("REFRESH_ADMINS");
     return res.status(201).json({
       success: true,
       message: "Admin account created successfully.",
@@ -748,6 +778,7 @@ app.delete('/api/admin/users/:id', authenticateToken, async (req: AuthenticatedR
       ]
     });
 
+    notifySyncClients("REFRESH_ADMINS");
     return res.status(200).json({
       success: true,
       message: "Admin account deleted successfully."
@@ -801,6 +832,7 @@ app.post('/api/admin/events', authenticateToken, async (req: AuthenticatedReques
       ]
     });
 
+    notifySyncClients("REFRESH_EVENTS");
     return res.status(201).json({
       success: true,
       message: "Event created successfully.",
@@ -843,6 +875,7 @@ app.delete('/api/admin/events/:id', authenticateToken, async (req: Authenticated
       ]
     });
 
+    notifySyncClients("REFRESH_EVENTS");
     return res.status(200).json({
       success: true,
       message: "Event deleted successfully."
@@ -1094,6 +1127,7 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
       }
     }
 
+    notifySyncClients("REFRESH_APPLICATIONS");
     sendLog(`Successfully sent ${successCount} offer letters.`, 95);
     sendLog("Process completed successfully.", 100, true);
     res.end();
@@ -1257,6 +1291,7 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
       }
     }
 
+    notifySyncClients("REFRESH_APPLICATIONS");
     sendLog(`Successfully sent ${successCount} participation certificates.`, 95);
     sendLog("Process completed successfully.", 100, true);
     res.end();
@@ -1310,6 +1345,7 @@ app.post('/api/admin/branches', authenticateToken, async (req: AuthenticatedRequ
       ]
     });
 
+    notifySyncClients("REFRESH_BRANCHES");
     res.status(201).json({ id: Number(insertRes.lastInsertRowid), name: name.trim() });
   } catch (error: any) {
     console.error("Add branch error:", error);
@@ -1352,6 +1388,7 @@ app.delete('/api/admin/branches/:id', authenticateToken, async (req: Authenticat
       ]
     });
 
+    notifySyncClients("REFRESH_BRANCHES");
     res.status(200).json({ success: true, message: `Successfully deleted branch: ${branchName}` });
   } catch (error: any) {
     console.error("Delete branch error:", error);

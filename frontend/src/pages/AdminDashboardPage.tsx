@@ -16,6 +16,7 @@ interface ClubApplication {
   skills: string;
   reason_to_join: string;
   status: 'pending' | 'approved' | 'rejected';
+  offer_sent?: number;
   created_at: string;
 }
 
@@ -31,6 +32,7 @@ interface EventRegistration {
   event_name: string;
   notes?: string;
   status: 'pending' | 'approved' | 'rejected';
+  certificate_sent?: number;
   created_at: string;
 }
 
@@ -88,6 +90,16 @@ export const AdminDashboardPage: React.FC = () => {
 
   useEffect(() => {
     fetchApplications();
+
+    const handleSync = (e: Event) => {
+      const eventType = (e as CustomEvent).detail;
+      if (eventType === 'REFRESH_APPLICATIONS') {
+        fetchApplications();
+      }
+    };
+
+    window.addEventListener('app-sync', handleSync);
+    return () => window.removeEventListener('app-sync', handleSync);
   }, []);
 
   const [isSendingBulk, setIsSendingBulk] = useState(false);
@@ -375,13 +387,40 @@ export const AdminDashboardPage: React.FC = () => {
 
   // Calculate quick metrics
   const getStats = () => {
-    const all = [...clubApps, ...eventRegs];
-    return {
-      total: all.length,
-      pending: all.filter(a => a.status === 'pending').length,
-      approved: all.filter(a => a.status === 'approved').length,
-      rejected: all.filter(a => a.status === 'rejected').length
-    };
+    if (activeTab === 'club') {
+      const approved = clubApps.filter(a => a.status === 'approved');
+      const sent = approved.filter(a => a.offer_sent === 1).length;
+      const unsent = approved.filter(a => a.offer_sent === 0 || a.offer_sent === null).length;
+      return {
+        total: clubApps.length,
+        pending: clubApps.filter(a => a.status === 'pending').length,
+        approved: approved.length,
+        rejected: clubApps.filter(a => a.status === 'rejected').length,
+        sent,
+        unsent,
+        sentLabel: "Offers Sent",
+        unsentLabel: "Offers Pending"
+      };
+    } else {
+      // Event registrations (filtered by active eventFilter)
+      const targetRegs = eventFilter === 'all' 
+        ? eventRegs 
+        : eventRegs.filter(r => r.event_name === eventFilter);
+
+      const approved = targetRegs.filter(r => r.status === 'approved');
+      const sent = approved.filter(r => r.certificate_sent === 1).length;
+      const unsent = approved.filter(r => r.certificate_sent === 0 || r.certificate_sent === null).length;
+      return {
+        total: targetRegs.length,
+        pending: targetRegs.filter(r => r.status === 'pending').length,
+        approved: approved.length,
+        rejected: targetRegs.filter(r => r.status === 'rejected').length,
+        sent,
+        unsent,
+        sentLabel: "Certificates Sent",
+        unsentLabel: "Certificates Pending"
+      };
+    }
   };
 
   const stats = getStats();
@@ -486,6 +525,26 @@ export const AdminDashboardPage: React.FC = () => {
           </div>
           <div className="admin-stat-icon rejected">
             <X size={22} />
+          </div>
+        </div>
+
+        <div className="admin-stat-card">
+          <div className="admin-stat-info">
+            <span>{stats.sentLabel}</span>
+            <h2 style={{ color: '#10b981' }}>{stats.sent}</h2>
+          </div>
+          <div className="admin-stat-icon" style={{ backgroundColor: '#ecfdf5', color: '#10b981' }}>
+            <Mail size={22} />
+          </div>
+        </div>
+
+        <div className="admin-stat-card">
+          <div className="admin-stat-info">
+            <span>{stats.unsentLabel}</span>
+            <h2 style={{ color: '#f59e0b' }}>{stats.unsent}</h2>
+          </div>
+          <div className="admin-stat-icon" style={{ backgroundColor: '#fffbeb', color: '#f59e0b' }}>
+            <Mail size={22} />
           </div>
         </div>
       </div>

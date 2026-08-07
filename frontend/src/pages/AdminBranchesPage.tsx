@@ -42,6 +42,16 @@ export const AdminBranchesPage: React.FC = () => {
 
   useEffect(() => {
     fetchBranches();
+
+    const handleSync = (e: Event) => {
+      const eventType = (e as CustomEvent).detail;
+      if (eventType === 'REFRESH_BRANCHES') {
+        fetchBranches();
+      }
+    };
+
+    window.addEventListener('app-sync', handleSync);
+    return () => window.removeEventListener('app-sync', handleSync);
   }, []);
 
   const handleAddBranch = async (e: React.FormEvent) => {

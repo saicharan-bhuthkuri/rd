@@ -101,6 +101,30 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 };
 
 function App() {
+  useEffect(() => {
+    const eventSource = new EventSource('http://localhost:5000/api/sync-stream');
+    
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type) {
+          const customEvent = new CustomEvent('app-sync', { detail: data.type });
+          window.dispatchEvent(customEvent);
+        }
+      } catch (e) {
+        console.error("Error parsing sync event:", e);
+      }
+    };
+
+    eventSource.onerror = (err) => {
+      console.warn("Sync stream connection failed. Reconnecting...", err);
+    };
+
+    return () => {
+      eventSource.close();
+    };
+  }, []);
+
   return (
     <Router>
       <ScrollToTop />

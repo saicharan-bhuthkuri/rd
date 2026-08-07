@@ -62,6 +62,16 @@ export const AdminUsersPage: React.FC = () => {
       return;
     }
     fetchUsers();
+
+    const handleSync = (e: Event) => {
+      const eventType = (e as CustomEvent).detail;
+      if (eventType === 'REFRESH_ADMINS') {
+        fetchUsers();
+      }
+    };
+
+    window.addEventListener('app-sync', handleSync);
+    return () => window.removeEventListener('app-sync', handleSync);
   }, []);
 
   const handleDeleteUser = async (id: number, username: string) => {
