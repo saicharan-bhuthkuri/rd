@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Users, ArrowLeft, LogOut, Sparkles, Calendar, ClipboardList, Layers } from 'lucide-react';
+import { Users, ArrowLeft, LogOut, Sparkles, Calendar, ClipboardList, Layers, Menu, X } from 'lucide-react';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -9,6 +9,7 @@ interface AdminLayoutProps {
 export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
   // Get active admin user from localStorage
   const adminUser = JSON.parse(localStorage.getItem('admin_user') || '{}');
@@ -31,10 +32,23 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
     return location.pathname === path ? 'active' : '';
   };
 
+  // Close sidebar on navigation change (mobile)
+  React.useEffect(() => {
+    setIsSidebarOpen(false);
+  }, [location.pathname]);
+
   return (
     <div className="admin-container">
+      {/* Mobile Sidebar Overlay */}
+      {isSidebarOpen && (
+        <div 
+          className="admin-sidebar-overlay" 
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="admin-sidebar">
+      <aside className={`admin-sidebar ${isSidebarOpen ? 'open' : ''}`}>
         <div className="admin-brand">
           <div className="brand-logo">
             <Sparkles size={20} />
@@ -43,6 +57,13 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
             <h3>R&D Club</h3>
             <span>Admin Console</span>
           </div>
+          <button 
+            className="mobile-sidebar-close" 
+            onClick={() => setIsSidebarOpen(false)}
+            aria-label="Close menu"
+          >
+            <X size={20} />
+          </button>
         </div>
 
         <nav className="admin-nav">
@@ -73,7 +94,6 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
             </Link>
           )}
 
-
           <hr className="admin-nav-divider" />
 
           <Link to="/" className="admin-nav-item">
@@ -102,23 +122,32 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
       {/* Main Content Area */}
       <main className="admin-main">
         <header className="admin-header">
-          <div className="admin-header-title">
-            <h2>
-              {location.pathname === '/admin/club'
-                ? 'Club Membership Applications'
-                : location.pathname === '/admin/events'
-                ? 'Event Registration Applications'
-                : location.pathname === '/admin/events/manage'
-                ? 'Manage Technical Events'
-                : location.pathname === '/admin/events/create'
-                ? 'Create Technical Event'
-                : location.pathname === '/admin/branches'
-                ? 'Manage Branches & Departments'
-                : location.pathname === '/admin/users/create'
-                ? 'Create Administrator Account'
-                : 'Admin Accounts Console'}
-            </h2>
-            <p>Role-Based System Access Control Active</p>
+          <div className="header-left-group">
+            <button 
+              className="mobile-sidebar-toggle" 
+              onClick={() => setIsSidebarOpen(true)}
+              aria-label="Open menu"
+            >
+              <Menu size={24} />
+            </button>
+            <div className="admin-header-title">
+              <h2>
+                {location.pathname === '/admin/club'
+                  ? 'Club Membership Applications'
+                  : location.pathname === '/admin/events'
+                  ? 'Event Registration Applications'
+                  : location.pathname === '/admin/events/manage'
+                  ? 'Manage Technical Events'
+                  : location.pathname === '/admin/events/create'
+                  ? 'Create Technical Event'
+                  : location.pathname === '/admin/branches'
+                  ? 'Manage Branches & Departments'
+                  : location.pathname === '/admin/users/create'
+                  ? 'Create Administrator Account'
+                  : 'Admin Accounts Console'}
+              </h2>
+              <p>Role-Based System Access Control Active</p>
+            </div>
           </div>
           <div className="admin-header-actions">
             <span className="live-indicator">
@@ -134,3 +163,4 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
     </div>
   );
 };
+

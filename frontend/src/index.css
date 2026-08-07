@@ -3901,3 +3901,207 @@ button, input, textarea, select {
   font-size: 1.25rem;
   font-weight: 800;
 }
+
+/* Responsive Mobile Support for Admin Panel */
+@media (max-width: 1024px) {
+  .admin-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .admin-container {
+    flex-direction: column;
+  }
+
+  /* Hamburger and Close Toggle Buttons styling */
+  .mobile-sidebar-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    color: var(--text-main);
+    cursor: pointer;
+    padding: 0.5rem;
+    margin-right: 0.75rem;
+    border-radius: var(--radius-md);
+    transition: background-color var(--transition-fast);
+  }
+
+  .mobile-sidebar-toggle:hover {
+    background-color: var(--bg-alt);
+  }
+
+  .mobile-sidebar-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: var(--radius-md);
+    transition: all var(--transition-fast);
+    margin-left: auto;
+  }
+
+  .mobile-sidebar-close:hover {
+    background-color: var(--bg-alt);
+    color: #ef4444;
+  }
+
+  /* Header adjustments */
+  .header-left-group {
+    display: flex;
+    align-items: center;
+  }
+
+  .admin-header {
+    padding: 0 1.25rem;
+  }
+
+  .admin-header-title h2 {
+    font-size: 1.1rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 180px;
+  }
+
+  .admin-header-actions {
+    gap: 0.5rem;
+  }
+
+  .live-indicator {
+    padding: 0.15rem 0.4rem;
+    font-size: 0.7rem;
+  }
+
+  /* Sidebar transition and absolute positioning */
+  .admin-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 280px;
+    z-index: 1000;
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 0 15px rgba(0,0,0,0.1);
+  }
+
+  .admin-sidebar.open {
+    transform: translateX(0);
+  }
+
+  /* Overlay backdrop */
+  .admin-sidebar-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.4);
+    z-index: 999;
+    backdrop-filter: blur(2px);
+  }
+
+  /* Content area margins & paddings */
+  .admin-main {
+    height: calc(100vh - 70px);
+    margin-top: 0;
+  }
+
+  .admin-content {
+    padding: 1.25rem;
+  }
+
+  /* Stats grid stacking */
+  .admin-stats-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  /* Filter and search layout adjustments */
+  .table-controls {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .search-filter-box {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .admin-search-input {
+    min-width: 100%;
+  }
+
+  .admin-filter-select {
+    width: 100%;
+  }
+
+  .admin-btn-export {
+    justify-content: center;
+    width: 100%;
+  }
+
+  /* Scrollable tables inside card wrappers */
+  .admin-table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .admin-table th, .admin-table td {
+    padding: 0.75rem 1rem;
+    font-size: 0.8125rem;
+  }
+
+  /* Terminal console modal sizing */
+  .modal-overlay .console-terminal-modal {
+    width: 95% !important;
+    max-height: 90vh !important;
+    margin: 1rem;
+  }
+
+  /* Form layouts */
+  .admin-card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .admin-card-header .admin-btn-export {
+    width: 100%;
+  }
+
+  /* Audit log list stack layout */
+  .log-item-row {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+    padding: 1rem;
+  }
+
+  .log-item-row .log-timestamp {
+    font-size: 0.75rem;
+  }
+
+  .log-item-row .log-user {
+    font-size: 0.8125rem;
+  }
+}
+
+@media (min-width: 769px) {
+  .mobile-sidebar-toggle {
+    display: none;
+  }
+  .mobile-sidebar-close {
+    display: none;
+  }
+}
+
