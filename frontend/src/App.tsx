@@ -28,6 +28,7 @@ import { AdminUsersPage } from './pages/AdminUsersPage';
 import { AdminCreateUserPage } from './pages/AdminCreateUserPage';
 import { AdminManageEventsPage } from './pages/AdminManageEventsPage';
 import { AdminCreateEventPage } from './pages/AdminCreateEventPage';
+import { AdminBranchesPage } from './pages/AdminBranchesPage';
 
 
 // Scroll Restoration Hook
@@ -177,6 +178,15 @@ function App() {
             element={
               <ProtectedRoute>
                 <AdminCreateEventPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin/branches"
+            element={
+              <ProtectedRoute>
+                <AdminBranchesPage />
               </ProtectedRoute>
             }
           />

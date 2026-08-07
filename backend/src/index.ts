@@ -161,6 +161,15 @@ async function setupDatabase() {
       );
     `);
 
+    // 8. Branches Table
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS branches (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT UNIQUE NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
     // Alter table schemas to add status columns if missing
     try {
       await db.execute(`ALTER TABLE club_applications ADD COLUMN status TEXT DEFAULT 'pending';`);
@@ -331,6 +340,31 @@ async function setupDatabase() {
       }
     } catch (e: any) {
       console.error("Error seeding templates:", e.message);
+    }
+
+    // Seed default branches if empty
+    try {
+      const branchCheck = await db.execute("SELECT count(*) as count FROM branches");
+      if (Number(branchCheck.rows[0].count) === 0) {
+        console.log("Seeding default academic branches into database...");
+        const defaultBranches = [
+          "Computer Science & Engineering (CSE)",
+          "Electronics & Communication Engineering (ECE)",
+          "Electrical & Electronics Engineering (EEE)",
+          "Mechanical Engineering (ME)",
+          "Civil Engineering (CE)",
+          "Artificial Intelligence & Machine Learning (AI&ML)"
+        ];
+        for (const name of defaultBranches) {
+          await db.execute({
+            sql: "INSERT INTO branches (name) VALUES (?)",
+            args: [name]
+          });
+        }
+        console.log("Seeding verification: Default branches seeded successfully.");
+      }
+    } catch (e: any) {
+      console.error("Error seeding default branches:", e.message);
     }
 
     console.log("Database tables verified successfully.");
@@ -1230,6 +1264,98 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
     console.error("Bulk certificates error:", err);
     res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
     res.end();
+  }
+});
+
+// 16. Get all branches
+app.get('/api/branches', async (req, res) => {
+  try {
+    const result = await db.execute("SELECT * FROM branches ORDER BY name ASC");
+    res.status(200).json(result.rows);
+  } catch (error: any) {
+    console.error("Fetch branches error:", error);
+    res.status(500).json({ error: "Internal server error while fetching branches." });
+  }
+});
+
+// 17. Add a new branch
+app.post('/api/admin/branches', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  const { name } = req.body;
+  if (!name || name.trim() === '') {
+    return res.status(400).json({ error: "Branch name is required." });
+  }
+
+  try {
+    const checkRes = await db.execute({
+      sql: "SELECT id FROM branches WHERE name = ?",
+      args: [name.trim()]
+    });
+
+    if (checkRes.rows.length > 0) {
+      return res.status(400).json({ error: "Branch already exists." });
+    }
+
+    const insertRes = await db.execute({
+      sql: "INSERT INTO branches (name) VALUES (?)",
+      args: [name.trim()]
+    });
+
+    // Log Activity
+    await db.execute({
+      sql: "INSERT INTO activity_logs (username, action, details) VALUES (?, ?, ?)",
+      args: [
+        req.user?.username || 'unknown',
+        "Add Branch",
+        `Created academic department/branch: ${name.trim()}`
+      ]
+    });
+
+    res.status(201).json({ id: Number(insertRes.lastInsertRowid), name: name.trim() });
+  } catch (error: any) {
+    console.error("Add branch error:", error);
+    res.status(500).json({ error: "Internal server error while adding branch." });
+  }
+});
+
+// 18. Delete a branch
+app.delete('/api/admin/branches/:id', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  const branchId = Number(req.params.id);
+  if (isNaN(branchId)) {
+    return res.status(400).json({ error: "Invalid branch ID." });
+  }
+
+  try {
+    // Check if branch exists
+    const findRes = await db.execute({
+      sql: "SELECT name FROM branches WHERE id = ?",
+      args: [branchId]
+    });
+
+    if (findRes.rows.length === 0) {
+      return res.status(404).json({ error: "Branch not found." });
+    }
+
+    const branchName = findRes.rows[0].name as string;
+
+    await db.execute({
+      sql: "DELETE FROM branches WHERE id = ?",
+      args: [branchId]
+    });
+
+    // Log Activity
+    await db.execute({
+      sql: "INSERT INTO activity_logs (username, action, details) VALUES (?, ?, ?)",
+      args: [
+        req.user?.username || 'unknown',
+        "Delete Branch",
+        `Deleted academic department/branch: ${branchName}`
+      ]
+    });
+
+    res.status(200).json({ success: true, message: `Successfully deleted branch: ${branchName}` });
+  } catch (error: any) {
+    console.error("Delete branch error:", error);
+    res.status(500).json({ error: "Internal server error while deleting branch." });
   }
 });
 

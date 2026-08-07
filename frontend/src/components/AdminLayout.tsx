@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Users, ArrowLeft, LogOut, Sparkles, Calendar, ClipboardList } from 'lucide-react';
+import { Users, ArrowLeft, LogOut, Sparkles, Calendar, ClipboardList, Layers } from 'lucide-react';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -61,6 +61,11 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
             <span>Manage Events</span>
           </Link>
 
+          <Link to="/admin/branches" className={`admin-nav-item ${isActive('/admin/branches')}`}>
+            <Layers size={18} />
+            <span>Manage Branches</span>
+          </Link>
+
           {(role === 'developer' || role === 'superadmin') && (
             <Link to="/admin/users" className={`admin-nav-item ${isActive('/admin/users')}`}>
               <Users size={18} />
@@ -107,6 +112,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
                 ? 'Manage Technical Events'
                 : location.pathname === '/admin/events/create'
                 ? 'Create Technical Event'
+                : location.pathname === '/admin/branches'
+                ? 'Manage Branches & Departments'
                 : location.pathname === '/admin/users/create'
                 ? 'Create Administrator Account'
                 : 'Admin Accounts Console'}

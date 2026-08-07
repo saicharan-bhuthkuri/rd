@@ -30,6 +30,7 @@ export const ApplyPage: React.FC = () => {
 
   const [eventsList, setEventsList] = useState<string[]>([]);
   const [isLoadingEvents, setIsLoadingEvents] = useState(true);
+  const [branchesList, setBranchesList] = useState<string[]>([]);
 
   const handleBackToHome = () => {
     window.location.href = '/';
@@ -60,7 +61,21 @@ export const ApplyPage: React.FC = () => {
       }
     };
 
+    const fetchBranches = async () => {
+      try {
+        const response = await fetch('http://localhost:5000/api/branches');
+        if (response.ok) {
+          const data = await response.json();
+          const names = data.map((b: any) => b.name);
+          setBranchesList(names);
+        }
+      } catch (err) {
+        console.error("Failed to fetch branches list:", err);
+      }
+    };
+
     fetchEvents();
+    fetchBranches();
   }, [searchParams]);
 
   const handleFormSelect = (type: FormType) => {
@@ -316,14 +331,17 @@ export const ApplyPage: React.FC = () => {
 
                   <div className="form-group">
                     <label htmlFor="branch">Branch / Department <span className="req">*</span></label>
-                    <input
-                      type="text"
+                    <select
                       id="branch"
                       required
-                      placeholder="e.g. CSE, ECE"
                       value={branch}
                       onChange={(e) => setBranch(e.target.value)}
-                    />
+                    >
+                      <option value="">Select Branch / Department</option>
+                      {branchesList.map((b) => (
+                        <option key={b} value={b}>{b}</option>
+                      ))}
+                    </select>
                   </div>
 
                   <div className="form-group">
