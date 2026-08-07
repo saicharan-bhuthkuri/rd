@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Users, ArrowLeft, LogOut, Sparkles, Calendar } from 'lucide-react';
+import { Users, ArrowLeft, LogOut, Sparkles, Calendar, ClipboardList } from 'lucide-react';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -22,6 +22,12 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   };
 
   const isActive = (path: string) => {
+    if (path === '/admin/users') {
+      return location.pathname.startsWith('/admin/users') ? 'active' : '';
+    }
+    if (path === '/admin/events/manage') {
+      return (location.pathname === '/admin/events/manage' || location.pathname === '/admin/events/create') ? 'active' : '';
+    }
     return location.pathname === path ? 'active' : '';
   };
 
@@ -46,8 +52,13 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
           </Link>
 
           <Link to="/admin/events" className={`admin-nav-item ${isActive('/admin/events')}`}>
-            <Calendar size={18} />
+            <ClipboardList size={18} />
             <span>Event Registration</span>
+          </Link>
+
+          <Link to="/admin/events/manage" className={`admin-nav-item ${isActive('/admin/events/manage')}`}>
+            <Calendar size={18} />
+            <span>Manage Events</span>
           </Link>
 
           {(role === 'developer' || role === 'superadmin') && (
@@ -87,7 +98,19 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
       <main className="admin-main">
         <header className="admin-header">
           <div className="admin-header-title">
-            <h2>{location.pathname === '/admin/club' ? 'Club Membership Applications' : location.pathname === '/admin/events' ? 'Event Registration Applications' : 'Admin Accounts Console'}</h2>
+            <h2>
+              {location.pathname === '/admin/club'
+                ? 'Club Membership Applications'
+                : location.pathname === '/admin/events'
+                ? 'Event Registration Applications'
+                : location.pathname === '/admin/events/manage'
+                ? 'Manage Technical Events'
+                : location.pathname === '/admin/events/create'
+                ? 'Create Technical Event'
+                : location.pathname === '/admin/users/create'
+                ? 'Create Administrator Account'
+                : 'Admin Accounts Console'}
+            </h2>
             <p>Role-Based System Access Control Active</p>
           </div>
           <div className="admin-header-actions">

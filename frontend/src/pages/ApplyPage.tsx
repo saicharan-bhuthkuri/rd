@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { ArrowLeft, User, Mail, Phone, GraduationCap, Calendar, Sparkles, Check, Loader2, Code, Users, Server } from 'lucide-react';
 
 type FormType = 'none' | 'join-club' | 'event';
 
 export const ApplyPage: React.FC = () => {
+  const [searchParams] = useSearchParams();
   const [formType, setFormType] = useState<FormType>('none');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -18,7 +20,7 @@ export const ApplyPage: React.FC = () => {
   const [section, setSection] = useState('');
 
   // Event specific fields state
-  const [eventName, setEventName] = useState('Deep Learning Bootcamp: PyTorch Fundamentals');
+  const [eventName, setEventName] = useState('');
   const [notes, setNotes] = useState('');
 
   // Club specific fields state
@@ -26,17 +28,40 @@ export const ApplyPage: React.FC = () => {
   const [skills, setSkills] = useState('');
   const [reasonToJoin, setReasonToJoin] = useState('');
 
-  const eventsList = [
-    "Deep Learning Bootcamp: PyTorch Fundamentals",
-    "R&D AlphaQuest Hackathon",
-    "Zero-Knowledge Proofs in Modern Web Cryptography",
-    "Edge AI: Deploying TinyML on Microcontrollers",
-    "Quantum Compiler Architectures & Optimization"
-  ];
+  const [eventsList, setEventsList] = useState<string[]>([]);
+  const [isLoadingEvents, setIsLoadingEvents] = useState(true);
 
   const handleBackToHome = () => {
     window.location.href = '/';
   };
+
+  useEffect(() => {
+    const fetchEvents = async () => {
+      try {
+        const response = await fetch('http://localhost:5000/api/events');
+        if (response.ok) {
+          const data = await response.json();
+          const titles = data.map((evt: any) => evt.title);
+          setEventsList(titles);
+          
+          // Pre-select the query parameter event if present
+          const eventParam = searchParams.get('event');
+          if (eventParam && titles.includes(eventParam)) {
+            setFormType('event');
+            setEventName(eventParam);
+          } else if (titles.length > 0) {
+            setEventName(titles[0]);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch events list:", err);
+      } finally {
+        setIsLoadingEvents(false);
+      }
+    };
+
+    fetchEvents();
+  }, [searchParams]);
 
   const handleFormSelect = (type: FormType) => {
     setFormType(type);
@@ -49,7 +74,7 @@ export const ApplyPage: React.FC = () => {
     setBranch('');
     setYearOfStudy('');
     setSection('');
-    setEventName(eventsList[0]);
+    setEventName(eventsList.length > 0 ? eventsList[0] : '');
     setNotes('');
     setInterests('');
     setSkills('');
@@ -339,10 +364,17 @@ export const ApplyPage: React.FC = () => {
                           required
                           value={eventName}
                           onChange={(e) => setEventName(e.target.value)}
+                          disabled={isLoadingEvents}
                         >
-                          {eventsList.map((evt, idx) => (
-                            <option key={idx} value={evt}>{evt}</option>
-                          ))}
+                          {isLoadingEvents ? (
+                            <option value="">Loading technical events...</option>
+                          ) : eventsList.length === 0 ? (
+                            <option value="">No events scheduled</option>
+                          ) : (
+                            eventsList.map((evt, idx) => (
+                              <option key={idx} value={evt}>{evt}</option>
+                            ))
+                          )}
                         </select>
                       </div>
 

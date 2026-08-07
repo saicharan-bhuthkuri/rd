@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AdminLayout } from '../components/AdminLayout';
-import { UserPlus, Loader2 } from 'lucide-react';
+import { UserPlus, Loader2, ArrowLeft } from 'lucide-react';
 
 export const AdminCreateUserPage: React.FC = () => {
   const navigate = useNavigate();
@@ -65,10 +65,28 @@ export const AdminCreateUserPage: React.FC = () => {
   return (
     <AdminLayout>
       <div className="card" style={{ maxWidth: '580px', margin: '0 auto' }}>
-        <div className="admin-card-header" style={{ marginBottom: '1.5rem' }}>
-          <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <UserPlus size={20} /> Create New Admin Account
+        <div className="admin-card-header" style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+          <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
+            <UserPlus size={20} /> Create New Admin
           </h2>
+          <button
+            onClick={() => navigate('/admin/users')}
+            className="btn"
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '0.5rem', 
+              background: 'rgba(255, 255, 255, 0.05)', 
+              color: 'var(--text-color, #fff)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              cursor: 'pointer',
+              padding: '0.5rem 1rem',
+              borderRadius: '0.375rem',
+              fontSize: '0.875rem'
+            }}
+          >
+            <ArrowLeft size={16} /> Back to Users
+          </button>
         </div>
 
         {createError && <div className="alert alert-danger">{createError}</div>}

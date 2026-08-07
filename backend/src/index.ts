@@ -130,6 +130,22 @@ async function setupDatabase() {
       );
     `);
 
+    // 6. Events Table
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        category TEXT NOT NULL,
+        title TEXT UNIQUE NOT NULL,
+        description TEXT NOT NULL,
+        date TEXT NOT NULL,
+        time TEXT NOT NULL,
+        location TEXT NOT NULL,
+        speaker TEXT NOT NULL,
+        speaker_bio TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
     // Alter table schemas to add status columns if missing
     try {
       await db.execute(`ALTER TABLE club_applications ADD COLUMN status TEXT DEFAULT 'pending';`);
@@ -168,6 +184,77 @@ async function setupDatabase() {
       console.log("Seeding verification: Super Admin 'akhya' verified/seeded.");
     } catch (e) {
       console.error("Error seeding superadmin:", e);
+    }
+
+    // Seed default events if events table is empty
+    try {
+      const eventsCheck = await db.execute("SELECT count(*) as count FROM events;");
+      const count = Number(eventsCheck.rows[0].count);
+      if (count === 0) {
+        console.log("Seeding default events...");
+        const defaultEvents = [
+          {
+            category: "Workshop",
+            title: "Deep Learning Bootcamp: PyTorch Fundamentals",
+            description: "An intensive workshop focused on building, training, and optimizing deep neural networks using PyTorch. Designed to bootstrap ML research projects.",
+            date: "August 24, 2026",
+            time: "10:00 AM - 4:00 PM IST",
+            location: "R&D Lab 4A, Computing Block",
+            speaker: "Dr. Aravind Swaminathan",
+            speaker_bio: "Dr. Swaminathan is a Senior AI Scientist with over 10 publications in CVPR/ICML, specializing in spatial transformers."
+          },
+          {
+            category: "Hackathon",
+            title: "R&D AlphaQuest Hackathon",
+            description: "Build functional prototypes solving local municipal challenges. Top teams receive direct workspace placement and development funding.",
+            date: "September 11-13, 2026",
+            time: "48 Hours Continuous",
+            location: "Main Innovation Hall & Discord",
+            speaker: "Club Committee Panel",
+            speaker_bio: "Senior committee members and guest engineering mentors from leading deep tech hardware startups."
+          },
+          {
+            category: "Seminar",
+            title: "Zero-Knowledge Proofs in Modern Web Cryptography",
+            description: "An exploratory guest lecture detailing the mathematics behind non-interactive zero-knowledge proofs (zk-SNARKs) and web integration layers.",
+            date: "September 28, 2026",
+            time: "3:00 PM - 5:00 PM IST",
+            location: "Seminar Hall C",
+            speaker: "Prof. Clara Vance",
+            speaker_bio: "Prof. Vance is an associate cryptographer with MIT Labs, researching decentralized public key infrastructures."
+          },
+          {
+            category: "Workshop",
+            title: "Edge AI: Deploying TinyML on Microcontrollers",
+            description: "Learn how to optimize neural networks to run on memory-constrained systems using TensorFlow Lite Micro APIs.",
+            date: "July 12, 2026",
+            time: "11:00 AM - 3:00 PM IST",
+            location: "IoT & Embedded Labs",
+            speaker: "Meera Nair",
+            speaker_bio: "Meera leads the hardware systems division at R&D, designing telemetry platforms for autonomous drones."
+          },
+          {
+            category: "Colloquium",
+            title: "Quantum Compiler Architectures & Optimization",
+            description: "A deep dive into compiling high-level quantum instructions down to pulse-level operations, reducing decoherence effects in NISQ processors.",
+            date: "June 30, 2026",
+            time: "2:00 PM - 4:30 PM IST",
+            location: "Online Seminar",
+            speaker: "Dr. Ethan Brooks",
+            speaker_bio: "Dr. Brooks develops compiler backends for superconducting hardware topologies."
+          }
+        ];
+
+        for (const evt of defaultEvents) {
+          await db.execute({
+            sql: `INSERT OR IGNORE INTO events (category, title, description, date, time, location, speaker, speaker_bio) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            args: [evt.category, evt.title, evt.description, evt.date, evt.time, evt.location, evt.speaker, evt.speaker_bio]
+          });
+        }
+        console.log("Seeding verification: Default events seeded.");
+      }
+    } catch (e) {
+      console.error("Error seeding default events:", e);
     }
 
     console.log("Database tables verified successfully.");
@@ -559,10 +646,102 @@ app.delete('/api/admin/users/:id', authenticateToken, async (req: AuthenticatedR
     console.error("Error deleting user:", err);
     return res.status(500).json({ error: "Failed to delete user account.", details: err.message });
   }
+});// 11. Fetch All Events (Public)
+app.get('/api/events', async (req, res) => {
+  try {
+    const eventsRes = await db.execute("SELECT * FROM events ORDER BY created_at DESC");
+    return res.status(200).json(eventsRes.rows);
+  } catch (err: any) {
+    console.error("Error fetching events:", err);
+    return res.status(500).json({ error: "Failed to list technical events.", details: err.message });
+  }
 });
 
+// 12. Create Event (Requires Admin/Superadmin/Developer privileges)
+app.post('/api/admin/events', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  const { category, title, description, date, time, location, speaker, speakerBio } = req.body;
+  
+  if (!category || !title || !description || !date || !time || !location || !speaker || !speakerBio) {
+    return res.status(400).json({ error: "All fields are required to create an event." });
+  }
 
+  try {
+    // Check if title is unique
+    const titleCheck = await db.execute({
+      sql: "SELECT id FROM events WHERE title = ?",
+      args: [title]
+    });
 
+    if (titleCheck.rows.length > 0) {
+      return res.status(409).json({ error: "An event with this title already exists." });
+    }
+
+    const result = await db.execute({
+      sql: `INSERT INTO events (category, title, description, date, time, location, speaker, speaker_bio) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [category, title, description, date, time, location, speaker, speakerBio]
+    });
+
+    // Log Activity
+    await db.execute({
+      sql: "INSERT INTO activity_logs (username, action, details) VALUES (?, ?, ?)",
+      args: [
+        req.user?.username || 'unknown',
+        "Create Event",
+        `Created event: ${title} (${category}) on date: ${date}`
+      ]
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Event created successfully.",
+      id: Number(result.lastInsertRowid)
+    });
+  } catch (err: any) {
+    console.error("Error creating event:", err);
+    return res.status(500).json({ error: "Failed to create technical event.", details: err.message });
+  }
+});
+
+// 13. Delete Event (Requires Admin/Superadmin/Developer privileges)
+app.delete('/api/admin/events/:id', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  const eventId = req.params.id;
+
+  try {
+    const eventRes = await db.execute({
+      sql: "SELECT title, category FROM events WHERE id = ?",
+      args: [eventId]
+    });
+
+    if (eventRes.rows.length === 0) {
+      return res.status(404).json({ error: "Event record not found." });
+    }
+
+    const targetEvent = eventRes.rows[0];
+
+    await db.execute({
+      sql: "DELETE FROM events WHERE id = ?",
+      args: [eventId]
+    });
+
+    // Log Activity
+    await db.execute({
+      sql: "INSERT INTO activity_logs (username, action, details) VALUES (?, ?, ?)",
+      args: [
+        req.user?.username || 'unknown',
+        "Delete Event",
+        `Deleted event: ${targetEvent.title} (${targetEvent.category})`
+      ]
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Event deleted successfully."
+    });
+  } catch (err: any) {
+    console.error("Error deleting event:", err);
+    return res.status(500).json({ error: "Failed to delete technical event.", details: err.message });
+  }
+});
 // Start the express server
 app.listen(port, async () => {
   console.log(`Server listening on http://localhost:${port}`);

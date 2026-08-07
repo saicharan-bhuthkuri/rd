@@ -25,6 +25,9 @@ import { ApplyPage } from './pages/ApplyPage';
 import { AdminLoginPage } from './pages/AdminLoginPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { AdminUsersPage } from './pages/AdminUsersPage';
+import { AdminCreateUserPage } from './pages/AdminCreateUserPage';
+import { AdminManageEventsPage } from './pages/AdminManageEventsPage';
+import { AdminCreateEventPage } from './pages/AdminCreateEventPage';
 
 
 // Scroll Restoration Hook
@@ -147,6 +150,33 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={['developer', 'superadmin']}>
                 <AdminUsersPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin/users/create"
+            element={
+              <ProtectedRoute allowedRoles={['developer', 'superadmin']}>
+                <AdminCreateUserPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin/events/manage"
+            element={
+              <ProtectedRoute>
+                <AdminManageEventsPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin/events/create"
+            element={
+              <ProtectedRoute>
+                <AdminCreateEventPage />
               </ProtectedRoute>
             }
           />
