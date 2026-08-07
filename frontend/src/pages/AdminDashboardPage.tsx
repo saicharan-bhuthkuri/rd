@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { AdminLayout } from '../components/AdminLayout';
-import { Download, Check, X, Layers, Calendar } from 'lucide-react';
+import { Download, Check, X, Layers, Calendar, Mail, Loader2 } from 'lucide-react';
 
 interface ClubApplication {
   id: number;
@@ -89,6 +89,229 @@ export const AdminDashboardPage: React.FC = () => {
   useEffect(() => {
     fetchApplications();
   }, []);
+
+  const [isSendingBulk, setIsSendingBulk] = useState(false);
+
+  // Terminal Console Modal States
+  const [isConsoleOpen, setIsConsoleOpen] = useState(false);
+  const [consoleLogs, setConsoleLogs] = useState<string[]>([]);
+  const [consoleProgress, setConsoleProgress] = useState(0);
+  const [consoleStatus, setConsoleStatus] = useState<'idle' | 'running' | 'completed' | 'failed'>('idle');
+  const [consoleTitle, setConsoleTitle] = useState('');
+
+  // Custom Alert / Confirm Dialog Modal States
+  const [dialogConfig, setDialogConfig] = useState<{
+    isOpen: boolean;
+    type: 'alert' | 'confirm';
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    type: 'alert',
+    title: '',
+    message: '',
+    onConfirm: () => {}
+  });
+
+  const showCustomAlert = (title: string, message: string) => {
+    setDialogConfig({
+      isOpen: true,
+      type: 'alert',
+      title,
+      message,
+      onConfirm: () => {}
+    });
+  };
+
+  const showCustomConfirm = (title: string, message: string, onConfirm: () => void) => {
+    setDialogConfig({
+      isOpen: true,
+      type: 'confirm',
+      title,
+      message,
+      onConfirm
+    });
+  };
+
+  const consoleBottomRef = React.useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (isConsoleOpen && consoleBottomRef.current) {
+      consoleBottomRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [consoleLogs, isConsoleOpen]);
+
+  const executeBulkSendOffers = async () => {
+    // Reset console states
+    setConsoleLogs([]);
+    setConsoleProgress(0);
+    setConsoleStatus('running');
+    setConsoleTitle("Bulk Dispatch: Offer Letters");
+    setIsConsoleOpen(true);
+    setIsSendingBulk(true);
+
+    const token = localStorage.getItem('admin_token');
+
+    try {
+      const response = await fetch('http://localhost:5000/api/admin/bulk-send/offers', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to establish stream connection.');
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('Readable stream not supported.');
+      }
+
+      const decoder = new TextDecoder();
+      let partialChunk = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = (partialChunk + chunk).split('\n\n');
+        partialChunk = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.error) {
+                setConsoleLogs(prev => [...prev, `[ERROR] ${data.error}`]);
+                setConsoleStatus('failed');
+              } else {
+                if (data.message) {
+                  setConsoleLogs(prev => [...prev, data.message]);
+                }
+                if (data.progress !== undefined) {
+                  setConsoleProgress(data.progress);
+                }
+                if (data.isDone) {
+                  setConsoleStatus('completed');
+                }
+              }
+            } catch (e) {
+              console.error("JSON parse error on SSE line:", line, e);
+            }
+          }
+        }
+      }
+
+      fetchApplications();
+    } catch (err: any) {
+      setConsoleLogs(prev => [...prev, `[ERROR] ${err.message}`]);
+      setConsoleStatus('failed');
+    } finally {
+      setIsSendingBulk(false);
+    }
+  };
+
+  const handleBulkSendOffers = () => {
+    showCustomConfirm(
+      "Send Offer Letters",
+      "Are you sure you want to generate and email offer letters to all APPROVED student coordinators who haven't received them yet?",
+      executeBulkSendOffers
+    );
+  };
+
+  const executeBulkSendCertificates = async () => {
+    // Reset console states
+    setConsoleLogs([]);
+    setConsoleProgress(0);
+    setConsoleStatus('running');
+    setConsoleTitle(`Bulk Dispatch: ${eventFilter}`);
+    setIsConsoleOpen(true);
+    setIsSendingBulk(true);
+
+    const token = localStorage.getItem('admin_token');
+
+    try {
+      const response = await fetch('http://localhost:5000/api/admin/bulk-send/certificates', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ eventTitle: eventFilter })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to establish stream connection.');
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('Readable stream not supported.');
+      }
+
+      const decoder = new TextDecoder();
+      let partialChunk = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = (partialChunk + chunk).split('\n\n');
+        partialChunk = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.error) {
+                setConsoleLogs(prev => [...prev, `[ERROR] ${data.error}`]);
+                setConsoleStatus('failed');
+              } else {
+                if (data.message) {
+                  setConsoleLogs(prev => [...prev, data.message]);
+                }
+                if (data.progress !== undefined) {
+                  setConsoleProgress(data.progress);
+                }
+                if (data.isDone) {
+                  setConsoleStatus('completed');
+                }
+              }
+            } catch (e) {
+              console.error("JSON parse error on SSE line:", line, e);
+            }
+          }
+        }
+      }
+
+      fetchApplications();
+    } catch (err: any) {
+      setConsoleLogs(prev => [...prev, `[ERROR] ${err.message}`]);
+      setConsoleStatus('failed');
+    } finally {
+      setIsSendingBulk(false);
+    }
+  };
+
+  const handleBulkSendCertificates = () => {
+    if (eventFilter === 'all') {
+      showCustomAlert(
+        "Event Selection Required",
+        "Please select a specific event from the event filter dropdown next to the search bar before sending certificates."
+      );
+      return;
+    }
+
+    showCustomConfirm(
+      "Send Certificates",
+      `Are you sure you want to generate and email participation certificates to all APPROVED registrants of "${eventFilter}"?`,
+      executeBulkSendCertificates
+    );
+  };
 
   // Update status action
   const handleUpdateStatus = async (type: 'club' | 'event', id: number, status: 'approved' | 'rejected') => {
@@ -315,10 +538,56 @@ export const AdminDashboardPage: React.FC = () => {
           )}
         </div>
 
-        <button onClick={handleExportCSV} className="admin-btn-export">
-          <Download size={16} />
-          <span>Export CSV</span>
-        </button>
+        <div className="admin-dashboard-actions" style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          {activeTab === 'club' ? (
+            <button 
+              onClick={handleBulkSendOffers} 
+              disabled={isSendingBulk}
+              className="btn btn-primary"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', padding: '0.575rem 1rem', borderRadius: '0.375rem', cursor: 'pointer' }}
+            >
+              {isSendingBulk ? (
+                <>
+                  <Loader2 className="spinner-icon" size={16} /> Processing Dispatch...
+                </>
+              ) : (
+                <>
+                  <Mail size={16} /> Bulk Send Offer Letters
+                </>
+              )}
+            </button>
+          ) : (
+            <button 
+              onClick={handleBulkSendCertificates} 
+              disabled={isSendingBulk}
+              className="btn btn-primary"
+              style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '0.5rem', 
+                fontSize: '0.875rem', 
+                padding: '0.575rem 1rem', 
+                borderRadius: '0.375rem', 
+                cursor: 'pointer'
+              }}
+            >
+              {isSendingBulk ? (
+                <>
+                  <Loader2 className="spinner-icon" size={16} /> Processing Dispatch...
+                </>
+              ) : (
+                <>
+                  <Mail size={16} /> Bulk Send Certificates
+                </>
+              )}
+            </button>
+          )}
+
+          <button onClick={handleExportCSV} className="admin-btn-export" style={{ height: '38px', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Download size={16} />
+            <span>Export CSV</span>
+          </button>
+        </div>
       </div>
 
       {/* Submissions Grid Table */}
@@ -469,6 +738,248 @@ export const AdminDashboardPage: React.FC = () => {
               )}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Light-themed Terminal Modal */}
+      {isConsoleOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.3)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000,
+          padding: '1.5rem'
+        }}>
+          <div className="card" style={{
+            width: '100%',
+            maxWidth: '640px',
+            boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)',
+            padding: 0,
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            maxHeight: '85vh',
+            border: '1px solid var(--border)'
+          }}>
+            {/* Terminal Header Chrome */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '0.75rem 1.25rem',
+              background: '#f1f5f9',
+              borderBottom: '1px solid var(--border)'
+            }}>
+              <div style={{ display: 'flex', gap: '0.375rem', alignItems: 'center' }}>
+                <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#ef4444', display: 'inline-block' }}></span>
+                <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#eab308', display: 'inline-block' }}></span>
+                <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#22c55e', display: 'inline-block' }}></span>
+              </div>
+              
+              <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-main)', fontFamily: 'monospace' }}>
+                {consoleTitle}
+              </span>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span className="live-indicator" style={{ margin: 0, fontSize: '0.75rem', padding: '0.125rem 0.5rem' }}>
+                  <span className={consoleStatus === 'running' ? "pulse" : ""} style={{ backgroundColor: consoleStatus === 'completed' ? '#22c55e' : consoleStatus === 'failed' ? '#ef4444' : '#64748b' }}></span>
+                  <span style={{ textTransform: 'capitalize', fontWeight: 500 }}>{consoleStatus}</span>
+                </span>
+              </div>
+            </div>
+
+            {/* Terminal Console Logs */}
+            <div style={{
+              flex: 1,
+              overflowY: 'auto',
+              background: '#f8fafc',
+              padding: '1.25rem',
+              fontFamily: 'Consolas, Monaco, "Courier New", Courier, monospace',
+              fontSize: '0.875rem',
+              lineHeight: 1.6,
+              color: '#334155',
+              maxHeight: '360px',
+              minHeight: '220px',
+              textAlign: 'left'
+            }}>
+              {consoleLogs.length === 0 && (
+                <div style={{ color: '#94a3b8' }}>Establishing dispatch pipeline connection...</div>
+              )}
+              {consoleLogs.map((log, index) => {
+                const isError = log.startsWith('[ERROR]');
+                const isNameOrEmail = log.startsWith('Name:') || log.startsWith('Email:');
+                const isSuccess = log.includes('successfully') || log.includes('completed');
+                
+                let textColor = '#334155';
+                if (isError) textColor = '#ef4444';
+                else if (isNameOrEmail) textColor = '#0284c7';
+                else if (isSuccess) textColor = '#16a34a';
+
+                return (
+                  <div key={index} style={{ color: textColor, paddingBottom: '2px' }}>
+                    {log}
+                  </div>
+                );
+              })}
+              <div ref={consoleBottomRef} />
+            </div>
+
+            {/* Progress Bar Container */}
+            <div style={{ padding: '1.25rem', borderTop: '1px solid var(--border)', background: '#fff' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', fontWeight: 500 }}>
+                <span>Transmission Progress</span>
+                <span>{consoleProgress}%</span>
+              </div>
+              <div style={{
+                width: '100%',
+                height: '8px',
+                borderRadius: '9999px',
+                backgroundColor: '#e2e8f0',
+                overflow: 'hidden'
+              }}>
+                <div style={{
+                  width: `${consoleProgress}%`,
+                  height: '100%',
+                  background: 'linear-gradient(90deg, #10b981 0%, #059669 100%)',
+                  borderRadius: '9999px',
+                  transition: 'width 0.4s ease-out'
+                }} />
+              </div>
+            </div>
+
+            {/* Action Bar Footer */}
+            <div style={{
+              padding: '0.875rem 1.25rem',
+              backgroundColor: '#f8fafc',
+              borderTop: '1px solid var(--border)',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '0.5rem'
+            }}>
+              <button
+                onClick={() => {
+                  setIsConsoleOpen(false);
+                  setConsoleLogs([]);
+                  setConsoleProgress(0);
+                  setConsoleStatus('idle');
+                }}
+                disabled={consoleStatus === 'running'}
+                className="btn btn-primary"
+                style={{
+                  padding: '0.5rem 1.25rem',
+                  fontSize: '0.875rem',
+                  borderRadius: '0.375rem',
+                  cursor: consoleStatus === 'running' ? 'not-allowed' : 'pointer',
+                  opacity: consoleStatus === 'running' ? 0.6 : 1
+                }}
+              >
+                Close Monitor
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Alert/Confirm Modal Dialog */}
+      {dialogConfig.isOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.3)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1100,
+          padding: '1.5rem'
+        }}>
+          <div className="card" style={{
+            width: '100%',
+            maxWidth: '440px',
+            boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)',
+            padding: '1.5rem',
+            borderRadius: '0.75rem',
+            border: '1px solid var(--border)',
+            background: '#fff',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1rem'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <div style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '50%',
+                backgroundColor: dialogConfig.type === 'confirm' ? '#e0f2fe' : '#fef3c7',
+                color: dialogConfig.type === 'confirm' ? '#0284c7' : '#d97706',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0
+              }}>
+                <Mail size={20} />
+              </div>
+              <h3 style={{ margin: 0, fontSize: '1.125rem', fontWeight: 600, color: 'var(--text-main)' }}>
+                {dialogConfig.title}
+              </h3>
+            </div>
+
+            <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-secondary)', lineHeight: 1.5, textAlign: 'left' }}>
+              {dialogConfig.message}
+            </p>
+
+            <div style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '0.5rem',
+              marginTop: '0.5rem'
+            }}>
+              {dialogConfig.type === 'confirm' && (
+                <button
+                  onClick={() => setDialogConfig(prev => ({ ...prev, isOpen: false }))}
+                  className="btn"
+                  style={{
+                    padding: '0.5rem 1.25rem',
+                    fontSize: '0.875rem',
+                    borderRadius: '0.375rem',
+                    cursor: 'pointer',
+                    background: 'rgba(0,0,0,0.05)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--text-main)'
+                  }}
+                >
+                  Cancel
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  setDialogConfig(prev => ({ ...prev, isOpen: false }));
+                  if (dialogConfig.type === 'confirm') {
+                    dialogConfig.onConfirm();
+                  }
+                }}
+                className="btn btn-primary"
+                style={{
+                  padding: '0.5rem 1.25rem',
+                  fontSize: '0.875rem',
+                  borderRadius: '0.375rem',
+                  cursor: 'pointer'
+                }}
+              >
+                {dialogConfig.type === 'confirm' ? 'Confirm' : 'OK'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </AdminLayout>

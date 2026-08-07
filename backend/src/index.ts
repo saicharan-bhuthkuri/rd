@@ -4,6 +4,11 @@ import dotenv from 'dotenv';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { createClient } from '@libsql/client';
+import fs from 'fs';
+import path from 'path';
+import { execSync } from 'child_process';
+import nodemailer from 'nodemailer';
+import PizZip from 'pizzip';
 
 // Initialize env
 dotenv.config();
@@ -146,6 +151,16 @@ async function setupDatabase() {
       );
     `);
 
+    // 7. Templates Table
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS templates (
+        name TEXT PRIMARY KEY,
+        filename TEXT NOT NULL,
+        data_base64 TEXT NOT NULL,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
     // Alter table schemas to add status columns if missing
     try {
       await db.execute(`ALTER TABLE club_applications ADD COLUMN status TEXT DEFAULT 'pending';`);
@@ -157,6 +172,20 @@ async function setupDatabase() {
     try {
       await db.execute(`ALTER TABLE event_registrations ADD COLUMN status TEXT DEFAULT 'pending';`);
       console.log("Database verification: status column verified/added to event_registrations.");
+    } catch (e) {
+      // Column already exists, ignore
+    }
+
+    try {
+      await db.execute(`ALTER TABLE club_applications ADD COLUMN offer_sent INTEGER DEFAULT 0;`);
+      console.log("Database verification: offer_sent column verified/added to club_applications.");
+    } catch (e) {
+      // Column already exists, ignore
+    }
+
+    try {
+      await db.execute(`ALTER TABLE event_registrations ADD COLUMN certificate_sent INTEGER DEFAULT 0;`);
+      console.log("Database verification: certificate_sent column verified/added to event_registrations.");
     } catch (e) {
       // Column already exists, ignore
     }
@@ -255,6 +284,53 @@ async function setupDatabase() {
       }
     } catch (e) {
       console.error("Error seeding default events:", e);
+    }
+
+    // Seed templates if missing
+    try {
+      // 1. Offer Letter Template
+      const offerCheck = await db.execute({
+        sql: "SELECT count(*) as count FROM templates WHERE name = ?",
+        args: ["offer_letter"]
+      });
+      if (Number(offerCheck.rows[0].count) === 0) {
+        const filePath = path.join(process.cwd(), '../OFFER LETTER (1).pptx');
+        if (fs.existsSync(filePath)) {
+          console.log("Seeding 'offer_letter' template into database...");
+          const fileData = fs.readFileSync(filePath);
+          const base64 = fileData.toString('base64');
+          await db.execute({
+            sql: "INSERT INTO templates (name, filename, data_base64) VALUES (?, ?, ?)",
+            args: ["offer_letter", "OFFER LETTER (1).pptx", base64]
+          });
+          console.log("Template 'offer_letter' seeded successfully.");
+        } else {
+          console.warn(`Warning: Template file not found at ${filePath}. Skipping seeding.`);
+        }
+      }
+
+      // 2. Certificate Template
+      const certCheck = await db.execute({
+        sql: "SELECT count(*) as count FROM templates WHERE name = ?",
+        args: ["certificate"]
+      });
+      if (Number(certCheck.rows[0].count) === 0) {
+        const filePath = path.join(process.cwd(), '../CERTIFICATE_TEMPLATE.pptx');
+        if (fs.existsSync(filePath)) {
+          console.log("Seeding 'certificate' template into database...");
+          const fileData = fs.readFileSync(filePath);
+          const base64 = fileData.toString('base64');
+          await db.execute({
+            sql: "INSERT INTO templates (name, filename, data_base64) VALUES (?, ?, ?)",
+            args: ["certificate", "CERTIFICATE_TEMPLATE.pptx", base64]
+          });
+          console.log("Template 'certificate' seeded successfully.");
+        } else {
+          console.warn(`Warning: Template file not found at ${filePath}. Skipping seeding.`);
+        }
+      }
+    } catch (e: any) {
+      console.error("Error seeding templates:", e.message);
     }
 
     console.log("Database tables verified successfully.");
@@ -742,6 +818,421 @@ app.delete('/api/admin/events/:id', authenticateToken, async (req: Authenticated
     return res.status(500).json({ error: "Failed to delete technical event.", details: err.message });
   }
 });
+const SENDER_EMAIL = 'recruitmentrd6@gmail.com';
+const SENDER_PASSWORD = 'kohmtlqkeezrbewz';
+
+const transporter = nodemailer.createTransport({
+  host: 'smtp.gmail.com',
+  port: 465,
+  secure: true,
+  auth: {
+    user: SENDER_EMAIL,
+    pass: SENDER_PASSWORD.replace(/\s+/g, '')
+  }
+});
+
+// XML-aware text replacement inside PPTX files
+function replacePlaceholdersInPptx(templateBuffer: Buffer, outputPath: string, replacements: Record<string, string>) {
+  const zip = new PizZip(templateBuffer);
+
+  Object.keys(zip.files).forEach((filename) => {
+    if (filename.startsWith('ppt/slides/slide') && filename.endsWith('.xml')) {
+      const fileObj = zip.file(filename);
+      if (fileObj) {
+        let slideXml = fileObj.asText();
+
+        // Rule: Disable word wrapping specifically for the shape containing Date placeholders
+        slideXml = slideXml.replace(
+          /(<p:sp\b[^>]*>(?:(?!<\/p:sp>).)*?{{D(?:ate|ata)}}(?:(?!<\/p:sp>).)*?<\/p:sp>)/gs,
+          (spMatch) => {
+            return spMatch.replace(/<a:bodyPr\b([^>]*)>/g, (m, attrs) => {
+              if (attrs.includes('wrap=')) {
+                return `<a:bodyPr ${attrs.replace(/wrap="[^"]*"/, 'wrap="none"')}>`;
+              }
+              return `<a:bodyPr ${attrs} wrap="none">`;
+            });
+          }
+        );
+
+        // Perform placeholder replacements
+        Object.entries(replacements).forEach(([key, val]) => {
+          // Escaping HTML/XML special characters
+          const safeValue = String(val)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+          const xmlKey = key
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+            
+          const keysToTry = Array.from(new Set([key, xmlKey]));
+
+          keysToTry.forEach((k) => {
+            // Allow PowerPoint XML tags inside the placeholder characters
+            const keyChars = k.split('');
+            const regexPattern = keyChars
+              .map((c) => c.replace(/[{}[\]\\^$.|?*+()]/g, '\\$&'))
+              .join('(?:<[^>]+>)*');
+
+            const flexRegex = new RegExp(regexPattern, 'g');
+            slideXml = slideXml.replace(flexRegex, safeValue);
+          });
+        });
+
+        zip.file(filename, slideXml);
+      }
+    }
+  });
+
+  const buffer = zip.generate({ type: 'nodebuffer' });
+  fs.writeFileSync(outputPath, buffer);
+}
+
+// Convert PPTX to PDF using native Windows PowerPoint COM
+function convertPptxToPdf(inputPptxPath: string, outputPdfPath: string) {
+  const absInput = path.resolve(inputPptxPath);
+  const absOutput = path.resolve(outputPdfPath);
+
+  const escapedInput = absInput.replace(/\\/g, '\\\\');
+  const escapedOutput = absOutput.replace(/\\/g, '\\\\');
+
+  const psCommand = `
+    $PowerPoint = New-Object -ComObject PowerPoint.Application;
+    $Presentation = $PowerPoint.Presentations.Open('${escapedInput}');
+    $Presentation.SaveAs('${escapedOutput}', 32);
+    $Presentation.Close();
+    $PowerPoint.Quit();
+  `;
+
+  execSync(`powershell -Command "${psCommand.replace(/\n/g, ' ')}"`);
+}
+
+// 14. Bulk Send Offer Letters to Approved Coordinators
+app.post('/api/admin/bulk-send/offers', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  const sendLog = (message: string, progress: number, isDone = false) => {
+    res.write(`data: ${JSON.stringify({ message, progress, isDone })}\n\n`);
+  };
+
+  try {
+    sendLog("Initializing email service...", 5);
+    
+    // 1. Fetch template from DB
+    const templateRes = await db.execute({
+      sql: "SELECT data_base64 FROM templates WHERE name = ?",
+      args: ["offer_letter"]
+    });
+
+    if (templateRes.rows.length === 0) {
+      res.write(`data: ${JSON.stringify({ error: "Offer letter template not found in database." })}\n\n`);
+      res.end();
+      return;
+    }
+
+    const templateBase64 = templateRes.rows[0].data_base64 as string;
+    const templateBuffer = Buffer.from(templateBase64, 'base64');
+
+    sendLog("Fetching recipient details...", 10);
+
+    // 2. Fetch approved, unsent applications
+    const appsRes = await db.execute("SELECT * FROM club_applications WHERE status = 'approved' AND (offer_sent = 0 OR offer_sent IS NULL)");
+    const approvedApps = appsRes.rows;
+
+    if (approvedApps.length === 0) {
+      sendLog("No pending approved student coordinator records found.", 100, true);
+      res.end();
+      return;
+    }
+
+    sendLog(`Found ${approvedApps.length} approved coordinators pending offer letters. Starting bulk dispatch...`, 15);
+
+    let successCount = 0;
+    const today = new Date();
+    const dd = String(today.getDate()).padStart(2, '0');
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const yyyy = today.getFullYear();
+    const TODAY_DATE = `${dd}-${mm}-${yyyy}`;
+
+    for (let idx = 0; idx < approvedApps.length; idx++) {
+      const app = approvedApps[idx];
+      const studentName = app.full_name as string;
+      const recipientEmail = app.email as string;
+      const id = app.id as number;
+      const branch = app.branch as string;
+      const year = app.year_of_study as string;
+      
+      const refNo = `R&D/COORD/OFFER/2026-2027/${String(id).padStart(3, '0')}`;
+      const yearBranch = `${year} & ${branch}`;
+      const deptName = branch;
+
+      const safeName = studentName.replace(/[^a-zA-Z0-9_\s]/g, '').trim();
+      const tempPptx = path.join(process.cwd(), `Temp_Offer_${safeName}_${id}.pptx`);
+      const pdfFilename = path.join(process.cwd(), `Offer_Letter_${safeName}_${id}.pdf`);
+
+      const progressVal = Math.floor(15 + (idx / approvedApps.length) * 80);
+
+      sendLog(`Name: ${studentName}`, progressVal);
+      sendLog(`Email: ${recipientEmail}`, progressVal);
+      sendLog(`Sending email (${idx + 1}/${approvedApps.length})...`, progressVal);
+
+      const replacements = {
+        '{{R&D/COORD/OFFER/2026-2027/001}}': refNo,
+        '{{Year & Branch}}': yearBranch,
+        '{{Department Name}}': deptName,
+        '{{Student Name}}': studentName,
+        '{{Data}}': TODAY_DATE,
+        '{{Date}}': TODAY_DATE,
+        'R&D/COORD/OFFER/2026-2027/001': refNo,
+        '[Year & Branch]': yearBranch,
+        '[Department Name]': deptName,
+        '[Student Name]': studentName
+      };
+
+      try {
+        // Step 1: Replace placeholders and write temp pptx
+        replacePlaceholdersInPptx(templateBuffer, tempPptx, replacements);
+
+        // Step 2: Convert to PDF
+        convertPptxToPdf(tempPptx, pdfFilename);
+
+        // Step 3: Compose mail
+        const mailOptions = {
+          from: SENDER_EMAIL,
+          to: recipientEmail,
+          subject: `Offer of Appointment – Student Coordinator (R&D Cell) | ${studentName}`,
+          text: `Dear ${studentName},
+
+Congratulations!
+
+The Research & Development (R&D) Cell of Trinity College of Engineering & Technology (Autonomous), Peddapalli, is pleased to offer you the role of Student Coordinator – ${deptName || yearBranch} for the academic year 2026–2027.
+
+Please find attached your official offer letter (Offer_Letter_${safeName}.pdf).
+
+We look forward to your active participation in building a vibrant research culture in our institution.
+
+Best regards,
+
+Dr. Mani Ganesh / Dr. Vootla Ashok Kumar
+R&D Cell
+Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
+          attachments: [
+            {
+              filename: `Offer_Letter_${safeName}.pdf`,
+              path: pdfFilename
+            }
+          ]
+        };
+
+        // Step 4: Send mail
+        await transporter.sendMail(mailOptions);
+        sendLog("Email sent successfully.", progressVal);
+
+        sendLog("Updating database...", progressVal);
+        // Step 5: Update DB
+        await db.execute({
+          sql: "UPDATE club_applications SET offer_sent = 1 WHERE id = ?",
+          args: [id]
+        });
+
+        // Log Activity
+        await db.execute({
+          sql: "INSERT INTO activity_logs (username, action, details) VALUES (?, ?, ?)",
+          args: [
+            req.user?.username || 'unknown',
+            "Send Offer Letter",
+            `Emailed Club Offer Letter to: ${studentName} (${recipientEmail})`
+          ]
+        });
+
+        successCount++;
+      } catch (err: any) {
+        console.error(`Failed to process offer for ${studentName}:`, err.message);
+        sendLog(`Failed: ${err.message}`, progressVal);
+      } finally {
+        // Cleanup temp files
+        if (fs.existsSync(tempPptx)) fs.unlinkSync(tempPptx);
+        if (fs.existsSync(pdfFilename)) fs.unlinkSync(pdfFilename);
+      }
+    }
+
+    sendLog(`Successfully sent ${successCount} offer letters.`, 95);
+    sendLog("Process completed successfully.", 100, true);
+    res.end();
+  } catch (err: any) {
+    console.error("Bulk offers error:", err);
+    res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+    res.end();
+  }
+});
+
+// 15. Bulk Send Certificates to Approved Event Registrants
+app.post('/api/admin/bulk-send/certificates', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  const { eventTitle } = req.body;
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  const sendLog = (message: string, progress: number, isDone = false) => {
+    res.write(`data: ${JSON.stringify({ message, progress, isDone })}\n\n`);
+  };
+
+  if (!eventTitle) {
+    res.write(`data: ${JSON.stringify({ error: "Event title is required for generating certificates." })}\n\n`);
+    res.end();
+    return;
+  }
+
+  try {
+    sendLog("Initializing email service...", 5);
+    
+    // 1. Fetch template from DB
+    const templateRes = await db.execute({
+      sql: "SELECT data_base64 FROM templates WHERE name = ?",
+      args: ["certificate"]
+    });
+
+    if (templateRes.rows.length === 0) {
+      res.write(`data: ${JSON.stringify({ error: "Certificate template not found in database." })}\n\n`);
+      res.end();
+      return;
+    }
+
+    const templateBase64 = templateRes.rows[0].data_base64 as string;
+    const templateBuffer = Buffer.from(templateBase64, 'base64');
+
+    // 2. Fetch event details from DB
+    const eventRes = await db.execute({
+      sql: "SELECT date FROM events WHERE title = ?",
+      args: [eventTitle]
+    });
+
+    const eventDate = eventRes.rows.length > 0 ? eventRes.rows[0].date as string : '03 August 2026';
+
+    sendLog("Fetching recipient details...", 10);
+
+    // 3. Fetch approved, unsent registrations
+    const regsRes = await db.execute({
+      sql: "SELECT * FROM event_registrations WHERE event_name = ? AND status = 'approved' AND (certificate_sent = 0 OR certificate_sent IS NULL)",
+      args: [eventTitle]
+    });
+    const registrations = regsRes.rows;
+
+    if (registrations.length === 0) {
+      sendLog(`No approved registrations pending certificates found for: ${eventTitle}.`, 100, true);
+      res.end();
+      return;
+    }
+
+    sendLog(`Found ${registrations.length} approved attendees pending certificates. Starting bulk dispatch...`, 15);
+
+    let successCount = 0;
+
+    for (let idx = 0; idx < registrations.length; idx++) {
+      const reg = registrations[idx];
+      const studentName = reg.full_name as string;
+      const recipientEmail = reg.email as string;
+      const id = reg.id as number;
+
+      const safeName = studentName.replace(/[^a-zA-Z0-9_\s]/g, '').trim();
+      const tempPptx = path.join(process.cwd(), `Temp_Cert_${safeName}_${id}.pptx`);
+      const pdfFilename = path.join(process.cwd(), `Certificate_${safeName}_${id}.pdf`);
+
+      const progressVal = Math.floor(15 + (idx / registrations.length) * 80);
+
+      sendLog(`Name: ${studentName}`, progressVal);
+      sendLog(`Email: ${recipientEmail}`, progressVal);
+      sendLog(`Sending email (${idx + 1}/${registrations.length})...`, progressVal);
+
+      const replacements = {
+        '{{PARTICIPANT NAME}}': studentName,
+        '{{EVENT NAME}}': eventTitle,
+        '{{DATE}}': eventDate,
+        '[[PARTICIPANT NAME]]': studentName,
+        '[[EVENT NAME]]': eventTitle,
+        '[[DATE]]': eventDate
+      };
+
+      try {
+        // Step 1: Replace placeholders and write temp pptx
+        replacePlaceholdersInPptx(templateBuffer, tempPptx, replacements);
+
+        // Step 2: Convert to PDF
+        convertPptxToPdf(tempPptx, pdfFilename);
+
+        // Step 3: Compose mail
+        const mailOptions = {
+          from: SENDER_EMAIL,
+          to: recipientEmail,
+          subject: 'Certificate of Participation | Trinity College of Engineering & Technology',
+          text: `Dear ${studentName},
+
+Thank you for your enthusiastic participation in the ${eventTitle} held on ${eventDate} organized by Trinity College of Engineering and Technology, Peddapalli.
+
+Please find attached your Certificate of Participation (Certificate_${safeName}.pdf).
+
+We appreciate your innovative thinking and research efforts, and wish you continued success in your academic and professional endeavors.
+
+Best regards,
+
+R&D Cell
+Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
+          attachments: [
+            {
+              filename: `Certificate_${safeName}.pdf`,
+              path: pdfFilename
+            }
+          ]
+        };
+
+        // Step 4: Send mail
+        await transporter.sendMail(mailOptions);
+        sendLog("Email sent successfully.", progressVal);
+
+        sendLog("Updating database...", progressVal);
+        // Step 5: Update DB
+        await db.execute({
+          sql: "UPDATE event_registrations SET certificate_sent = 1 WHERE id = ?",
+          args: [id]
+        });
+
+        // Log Activity
+        await db.execute({
+          sql: "INSERT INTO activity_logs (username, action, details) VALUES (?, ?, ?)",
+          args: [
+            req.user?.username || 'unknown',
+            "Send Certificate",
+            `Emailed Event Certificate for "${eventTitle}" to: ${studentName} (${recipientEmail})`
+          ]
+        });
+
+        successCount++;
+      } catch (err: any) {
+        console.error(`Failed to process certificate for ${studentName}:`, err.message);
+        sendLog(`Failed: ${err.message}`, progressVal);
+      } finally {
+        // Cleanup temp files
+        if (fs.existsSync(tempPptx)) fs.unlinkSync(tempPptx);
+        if (fs.existsSync(pdfFilename)) fs.unlinkSync(pdfFilename);
+      }
+    }
+
+    sendLog(`Successfully sent ${successCount} participation certificates.`, 95);
+    sendLog("Process completed successfully.", 100, true);
+    res.end();
+  } catch (err: any) {
+    console.error("Bulk certificates error:", err);
+    res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+    res.end();
+  }
+});
+
 // Start the express server
 app.listen(port, async () => {
   console.log(`Server listening on http://localhost:${port}`);
