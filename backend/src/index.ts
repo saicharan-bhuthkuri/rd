@@ -1532,6 +1532,17 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
   }
 });
 
+// Debug route to list installed fonts
+app.get('/api/debug-fonts', async (req, res) => {
+  try {
+    const { execSync } = require('child_process');
+    const fonts = execSync('fc-list : family | sort -u').toString();
+    res.type('text/plain').send(fonts);
+  } catch (err: any) {
+    res.status(500).send("Error listing fonts: " + err.message);
+  }
+});
+
 // 16. Get all branches
 app.get('/api/branches', async (req, res) => {
   try {
