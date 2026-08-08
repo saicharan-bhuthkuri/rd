@@ -33,7 +33,7 @@ export const Header: React.FC = () => {
   ];
 
   return (
-    <header className={`header ${isScrolled ? 'header-scrolled' : ''}`}>
+    <header className={`header ${isScrolled ? 'header-scrolled' : ''} ${isMobileMenuOpen ? 'mobile-menu-open' : ''}`}>
       <div className="container header-container">
         {/* Logo */}
         <Link to="/" className="logo-container">

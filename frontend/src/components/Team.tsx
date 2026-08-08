@@ -42,71 +42,58 @@ interface TeamProps {
 export const Team: React.FC<TeamProps> = ({ isOverview }) => {
   const team: Member[] = [
     {
-      name: "Dr. Rachel Green",
-      role: "Faculty Director & Principal Advisor",
+      name: "Dr. Ashok Kumar Vootla",
+      role: "Chief Coordinator",
       category: "Faculty Advisory",
-      initials: "RG",
-      avatarBg: "linear-gradient(135deg, hsl(238, 83%, 90%) 0%, hsl(238, 83%, 75%) 100%)",
-      focus: "Autonomous Robotics & Edge Inference",
-      linkedin: "#",
-      twitter: "#",
-      mail: "rachel.green@rdclub.edu"
+      initials: "AV",
+      avatarBg: "linear-gradient(135deg, hsl(210, 100%, 90%) 0%, hsl(210, 100%, 75%) 100%)",
+      focus: "Institutional R&D & Strategy Coordination",
+      mail: "ashok.vootla@rdclub.edu"
     },
     {
-      name: "Dr. Marcus Vance",
-      role: "Research Advisor",
+      name: "Kasarapu Ashok",
+      role: "Coordinator",
       category: "Faculty Advisory",
-      initials: "MV",
-      avatarBg: "linear-gradient(135deg, hsl(160, 84%, 90%) 0%, hsl(160, 84%, 75%) 100%)",
-      focus: "Quantum Information Theory & Security",
-      linkedin: "#",
-      mail: "marcus.vance@rdclub.edu"
+      initials: "KA",
+      avatarBg: "linear-gradient(135deg, hsl(140, 70%, 90%) 0%, hsl(140, 70%, 75%) 100%)",
+      focus: "Program Management & Operations",
+      mail: "kasarapu.ashok@rdclub.edu"
     },
     {
-      name: "Siddharth Sen",
-      role: "Club President & AI Lead",
+      name: "Gaddam Lakshmi",
+      role: "Faculty & Head of AIML",
+      category: "Faculty Advisory",
+      initials: "GL",
+      avatarBg: "linear-gradient(135deg, hsl(340, 80%, 90%) 0%, hsl(340, 80%, 75%) 100%)",
+      focus: "Machine Learning & Neural Networks",
+      mail: "gaddam.lakshmi@rdclub.edu"
+    },
+    {
+      name: "Syed Khaja Pasha",
+      role: "Faculty",
+      category: "Faculty Advisory",
+      initials: "SP",
+      avatarBg: "linear-gradient(135deg, hsl(280, 80%, 90%) 0%, hsl(280, 80%, 75%) 100%)",
+      focus: "Data Engineering & Systems Architecture",
+      mail: "khaja.pasha@rdclub.edu"
+    },
+    {
+      name: "Prabhakar Parlapalli",
+      role: "HOD of ECE",
+      category: "Faculty Advisory",
+      initials: "PP",
+      avatarBg: "linear-gradient(135deg, hsl(25, 95%, 90%) 0%, hsl(25, 95%, 75%) 100%)",
+      focus: "Embedded Systems & Signal Processing",
+      mail: "prabhakar.p@rdclub.edu"
+    },
+    {
+      name: "Ayhya",
+      role: "Student Coordinator",
       category: "Student Committee",
-      initials: "SS",
+      initials: "AY",
       avatarBg: "linear-gradient(135deg, hsl(271, 91%, 90%) 0%, hsl(271, 91%, 75%) 100%)",
-      focus: "Multi-Agent RL & Spatial NLP Systems",
-      github: "#",
-      linkedin: "#",
-      twitter: "#",
-      mail: "siddharth@rdclub.edu"
-    },
-    {
-      name: "Ananya Deshmukh",
-      role: "Vice President & Cybersecurity Lead",
-      category: "Student Committee",
-      initials: "AD",
-      avatarBg: "linear-gradient(135deg, hsl(38, 92%, 90%) 0%, hsl(38, 92%, 75%) 100%)",
-      focus: "Zero-Knowledge Proofs & Protocol Analysis",
-      github: "#",
-      linkedin: "#",
-      mail: "ananya@rdclub.edu"
-    },
-    {
-      name: "Kabir Mehta",
-      role: "Robotics & Hardware Systems Head",
-      category: "Student Committee",
-      initials: "KM",
-      avatarBg: "linear-gradient(135deg, hsl(329, 86%, 90%) 0%, hsl(329, 86%, 75%) 100%)",
-      focus: "Sensory Integration, ROS2, Rover-X build",
-      github: "#",
-      linkedin: "#",
-      twitter: "#",
-      mail: "kabir@rdclub.edu"
-    },
-    {
-      name: "Elena Rostova",
-      role: "Treasurer & Cloud Architect",
-      category: "Student Committee",
-      initials: "ER",
-      avatarBg: "linear-gradient(135deg, hsl(200, 95%, 90%) 0%, hsl(200, 95%, 75%) 100%)",
-      focus: "High-Availability KV Store & Distributed Consensus",
-      github: "#",
-      linkedin: "#",
-      mail: "elena@rdclub.edu"
+      focus: "Research & Operations Coordination",
+      mail: "ayhya@rdclub.edu"
     }
   ];
 

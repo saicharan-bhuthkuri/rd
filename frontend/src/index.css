@@ -56,6 +56,7 @@
 html {
   scroll-behavior: smooth;
   scroll-padding-top: 5rem;
+  overflow-x: hidden;
 }
 
 body {
@@ -96,6 +97,14 @@ button, input, textarea, select {
 .section {
   padding: 6.5rem 0;
   position: relative;
+  scroll-margin-top: 5.5rem;
+}
+
+@media (max-width: 768px) {
+  .section {
+    padding: 4rem 0;
+    scroll-margin-top: 5rem;
+  }
 }
 
 .section-bg-alt {
@@ -473,8 +482,13 @@ button, input, textarea, select {
   border-top: 1px solid var(--border-light);
 }
 
-.header-scrolled + .mobile-drawer {
+.header-scrolled .mobile-drawer {
   top: 4.5rem;
+}
+
+.header.mobile-menu-open {
+  background-color: var(--bg-card);
+  border-bottom: 1px solid var(--border-light);
 }
 
 .mobile-drawer.open {
@@ -537,6 +551,14 @@ button, input, textarea, select {
   display: flex;
   align-items: center;
   min-height: calc(100vh - 5rem);
+}
+
+@media (max-width: 991px) {
+  .hero-section {
+    display: block;
+    padding: 6.5rem 0 4rem 0;
+    min-height: auto;
+  }
 }
 
 .hero-container {

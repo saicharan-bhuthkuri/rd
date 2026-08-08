@@ -143,6 +143,8 @@ export const Footer: React.FC = () => {
         <div className="container bottom-container">
           <p className="copyright-text">&copy; {new Date().getFullYear()} Research & Development Club. All rights reserved.</p>
           <div className="bottom-links">
+            <a href="https://saivortex.web.app/" target="_blank" rel="noopener noreferrer">Design by saivortex</a>
+            <span className="divider">&middot;</span>
             <a href="#">Privacy Policy</a>
             <span className="divider">&middot;</span>
             <a href="#">Terms of Use</a>

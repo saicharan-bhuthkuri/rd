@@ -21,12 +21,12 @@ export const TeamPage: React.FC = () => {
   };
 
   const members = [
-    { name: "Dr. Rachel Green", role: "Faculty Director & Advisor", initials: "RG", type: "faculty", focus: "Autonomous Vehicles & ROS2", bg: "linear-gradient(135deg, hsl(238, 83%, 90%) 0%, hsl(238, 83%, 75%) 100%)" },
-    { name: "Dr. Marcus Vance", role: "Research Advisor", initials: "MV", type: "faculty", focus: "Quantum Information Systems", bg: "linear-gradient(135deg, hsl(160, 84%, 90%) 0%, hsl(160, 84%, 75%) 100%)" },
-    { name: "Siddharth Sen", role: "Club President & AI Lead", initials: "SS", type: "student", focus: "Generative Models & NLP", bg: "linear-gradient(135deg, hsl(271, 91%, 90%) 0%, hsl(271, 91%, 75%) 100%)" },
-    { name: "Ananya Deshmukh", role: "VP & Cybersecurity Lead", initials: "AD", type: "student", focus: "ZKP Identity Protocols", bg: "linear-gradient(135deg, hsl(38, 92%, 90%) 0%, hsl(38, 92%, 75%) 100%)" },
-    { name: "Kabir Mehta", role: "Hardware Systems Head", initials: "KM", type: "student", focus: "Embedded Telemetry & ROS2", bg: "linear-gradient(135deg, hsl(329, 86%, 90%) 0%, hsl(329, 86%, 75%) 100%)" },
-    { name: "Elena Rostova", role: "Treasurer & Cloud Architect", initials: "ER", type: "student", focus: "Distributed Databases & KV Stores", bg: "linear-gradient(135deg, hsl(200, 95%, 90%) 0%, hsl(200, 95%, 75%) 100%)" }
+    { name: "Dr. Ashok Kumar Vootla", role: "Chief Coordinator", initials: "AV", type: "faculty", focus: "Institutional R&D & Strategy Coordination", bg: "linear-gradient(135deg, hsl(210, 100%, 90%) 0%, hsl(210, 100%, 75%) 100%)" },
+    { name: "Kasarapu Ashok", role: "Coordinator", initials: "KA", type: "faculty", focus: "Program Management & Operations", bg: "linear-gradient(135deg, hsl(140, 70%, 90%) 0%, hsl(140, 70%, 75%) 100%)" },
+    { name: "Gaddam Lakshmi", role: "Faculty & Head of AIML", initials: "GL", type: "faculty", focus: "Machine Learning & Neural Networks", bg: "linear-gradient(135deg, hsl(340, 80%, 90%) 0%, hsl(340, 80%, 75%) 100%)" },
+    { name: "Syed Khaja Pasha", role: "Faculty", initials: "SP", type: "faculty", focus: "Data Engineering & Systems Architecture", bg: "linear-gradient(135deg, hsl(280, 80%, 90%) 0%, hsl(280, 80%, 75%) 100%)" },
+    { name: "Prabhakar Parlapalli", role: "HOD of ECE", initials: "PP", type: "faculty", focus: "Embedded Systems & Signal Processing", bg: "linear-gradient(135deg, hsl(25, 95%, 90%) 0%, hsl(25, 95%, 75%) 100%)" },
+    { name: "Ayhya", role: "Student Coordinator", initials: "AY", type: "student", focus: "Research & Operations Coordination", bg: "linear-gradient(135deg, hsl(271, 91%, 90%) 0%, hsl(271, 91%, 75%) 100%)" }
   ];
 
   const alumni = [
