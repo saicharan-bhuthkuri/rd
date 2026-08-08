@@ -603,7 +603,7 @@ app.get('/api/admin/applications', authenticateToken, async (req: AuthenticatedR
   try {
     const clubRes = await db.execute("SELECT * FROM club_applications ORDER BY created_at DESC");
     const eventRes = await db.execute("SELECT * FROM event_registrations ORDER BY created_at DESC");
-    
+
     return res.status(200).json({
       clubApplications: clubRes.rows,
       eventRegistrations: eventRes.rows
@@ -808,7 +808,7 @@ app.get('/api/events', async (req, res) => {
 // 12. Create Event (Requires Admin/Superadmin/Developer privileges)
 app.post('/api/admin/events', authenticateToken, async (req: AuthenticatedRequest, res) => {
   const { category, title, description, date, time, location, speaker, speakerBio } = req.body;
-  
+
   if (!category || !title || !description || !date || !time || !location || !speaker || !speakerBio) {
     return res.status(400).json({ error: "All fields are required to create an event." });
   }
@@ -920,8 +920,18 @@ function replacePlaceholdersInPptx(templateBuffer: Buffer, outputPath: string, r
 
         // Rule: Disable word wrapping for all shapes EXCEPT the main description/paragraph text shape
         slideXml = slideXml.replace(/<p:sp\b[^>]*>(.*?)<\/p:sp>/gs, (spMatch) => {
-          // Keep wrapping for the description paragraph shape
+          // Keep wrapping for the description paragraph shape, and dynamically adjust its font size if the event title is long
           if (spMatch.includes('participat') || spMatch.includes('congratulat')) {
+            const eventName = replacements['{{EVENT NAME}}'] || replacements['[[EVENT NAME]]'] || '';
+            let targetSz = 1705;
+            if (eventName.length > 35) {
+              targetSz = 1350; // 13.5pt
+            } else if (eventName.length > 20) {
+              targetSz = 1500; // 15pt
+            }
+            if (targetSz !== 1705) {
+              return spMatch.replace(/sz="1705"/g, `sz="${targetSz}"`);
+            }
             return spMatch;
           }
           // For all other shapes, force wrap="none" in <a:bodyPr>
@@ -951,7 +961,7 @@ function replacePlaceholdersInPptx(templateBuffer: Buffer, outputPath: string, r
             .replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;');
-            
+
           const keysToTry = Array.from(new Set([key, xmlKey]));
 
           keysToTry.forEach((k) => {
@@ -965,10 +975,6 @@ function replacePlaceholdersInPptx(templateBuffer: Buffer, outputPath: string, r
             slideXml = slideXml.replace(flexRegex, safeValue);
           });
         });
-
-        // Force font family mappings to match Linux system font registration names
-        slideXml = slideXml.replaceAll('typeface="Bebas Neue Bold"', 'typeface="Bebas Neue"');
-        slideXml = slideXml.replaceAll('typeface="Cardo Bold"', 'typeface="Cardo"');
 
         zip.file(filename, slideXml);
       }
@@ -989,7 +995,7 @@ async function convertPptxToPdf(inputPptxPath: string, outputPdfPath: string): P
   // 1. If on Windows, try Native PowerPoint COM automation first (sequentially using win32Lock)
   if (process.platform === 'win32') {
     const currentLock = win32Lock;
-    let releaseLock: () => void = () => {};
+    let releaseLock: () => void = () => { };
     win32Lock = new Promise<void>((resolve) => {
       releaseLock = resolve;
     });
@@ -1022,12 +1028,12 @@ async function convertPptxToPdf(inputPptxPath: string, outputPdfPath: string): P
   try {
     // We add -env:UserInstallation to avoid locking issues in parallel executions
     await execPromise(`soffice "-env:UserInstallation=file://${uniqueProfileDir.replace(/\\/g, '/')}" --headless --convert-to pdf --outdir "${outputDir}" "${absInput}"`);
-    
+
     // LibreOffice auto-saves output as [<pptx_basename>].pdf in outdir.
     // Verify file and rename to the requested outputPdfPath if needed.
     const expectedName = path.basename(absInput, path.extname(absInput)) + '.pdf';
     const tempOutput = path.join(outputDir, expectedName);
-    
+
     if (tempOutput !== absOutput && fs.existsSync(tempOutput)) {
       if (fs.existsSync(absOutput)) fs.unlinkSync(absOutput);
       fs.renameSync(tempOutput, absOutput);
@@ -1051,7 +1057,7 @@ async function convertPptxToPdfBatch(inputPptxPaths: string[], outputDir: string
   if (inputPptxPaths.length === 0) return;
 
   const resolvedOutputDir = path.resolve(outputDir);
-  
+
   if (process.platform === 'win32') {
     // Windows: convert sequentially using powerpoint COM
     for (const inputPath of inputPptxPaths) {
@@ -1121,11 +1127,11 @@ async function postToAppsScript(url: string, payload: any): Promise<any> {
     },
     body: JSON.stringify(payload)
   });
-  
+
   if (!res.ok) {
     throw new Error(`HTTP error! status: ${res.status}`);
   }
-  
+
   return await res.json();
 }
 
@@ -1142,7 +1148,7 @@ app.post('/api/admin/bulk-send/offers', authenticateToken, async (req: Authentic
 
   try {
     sendLog("Initializing email service...", 5);
-    
+
     // 1. Fetch template from DB
     const templateRes = await db.execute({
       sql: "SELECT data_base64 FROM templates WHERE name = ?",
@@ -1187,13 +1193,13 @@ app.post('/api/admin/bulk-send/offers', authenticateToken, async (req: Authentic
       const id = app.id as number;
       const branch = app.branch as string;
       const year = app.year_of_study as string;
-      
+
       const refNo = `R&D/COORD/OFFER/2026-2027/${String(id).padStart(3, '0')}`;
       const yearBranch = `${year} & ${branch}`;
       const deptName = branch;
 
       const safeName = studentName.replace(/[^a-zA-Z0-9_\s]/g, '').trim();
-      
+
       // Name PPTX matching expected PDF name so LibreOffice writes directly to correct PDF filename
       const tempPptx = path.join(process.cwd(), `Offer_Letter_${safeName}_${id}.pptx`);
       const pdfFilename = path.join(process.cwd(), `Offer_Letter_${safeName}_${id}.pdf`);
@@ -1320,7 +1326,7 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
         completedTasks++;
         const progressValAfter = Math.floor(50 + (completedTasks / tasks.length) * 45);
         sendLog(`Completed: ${studentName}`, progressValAfter);
-        
+
         // Cleanup temp files
         if (fs.existsSync(tempPptx)) fs.unlinkSync(tempPptx);
         if (fs.existsSync(pdfFilename)) fs.unlinkSync(pdfFilename);
@@ -1359,7 +1365,7 @@ app.post('/api/admin/bulk-send/certificates', authenticateToken, async (req: Aut
 
   try {
     sendLog("Initializing email service...", 5);
-    
+
     // 1. Fetch template from DB
     const templateRes = await db.execute({
       sql: "SELECT data_base64 FROM templates WHERE name = ?",
@@ -1527,7 +1533,7 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
         completedTasks++;
         const progressValAfter = Math.floor(50 + (completedTasks / tasks.length) * 45);
         sendLog(`Completed: ${studentName}`, progressValAfter);
-        
+
         // Cleanup temp files
         if (fs.existsSync(tempPptx)) fs.unlinkSync(tempPptx);
         if (fs.existsSync(pdfFilename)) fs.unlinkSync(pdfFilename);
