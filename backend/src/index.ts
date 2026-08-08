@@ -918,18 +918,27 @@ function replacePlaceholdersInPptx(templateBuffer: Buffer, outputPath: string, r
       if (fileObj) {
         let slideXml = fileObj.asText();
 
-        // Rule: Disable word wrapping specifically for the shape containing Date placeholders
-        slideXml = slideXml.replace(
-          /(<p:sp\b[^>]*>(?:(?!<\/p:sp>).)*?{{D(?:ate|ata)}}(?:(?!<\/p:sp>).)*?<\/p:sp>)/gs,
-          (spMatch) => {
-            return spMatch.replace(/<a:bodyPr\b([^>]*)>/g, (m, attrs) => {
-              if (attrs.includes('wrap=')) {
-                return `<a:bodyPr ${attrs.replace(/wrap="[^"]*"/, 'wrap="none"')}>`;
-              }
-              return `<a:bodyPr ${attrs} wrap="none">`;
-            });
+        // Rule: Disable word wrapping for all shapes EXCEPT the main description/paragraph text shape
+        slideXml = slideXml.replace(/<p:sp\b[^>]*>(.*?)<\/p:sp>/gs, (spMatch) => {
+          // Keep wrapping for the description paragraph shape
+          if (spMatch.includes('participat') || spMatch.includes('congratulat')) {
+            return spMatch;
           }
-        );
+          // For all other shapes, force wrap="none" in <a:bodyPr>
+          return spMatch.replace(/<a:bodyPr\b([^>]*)\/?>/g, (m, attrs) => {
+            const isSelfClosing = m.endsWith('/>');
+            let cleanAttrs = attrs.trim();
+            if (cleanAttrs.endsWith('/')) {
+              cleanAttrs = cleanAttrs.slice(0, -1).trim();
+            }
+            if (cleanAttrs.includes('wrap=')) {
+              cleanAttrs = cleanAttrs.replace(/wrap="[^"]*"/, 'wrap="none"');
+            } else {
+              cleanAttrs += ' wrap="none"';
+            }
+            return `<a:bodyPr ${cleanAttrs}${isSelfClosing ? '/>' : '>'}`;
+          });
+        });
 
         // Perform placeholder replacements
         Object.entries(replacements).forEach(([key, val]) => {
