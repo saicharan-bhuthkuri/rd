@@ -1555,8 +1555,15 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
 app.get('/api/debug-fonts', async (req, res) => {
   try {
     const { execSync } = require('child_process');
-    const fonts = execSync('fc-list : file family style weight | sort').toString();
-    res.type('text/plain').send(fonts);
+    let output = '';
+    output += '=== fc-list custom fonts ===\n';
+    output += execSync('fc-list : file family style weight | grep -E "Bebas|Cardo" | sort').toString() + '\n';
+    output += '=== fc-match tests ===\n';
+    output += 'Bebas Neue Match: ' + execSync('fc-match "Bebas Neue"').toString().trim() + '\n';
+    output += 'Bebas Neue Bold Match: ' + execSync('fc-match "Bebas Neue:weight=bold"').toString().trim() + '\n';
+    output += 'Cardo Match: ' + execSync('fc-match "Cardo"').toString().trim() + '\n';
+    output += 'Cardo Bold Match: ' + execSync('fc-match "Cardo:weight=bold"').toString().trim() + '\n';
+    res.type('text/plain').send(output);
   } catch (err: any) {
     res.status(500).send("Error listing fonts: " + err.message);
   }
