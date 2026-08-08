@@ -1101,35 +1101,19 @@ async function runWithConcurrency<T, R>(
 
 // Helper function to send email via Google Apps Script proxy (bypassing Render SMTP block)
 async function postToAppsScript(url: string, payload: any): Promise<any> {
-  let currentUrl = url;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  });
   
-  for (let i = 0; i < 5; i++) {
-    const res = await fetch(currentUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload),
-      redirect: 'manual'
-    });
-    
-    if (res.status === 302 || res.status === 301 || res.status === 307 || res.status === 308) {
-      const redirectUrl = res.headers.get('location');
-      if (!redirectUrl) {
-        throw new Error('Redirected but no location header found');
-      }
-      currentUrl = redirectUrl;
-      continue;
-    }
-    
-    if (!res.ok) {
-      throw new Error(`HTTP error! status: ${res.status}`);
-    }
-    
-    return await res.json();
+  if (!res.ok) {
+    throw new Error(`HTTP error! status: ${res.status}`);
   }
   
-  throw new Error('Too many redirects');
+  return await res.json();
 }
 
 // 14. Bulk Send Offer Letters to Approved Coordinators
