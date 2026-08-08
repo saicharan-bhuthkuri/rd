@@ -1030,6 +1030,41 @@ async function convertPptxToPdf(inputPptxPath: string, outputPdfPath: string): P
   }
 }
 
+// Convert multiple PPTX files to PDF in a single batch (highly optimized to minimize LibreOffice startup overhead)
+async function convertPptxToPdfBatch(inputPptxPaths: string[], outputDir: string): Promise<void> {
+  if (inputPptxPaths.length === 0) return;
+
+  const resolvedOutputDir = path.resolve(outputDir);
+  
+  if (process.platform === 'win32') {
+    // Windows: convert sequentially using powerpoint COM
+    for (const inputPath of inputPptxPaths) {
+      const expectedPdfName = path.basename(inputPath, path.extname(inputPath)) + '.pdf';
+      const destPdfPath = path.join(resolvedOutputDir, expectedPdfName);
+      await convertPptxToPdf(inputPath, destPdfPath);
+    }
+    return;
+  }
+
+  // Linux (Render): Run headless LibreOffice in batch mode with a unique environment profile
+  const uniqueProfileDir = path.join(resolvedOutputDir, `soffice-profile-batch-${Math.random().toString(36).substring(7)}`);
+  try {
+    const escapedInputs = inputPptxPaths.map(p => `"${path.resolve(p)}"`).join(' ');
+    await execPromise(`soffice "-env:UserInstallation=file://${uniqueProfileDir.replace(/\\/g, '/')}" --headless --convert-to pdf --outdir "${resolvedOutputDir}" ${escapedInputs}`);
+  } catch (err: any) {
+    console.error("LibreOffice PDF batch conversion failed:", err.message);
+    throw new Error(`PDF batch generation failed. Details: ${err.message}`);
+  } finally {
+    if (fs.existsSync(uniqueProfileDir)) {
+      try {
+        fs.rmSync(uniqueProfileDir, { recursive: true, force: true });
+      } catch (err) {
+        console.warn("Failed to clean up batch LibreOffice profile directory:", err);
+      }
+    }
+  }
+}
+
 // Helper function for concurrent execution with a limit
 async function runWithConcurrency<T, R>(
   items: T[],
@@ -1138,15 +1173,15 @@ app.post('/api/admin/bulk-send/offers', authenticateToken, async (req: Authentic
     sendLog(`Found ${approvedApps.length} approved coordinators pending offer letters. Starting bulk dispatch...`, 15);
 
     let successCount = 0;
-    let completedTasks = 0;
     const today = new Date();
     const dd = String(today.getDate()).padStart(2, '0');
     const mm = String(today.getMonth() + 1).padStart(2, '0');
     const yyyy = today.getFullYear();
     const TODAY_DATE = `${dd}-${mm}-${yyyy}`;
 
-    // Process up to 3 emails concurrently (adjust limit based on Render resources)
-    await runWithConcurrency(approvedApps, 3, async (app: any, idx: number) => {
+    // 3. Generate customized PPTX templates in-memory/disk
+    sendLog("Generating custom PowerPoint templates...", 20);
+    const tasks = approvedApps.map((app: any) => {
       const studentName = app.full_name as string;
       const recipientEmail = app.email as string;
       const id = app.id as number;
@@ -1158,7 +1193,9 @@ app.post('/api/admin/bulk-send/offers', authenticateToken, async (req: Authentic
       const deptName = branch;
 
       const safeName = studentName.replace(/[^a-zA-Z0-9_\s]/g, '').trim();
-      const tempPptx = path.join(process.cwd(), `Temp_Offer_${safeName}_${id}.pptx`);
+      
+      // Name PPTX matching expected PDF name so LibreOffice writes directly to correct PDF filename
+      const tempPptx = path.join(process.cwd(), `Offer_Letter_${safeName}_${id}.pptx`);
       const pdfFilename = path.join(process.cwd(), `Offer_Letter_${safeName}_${id}.pdf`);
 
       const replacements = {
@@ -1174,22 +1211,40 @@ app.post('/api/admin/bulk-send/offers', authenticateToken, async (req: Authentic
         '[Student Name]': studentName
       };
 
-      const progressValBefore = Math.floor(15 + (completedTasks / approvedApps.length) * 80);
-      sendLog(`Processing: ${studentName} (${recipientEmail})...`, progressValBefore);
+      replacePlaceholdersInPptx(templateBuffer, tempPptx, replacements);
 
-      try {
-        // Step 1: Replace placeholders and write temp pptx
-        replacePlaceholdersInPptx(templateBuffer, tempPptx, replacements);
+      return {
+        app,
+        id,
+        studentName,
+        recipientEmail,
+        deptName,
+        yearBranch,
+        safeName,
+        tempPptx,
+        pdfFilename
+      };
+    });
 
-        // Step 2: Convert to PDF
-        await convertPptxToPdf(tempPptx, pdfFilename);
+    // 4. Batch convert all PPTX to PDF (extremely fast, initializes LibreOffice once)
+    sendLog("Converting all templates to PDF in a single batch...", 30);
+    const pptxPaths = tasks.map(t => t.tempPptx);
+    await convertPptxToPdfBatch(pptxPaths, process.cwd());
 
-        // Step 3: Compose mail
-        const mailOptions = {
-          from: SENDER_EMAIL,
-          to: recipientEmail,
-          subject: `Offer of Appointment – Student Coordinator (R&D Cell) | ${studentName}`,
-          text: `Dear ${studentName},
+    // 5. Send emails concurrently (up to 10 concurrently since it is lightweight HTTP network calls)
+    sendLog("Dispatching emails...", 50);
+    let completedTasks = 0;
+
+    await runWithConcurrency(tasks, 10, async (task) => {
+      const { id, studentName, recipientEmail, deptName, yearBranch, safeName, tempPptx, pdfFilename } = task;
+      const progressValBefore = Math.floor(50 + (completedTasks / tasks.length) * 45);
+      sendLog(`Sending email to: ${studentName} (${recipientEmail})...`, progressValBefore);
+
+      const mailOptions = {
+        from: SENDER_EMAIL,
+        to: recipientEmail,
+        subject: `Offer of Appointment – Student Coordinator (R&D Cell) | ${studentName}`,
+        text: `Dear ${studentName},
 
 Congratulations!
 
@@ -1204,36 +1259,27 @@ Best regards,
 Dr. Mani Ganesh / Dr. Vootla Ashok Kumar
 R&D Cell
 Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
-          attachments: [
-            {
-              filename: `Offer_Letter_${safeName}.pdf`,
-              path: pdfFilename
-            }
-          ]
-        };
+        attachments: [
+          {
+            filename: `Offer_Letter_${safeName}.pdf`,
+            path: pdfFilename
+          }
+        ]
+      };
 
-        // Step 4: Send mail
+      try {
+        if (!fs.existsSync(pdfFilename)) {
+          throw new Error("PDF generation failed during batch process.");
+        }
+
+        // Send via Proxy or Nodemailer SMTP
         if (process.env.GMAIL_HTTP_PROXY_URL) {
           const attachmentContent = fs.readFileSync(pdfFilename);
           const attachmentBase64 = attachmentContent.toString('base64');
           const payload = {
             to: recipientEmail,
-            subject: `Offer of Appointment – Student Coordinator (R&D Cell) | ${studentName}`,
-            text: `Dear ${studentName},
-
-Congratulations!
-
-The Research & Development (R&D) Cell of Trinity College of Engineering & Technology (Autonomous), Peddapalli, is pleased to offer you the role of Student Coordinator – ${deptName || yearBranch} for the academic year 2026–2027.
-
-Please find attached your official offer letter (Offer_Letter_${safeName}.pdf).
-
-We look forward to your active participation in building a vibrant research culture in our institution.
-
-Best regards,
-
-Dr. Mani Ganesh / Dr. Vootla Ashok Kumar
-R&D Cell
-Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
+            subject: mailOptions.subject,
+            text: mailOptions.text,
             attachments: [
               {
                 filename: `Offer_Letter_${safeName}.pdf`,
@@ -1250,7 +1296,7 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
           await transporter.sendMail(mailOptions);
         }
 
-        // Step 5: Update DB
+        // Update DB
         await db.execute({
           sql: "UPDATE club_applications SET offer_sent = 1 WHERE id = ?",
           args: [id]
@@ -1269,11 +1315,11 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
         successCount++;
       } catch (err: any) {
         console.error(`Failed to process offer for ${studentName}:`, err.message);
-        sendLog(`Failed for ${studentName}: ${err.message}`, Math.floor(15 + ((completedTasks + 1) / approvedApps.length) * 80));
+        sendLog(`Failed for ${studentName}: ${err.message}`, Math.floor(50 + ((completedTasks + 1) / tasks.length) * 45));
       } finally {
         completedTasks++;
-        const progressValAfter = Math.floor(15 + (completedTasks / approvedApps.length) * 80);
-        sendLog(`Completed: ${studentName} (${successCount} sent successfully)`, progressValAfter);
+        const progressValAfter = Math.floor(50 + (completedTasks / tasks.length) * 45);
+        sendLog(`Completed: ${studentName}`, progressValAfter);
         
         // Cleanup temp files
         if (fs.existsSync(tempPptx)) fs.unlinkSync(tempPptx);
@@ -1355,16 +1401,17 @@ app.post('/api/admin/bulk-send/certificates', authenticateToken, async (req: Aut
     sendLog(`Found ${registrations.length} approved attendees pending certificates. Starting bulk dispatch...`, 15);
 
     let successCount = 0;
-    let completedTasks = 0;
 
-    // Process up to 3 emails concurrently (adjust limit based on Render resources)
-    await runWithConcurrency(registrations, 3, async (reg: any, idx: number) => {
+    // 4. Generate customized PPTX templates on disk
+    sendLog("Generating custom PowerPoint templates...", 20);
+    const tasks = registrations.map((reg: any) => {
       const studentName = reg.full_name as string;
       const recipientEmail = reg.email as string;
       const id = reg.id as number;
 
       const safeName = studentName.replace(/[^a-zA-Z0-9_\s]/g, '').trim();
-      const tempPptx = path.join(process.cwd(), `Temp_Cert_${safeName}_${id}.pptx`);
+      // Name PPTX matching expected PDF name so LibreOffice writes directly to correct PDF filename
+      const tempPptx = path.join(process.cwd(), `Certificate_${safeName}_${id}.pptx`);
       const pdfFilename = path.join(process.cwd(), `Certificate_${safeName}_${id}.pdf`);
 
       const replacements = {
@@ -1376,22 +1423,38 @@ app.post('/api/admin/bulk-send/certificates', authenticateToken, async (req: Aut
         '[[DATE]]': eventDate
       };
 
-      const progressValBefore = Math.floor(15 + (completedTasks / registrations.length) * 80);
-      sendLog(`Processing: ${studentName} (${recipientEmail})...`, progressValBefore);
+      replacePlaceholdersInPptx(templateBuffer, tempPptx, replacements);
 
-      try {
-        // Step 1: Replace placeholders and write temp pptx
-        replacePlaceholdersInPptx(templateBuffer, tempPptx, replacements);
+      return {
+        reg,
+        id,
+        studentName,
+        recipientEmail,
+        safeName,
+        tempPptx,
+        pdfFilename
+      };
+    });
 
-        // Step 2: Convert to PDF
-        await convertPptxToPdf(tempPptx, pdfFilename);
+    // 5. Batch convert all PPTX to PDF using LibreOffice (runs once)
+    sendLog("Converting all templates to PDF in a single batch...", 30);
+    const pptxPaths = tasks.map(t => t.tempPptx);
+    await convertPptxToPdfBatch(pptxPaths, process.cwd());
 
-        // Step 3: Compose mail
-        const mailOptions = {
-          from: SENDER_EMAIL,
-          to: recipientEmail,
-          subject: 'Certificate of Participation | Trinity College of Engineering & Technology',
-          text: `Dear ${studentName},
+    // 6. Send emails concurrently (up to 10 concurrently since it is lightweight HTTP network calls)
+    sendLog("Dispatching emails...", 50);
+    let completedTasks = 0;
+
+    await runWithConcurrency(tasks, 10, async (task) => {
+      const { id, studentName, recipientEmail, safeName, tempPptx, pdfFilename } = task;
+      const progressValBefore = Math.floor(50 + (completedTasks / tasks.length) * 45);
+      sendLog("Sending email...", progressValBefore);
+
+      const mailOptions = {
+        from: SENDER_EMAIL,
+        to: recipientEmail,
+        subject: 'Certificate of Participation | Trinity College of Engineering & Technology',
+        text: `Dear ${studentName},
 
 Thank you for your enthusiastic participation in the ${eventTitle} held on ${eventDate} organized by Trinity College of Engineering and Technology, Peddapalli.
 
@@ -1403,33 +1466,27 @@ Best regards,
 
 R&D Cell
 Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
-          attachments: [
-            {
-              filename: `Certificate_${safeName}.pdf`,
-              path: pdfFilename
-            }
-          ]
-        };
+        attachments: [
+          {
+            filename: `Certificate_${safeName}.pdf`,
+            path: pdfFilename
+          }
+        ]
+      };
 
-        // Step 4: Send mail
+      try {
+        if (!fs.existsSync(pdfFilename)) {
+          throw new Error("PDF generation failed during batch process.");
+        }
+
+        // Send via Proxy or Nodemailer SMTP
         if (process.env.GMAIL_HTTP_PROXY_URL) {
           const attachmentContent = fs.readFileSync(pdfFilename);
           const attachmentBase64 = attachmentContent.toString('base64');
           const payload = {
             to: recipientEmail,
-            subject: 'Certificate of Participation | Trinity College of Engineering & Technology',
-            text: `Dear ${studentName},
-
-Thank you for your enthusiastic participation in the ${eventTitle} held on ${eventDate} organized by Trinity College of Engineering and Technology, Peddapalli.
-
-Please find attached your Certificate of Participation (Certificate_${safeName}.pdf).
-
-We appreciate your innovative thinking and research efforts, and wish you continued success in your academic and professional endeavors.
-
-Best regards,
-
-R&D Cell
-Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
+            subject: mailOptions.subject,
+            text: mailOptions.text,
             attachments: [
               {
                 filename: `Certificate_${safeName}.pdf`,
@@ -1446,7 +1503,7 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
           await transporter.sendMail(mailOptions);
         }
 
-        // Step 5: Update DB
+        // Update DB
         await db.execute({
           sql: "UPDATE event_registrations SET certificate_sent = 1 WHERE id = ?",
           args: [id]
@@ -1465,11 +1522,11 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
         successCount++;
       } catch (err: any) {
         console.error(`Failed to process certificate for ${studentName}:`, err.message);
-        sendLog(`Failed for ${studentName}: ${err.message}`, Math.floor(15 + ((completedTasks + 1) / registrations.length) * 80));
+        sendLog(`Failed for ${studentName}: ${err.message}`, Math.floor(50 + ((completedTasks + 1) / tasks.length) * 45));
       } finally {
         completedTasks++;
-        const progressValAfter = Math.floor(15 + (completedTasks / registrations.length) * 80);
-        sendLog(`Completed: ${studentName} (${successCount} sent successfully)`, progressValAfter);
+        const progressValAfter = Math.floor(50 + (completedTasks / tasks.length) * 45);
+        sendLog(`Completed: ${studentName}`, progressValAfter);
         
         // Cleanup temp files
         if (fs.existsSync(tempPptx)) fs.unlinkSync(tempPptx);
