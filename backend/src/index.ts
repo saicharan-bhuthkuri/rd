@@ -6,9 +6,12 @@ import jwt from 'jsonwebtoken';
 import { createClient } from '@libsql/client';
 import fs from 'fs';
 import path from 'path';
-import { execSync } from 'child_process';
+import { execSync, exec } from 'child_process';
+import { promisify } from 'util';
 import nodemailer from 'nodemailer';
 import PizZip from 'pizzip';
+
+const execPromise = promisify(exec);
 
 // Initialize env
 dotenv.config();
@@ -885,13 +888,13 @@ app.delete('/api/admin/events/:id', authenticateToken, async (req: Authenticated
     return res.status(500).json({ error: "Failed to delete technical event.", details: err.message });
   }
 });
-const SENDER_EMAIL = 'recruitmentrd6@gmail.com';
-const SENDER_PASSWORD = 'kohmtlqkeezrbewz';
+const SENDER_EMAIL = process.env.SENDER_EMAIL || 'recruitmentrd6@gmail.com';
+const SENDER_PASSWORD = process.env.SENDER_PASSWORD || 'kohmtlqkeezrbewz';
 
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
-  port: 465,
-  secure: true,
+  port: 587,
+  secure: false, // true for 465, false for other ports. Port 587 uses STARTTLS and is not blocked by Render
   auth: {
     user: SENDER_EMAIL,
     pass: SENDER_PASSWORD.replace(/\s+/g, '')
@@ -956,13 +959,22 @@ function replacePlaceholdersInPptx(templateBuffer: Buffer, outputPath: string, r
   fs.writeFileSync(outputPath, buffer);
 }
 
+let win32Lock = Promise.resolve();
+
 // Convert PPTX to PDF (Cross-platform support: PowerPoint COM on Windows, LibreOffice soffice on Linux/others)
-function convertPptxToPdf(inputPptxPath: string, outputPdfPath: string) {
+async function convertPptxToPdf(inputPptxPath: string, outputPdfPath: string): Promise<void> {
   const absInput = path.resolve(inputPptxPath);
   const absOutput = path.resolve(outputPdfPath);
 
-  // 1. If on Windows, try Native PowerPoint COM automation first
+  // 1. If on Windows, try Native PowerPoint COM automation first (sequentially using win32Lock)
   if (process.platform === 'win32') {
+    const currentLock = win32Lock;
+    let releaseLock: () => void = () => {};
+    win32Lock = new Promise<void>((resolve) => {
+      releaseLock = resolve;
+    });
+    await currentLock;
+
     try {
       const escapedInput = absInput.replace(/\\/g, '\\\\');
       const escapedOutput = absOutput.replace(/\\/g, '\\\\');
@@ -975,17 +987,21 @@ function convertPptxToPdf(inputPptxPath: string, outputPdfPath: string) {
         $PowerPoint.Quit();
       `;
 
-      execSync(`powershell -Command "${psCommand.replace(/\n/g, ' ')}"`);
+      await execPromise(`powershell -Command "${psCommand.replace(/\n/g, ' ')}"`);
       return;
     } catch (err: any) {
       console.warn("PowerPoint COM conversion failed. Falling back to LibreOffice...", err.message);
+    } finally {
+      releaseLock();
     }
   }
 
   // 2. Headless LibreOffice conversion (soffice) for Linux/others
+  const outputDir = path.dirname(absOutput);
+  const uniqueProfileDir = path.join(outputDir, `soffice-profile-${Math.random().toString(36).substring(7)}`);
   try {
-    const outputDir = path.dirname(absOutput);
-    execSync(`soffice --headless --convert-to pdf --outdir "${outputDir}" "${absInput}"`);
+    // We add -env:UserInstallation to avoid locking issues in parallel executions
+    await execPromise(`soffice "-env:UserInstallation=file://${uniqueProfileDir.replace(/\\/g, '/')}" --headless --convert-to pdf --outdir "${outputDir}" "${absInput}"`);
     
     // LibreOffice auto-saves output as [<pptx_basename>].pdf in outdir.
     // Verify file and rename to the requested outputPdfPath if needed.
@@ -999,7 +1015,46 @@ function convertPptxToPdf(inputPptxPath: string, outputPdfPath: string) {
   } catch (err: any) {
     console.error("LibreOffice PDF conversion failed:", err.message);
     throw new Error(`PDF generation failed: No conversion engine (PowerPoint COM or LibreOffice) is available on this environment. Details: ${err.message}`);
+  } finally {
+    if (fs.existsSync(uniqueProfileDir)) {
+      try {
+        fs.rmSync(uniqueProfileDir, { recursive: true, force: true });
+      } catch (err) {
+        console.warn("Failed to clean up LibreOffice profile directory:", err);
+      }
+    }
   }
+}
+
+// Helper function for concurrent execution with a limit
+async function runWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = [];
+  const promises: Promise<void>[] = [];
+  let index = 0;
+
+  async function worker() {
+    while (index < items.length) {
+      const currentIndex = index++;
+      const item = items[currentIndex];
+      try {
+        results[currentIndex] = await fn(item, currentIndex);
+      } catch (err) {
+        console.error(`Error in worker at index ${currentIndex}:`, err);
+      }
+    }
+  }
+
+  const numWorkers = Math.min(limit, items.length);
+  for (let i = 0; i < numWorkers; i++) {
+    promises.push(worker());
+  }
+
+  await Promise.all(promises);
+  return results;
 }
 
 // 14. Bulk Send Offer Letters to Approved Coordinators
@@ -1046,14 +1101,15 @@ app.post('/api/admin/bulk-send/offers', authenticateToken, async (req: Authentic
     sendLog(`Found ${approvedApps.length} approved coordinators pending offer letters. Starting bulk dispatch...`, 15);
 
     let successCount = 0;
+    let completedTasks = 0;
     const today = new Date();
     const dd = String(today.getDate()).padStart(2, '0');
     const mm = String(today.getMonth() + 1).padStart(2, '0');
     const yyyy = today.getFullYear();
     const TODAY_DATE = `${dd}-${mm}-${yyyy}`;
 
-    for (let idx = 0; idx < approvedApps.length; idx++) {
-      const app = approvedApps[idx];
+    // Process up to 3 emails concurrently (adjust limit based on Render resources)
+    await runWithConcurrency(approvedApps, 3, async (app: any, idx: number) => {
       const studentName = app.full_name as string;
       const recipientEmail = app.email as string;
       const id = app.id as number;
@@ -1068,12 +1124,6 @@ app.post('/api/admin/bulk-send/offers', authenticateToken, async (req: Authentic
       const tempPptx = path.join(process.cwd(), `Temp_Offer_${safeName}_${id}.pptx`);
       const pdfFilename = path.join(process.cwd(), `Offer_Letter_${safeName}_${id}.pdf`);
 
-      const progressVal = Math.floor(15 + (idx / approvedApps.length) * 80);
-
-      sendLog(`Name: ${studentName}`, progressVal);
-      sendLog(`Email: ${recipientEmail}`, progressVal);
-      sendLog(`Sending email (${idx + 1}/${approvedApps.length})...`, progressVal);
-
       const replacements = {
         '{{R&D/COORD/OFFER/2026-2027/001}}': refNo,
         '{{Year & Branch}}': yearBranch,
@@ -1087,12 +1137,15 @@ app.post('/api/admin/bulk-send/offers', authenticateToken, async (req: Authentic
         '[Student Name]': studentName
       };
 
+      const progressValBefore = Math.floor(15 + (completedTasks / approvedApps.length) * 80);
+      sendLog(`Processing: ${studentName} (${recipientEmail})...`, progressValBefore);
+
       try {
         // Step 1: Replace placeholders and write temp pptx
         replacePlaceholdersInPptx(templateBuffer, tempPptx, replacements);
 
         // Step 2: Convert to PDF
-        convertPptxToPdf(tempPptx, pdfFilename);
+        await convertPptxToPdf(tempPptx, pdfFilename);
 
         // Step 3: Compose mail
         const mailOptions = {
@@ -1124,9 +1177,7 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
 
         // Step 4: Send mail
         await transporter.sendMail(mailOptions);
-        sendLog("Email sent successfully.", progressVal);
 
-        sendLog("Updating database...", progressVal);
         // Step 5: Update DB
         await db.execute({
           sql: "UPDATE club_applications SET offer_sent = 1 WHERE id = ?",
@@ -1146,13 +1197,17 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
         successCount++;
       } catch (err: any) {
         console.error(`Failed to process offer for ${studentName}:`, err.message);
-        sendLog(`Failed: ${err.message}`, progressVal);
+        sendLog(`Failed for ${studentName}: ${err.message}`, Math.floor(15 + ((completedTasks + 1) / approvedApps.length) * 80));
       } finally {
+        completedTasks++;
+        const progressValAfter = Math.floor(15 + (completedTasks / approvedApps.length) * 80);
+        sendLog(`Completed: ${studentName} (${successCount} sent successfully)`, progressValAfter);
+        
         // Cleanup temp files
         if (fs.existsSync(tempPptx)) fs.unlinkSync(tempPptx);
         if (fs.existsSync(pdfFilename)) fs.unlinkSync(pdfFilename);
       }
-    }
+    });
 
     notifySyncClients("REFRESH_APPLICATIONS");
     sendLog(`Successfully sent ${successCount} offer letters.`, 95);
@@ -1228,9 +1283,10 @@ app.post('/api/admin/bulk-send/certificates', authenticateToken, async (req: Aut
     sendLog(`Found ${registrations.length} approved attendees pending certificates. Starting bulk dispatch...`, 15);
 
     let successCount = 0;
+    let completedTasks = 0;
 
-    for (let idx = 0; idx < registrations.length; idx++) {
-      const reg = registrations[idx];
+    // Process up to 3 emails concurrently (adjust limit based on Render resources)
+    await runWithConcurrency(registrations, 3, async (reg: any, idx: number) => {
       const studentName = reg.full_name as string;
       const recipientEmail = reg.email as string;
       const id = reg.id as number;
@@ -1238,12 +1294,6 @@ app.post('/api/admin/bulk-send/certificates', authenticateToken, async (req: Aut
       const safeName = studentName.replace(/[^a-zA-Z0-9_\s]/g, '').trim();
       const tempPptx = path.join(process.cwd(), `Temp_Cert_${safeName}_${id}.pptx`);
       const pdfFilename = path.join(process.cwd(), `Certificate_${safeName}_${id}.pdf`);
-
-      const progressVal = Math.floor(15 + (idx / registrations.length) * 80);
-
-      sendLog(`Name: ${studentName}`, progressVal);
-      sendLog(`Email: ${recipientEmail}`, progressVal);
-      sendLog(`Sending email (${idx + 1}/${registrations.length})...`, progressVal);
 
       const replacements = {
         '{{PARTICIPANT NAME}}': studentName,
@@ -1254,12 +1304,15 @@ app.post('/api/admin/bulk-send/certificates', authenticateToken, async (req: Aut
         '[[DATE]]': eventDate
       };
 
+      const progressValBefore = Math.floor(15 + (completedTasks / registrations.length) * 80);
+      sendLog(`Processing: ${studentName} (${recipientEmail})...`, progressValBefore);
+
       try {
         // Step 1: Replace placeholders and write temp pptx
         replacePlaceholdersInPptx(templateBuffer, tempPptx, replacements);
 
         // Step 2: Convert to PDF
-        convertPptxToPdf(tempPptx, pdfFilename);
+        await convertPptxToPdf(tempPptx, pdfFilename);
 
         // Step 3: Compose mail
         const mailOptions = {
@@ -1288,9 +1341,7 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
 
         // Step 4: Send mail
         await transporter.sendMail(mailOptions);
-        sendLog("Email sent successfully.", progressVal);
 
-        sendLog("Updating database...", progressVal);
         // Step 5: Update DB
         await db.execute({
           sql: "UPDATE event_registrations SET certificate_sent = 1 WHERE id = ?",
@@ -1310,13 +1361,17 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
         successCount++;
       } catch (err: any) {
         console.error(`Failed to process certificate for ${studentName}:`, err.message);
-        sendLog(`Failed: ${err.message}`, progressVal);
+        sendLog(`Failed for ${studentName}: ${err.message}`, Math.floor(15 + ((completedTasks + 1) / registrations.length) * 80));
       } finally {
+        completedTasks++;
+        const progressValAfter = Math.floor(15 + (completedTasks / registrations.length) * 80);
+        sendLog(`Completed: ${studentName} (${successCount} sent successfully)`, progressValAfter);
+        
         // Cleanup temp files
         if (fs.existsSync(tempPptx)) fs.unlinkSync(tempPptx);
         if (fs.existsSync(pdfFilename)) fs.unlinkSync(pdfFilename);
       }
-    }
+    });
 
     notifySyncClients("REFRESH_APPLICATIONS");
     sendLog(`Successfully sent ${successCount} participation certificates.`, 95);
