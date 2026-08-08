@@ -940,6 +940,10 @@ function replacePlaceholdersInPptx(templateBuffer: Buffer, outputPath: string, r
             }
             return spMatch;
           }
+          // Also keep wrapping for the approval info text box to let it wrap on exactly two lines
+          if (spMatch.includes('Approved by') || spMatch.includes('AICTE')) {
+            return spMatch;
+          }
           // For all other shapes, force wrap="none" in <a:bodyPr>
           return spMatch.replace(/<a:bodyPr\b([^>]*)\/?>/g, (m, attrs) => {
             const isSelfClosing = m.endsWith('/>');
