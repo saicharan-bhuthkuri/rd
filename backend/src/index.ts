@@ -1061,6 +1061,39 @@ async function runWithConcurrency<T, R>(
   return results;
 }
 
+// Helper function to send email via Google Apps Script proxy (bypassing Render SMTP block)
+async function postToAppsScript(url: string, payload: any): Promise<any> {
+  let currentUrl = url;
+  
+  for (let i = 0; i < 5; i++) {
+    const res = await fetch(currentUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload),
+      redirect: 'manual'
+    });
+    
+    if (res.status === 302 || res.status === 301 || res.status === 307 || res.status === 308) {
+      const redirectUrl = res.headers.get('location');
+      if (!redirectUrl) {
+        throw new Error('Redirected but no location header found');
+      }
+      currentUrl = redirectUrl;
+      continue;
+    }
+    
+    if (!res.ok) {
+      throw new Error(`HTTP error! status: ${res.status}`);
+    }
+    
+    return await res.json();
+  }
+  
+  throw new Error('Too many redirects');
+}
+
 // 14. Bulk Send Offer Letters to Approved Coordinators
 app.post('/api/admin/bulk-send/offers', authenticateToken, async (req: AuthenticatedRequest, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
@@ -1180,7 +1213,42 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
         };
 
         // Step 4: Send mail
-        await transporter.sendMail(mailOptions);
+        if (process.env.GMAIL_HTTP_PROXY_URL) {
+          const attachmentContent = fs.readFileSync(pdfFilename);
+          const attachmentBase64 = attachmentContent.toString('base64');
+          const payload = {
+            to: recipientEmail,
+            subject: `Offer of Appointment – Student Coordinator (R&D Cell) | ${studentName}`,
+            text: `Dear ${studentName},
+
+Congratulations!
+
+The Research & Development (R&D) Cell of Trinity College of Engineering & Technology (Autonomous), Peddapalli, is pleased to offer you the role of Student Coordinator – ${deptName || yearBranch} for the academic year 2026–2027.
+
+Please find attached your official offer letter (Offer_Letter_${safeName}.pdf).
+
+We look forward to your active participation in building a vibrant research culture in our institution.
+
+Best regards,
+
+Dr. Mani Ganesh / Dr. Vootla Ashok Kumar
+R&D Cell
+Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
+            attachments: [
+              {
+                filename: `Offer_Letter_${safeName}.pdf`,
+                base64: attachmentBase64,
+                mimeType: 'application/pdf'
+              }
+            ]
+          };
+          const proxyRes = await postToAppsScript(process.env.GMAIL_HTTP_PROXY_URL, payload);
+          if (!proxyRes.success) {
+            throw new Error(`Google Apps Script Proxy failed: ${proxyRes.error}`);
+          }
+        } else {
+          await transporter.sendMail(mailOptions);
+        }
 
         // Step 5: Update DB
         await db.execute({
@@ -1344,7 +1412,39 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
         };
 
         // Step 4: Send mail
-        await transporter.sendMail(mailOptions);
+        if (process.env.GMAIL_HTTP_PROXY_URL) {
+          const attachmentContent = fs.readFileSync(pdfFilename);
+          const attachmentBase64 = attachmentContent.toString('base64');
+          const payload = {
+            to: recipientEmail,
+            subject: 'Certificate of Participation | Trinity College of Engineering & Technology',
+            text: `Dear ${studentName},
+
+Thank you for your enthusiastic participation in the ${eventTitle} held on ${eventDate} organized by Trinity College of Engineering and Technology, Peddapalli.
+
+Please find attached your Certificate of Participation (Certificate_${safeName}.pdf).
+
+We appreciate your innovative thinking and research efforts, and wish you continued success in your academic and professional endeavors.
+
+Best regards,
+
+R&D Cell
+Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
+            attachments: [
+              {
+                filename: `Certificate_${safeName}.pdf`,
+                base64: attachmentBase64,
+                mimeType: 'application/pdf'
+              }
+            ]
+          };
+          const proxyRes = await postToAppsScript(process.env.GMAIL_HTTP_PROXY_URL, payload);
+          if (!proxyRes.success) {
+            throw new Error(`Google Apps Script Proxy failed: ${proxyRes.error}`);
+          }
+        } else {
+          await transporter.sendMail(mailOptions);
+        }
 
         // Step 5: Update DB
         await db.execute({
