@@ -1555,7 +1555,7 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
 app.get('/api/debug-fonts', async (req, res) => {
   try {
     const { execSync } = require('child_process');
-    const fonts = execSync('fc-list : family | sort -u').toString();
+    const fonts = execSync('fc-list : file family style weight | sort').toString();
     res.type('text/plain').send(fonts);
   } catch (err: any) {
     res.status(500).send("Error listing fonts: " + err.message);
