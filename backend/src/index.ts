@@ -1595,6 +1595,19 @@ app.get('/api/debug-pdf-fonts', async (req, res) => {
       '[[DATE]]': '03 August 2026'
     };
     replacePlaceholdersInPptx(templateBuffer, tempPptx, replacements);
+
+    // Read modified slide XML snippet
+    let slideXmlSnippet = '';
+    const tempPptxBuffer = fs.readFileSync(tempPptx);
+    const tempZip = new PizZip(tempPptxBuffer);
+    const slideFile = tempZip.file('ppt/slides/slide1.xml');
+    if (slideFile) {
+      const slideXml = slideFile.asText();
+      const idx = slideXml.indexOf('COLLEGE OF ENGINEERING AND TECHNOLOGY');
+      if (idx !== -1) {
+        slideXmlSnippet = slideXml.substring(idx - 250, idx + 250);
+      }
+    }
     
     // Convert to PDF
     await convertPptxToPdf(tempPptx, tempPdf);
@@ -1609,6 +1622,7 @@ app.get('/api/debug-pdf-fonts', async (req, res) => {
     
     res.json({
       success: true,
+      slideXmlSnippet,
       baseFonts: Array.from(new Set(baseFonts))
     });
   } catch (err: any) {
