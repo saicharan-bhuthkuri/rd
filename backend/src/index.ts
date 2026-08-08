@@ -966,6 +966,10 @@ function replacePlaceholdersInPptx(templateBuffer: Buffer, outputPath: string, r
           });
         });
 
+        // Force font family mappings to match Linux system font registration names
+        slideXml = slideXml.replaceAll('typeface="Bebas Neue Bold"', 'typeface="Bebas Neue"');
+        slideXml = slideXml.replaceAll('typeface="Cardo Bold"', 'typeface="Cardo"');
+
         zip.file(filename, slideXml);
       }
     }
