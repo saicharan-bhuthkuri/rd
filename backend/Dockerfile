@@ -6,6 +6,11 @@ RUN apt-get update && apt-get install -y \
     libreoffice-writer \
     libreoffice-impress \
     fonts-dejavu \
+    fonts-liberation \
+    fonts-crosextra-carlito \
+    fonts-crosextra-caladea \
+    fontconfig \
+    && fc-cache -fv \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
