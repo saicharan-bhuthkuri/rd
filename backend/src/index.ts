@@ -925,12 +925,17 @@ function replacePlaceholdersInPptx(templateBuffer: Buffer, outputPath: string, r
             const eventName = replacements['{{EVENT NAME}}'] || replacements['[[EVENT NAME]]'] || '';
             let targetSz = 1705;
             if (eventName.length > 35) {
-              targetSz = 1350; // 13.5pt
+              targetSz = 1300; // 13pt
             } else if (eventName.length > 20) {
-              targetSz = 1500; // 15pt
+              targetSz = 1450; // 14.5pt
             }
             if (targetSz !== 1705) {
-              return spMatch.replace(/sz="1705"/g, `sz="${targetSz}"`);
+              return spMatch.replace(/<(a:rPr|a:endParaRPr)\b([^>]*)>/g, (m, tagName, attrs) => {
+                if (attrs.includes('sz=')) {
+                  return `<${tagName} ${attrs.replace(/sz="[^"]*"/, `sz="${targetSz}"`)}>`;
+                }
+                return `<${tagName} ${attrs} sz="${targetSz}">`;
+              });
             }
             return spMatch;
           }
