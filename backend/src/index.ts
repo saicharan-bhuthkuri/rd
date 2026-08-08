@@ -899,11 +899,14 @@ const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
   port: 587,
   secure: false, // true for 465, false for other ports. Port 587 uses STARTTLS and is not blocked by Render
+  family: 4, // Force connection to use IPv4 to bypass unreachable IPv6 routes
+  connectionTimeout: 10000, // 10 seconds connection timeout
+  greetingTimeout: 10000, // 10 seconds greeting timeout
   auth: {
     user: SENDER_EMAIL,
     pass: SENDER_PASSWORD.replace(/\s+/g, '')
   }
-});
+} as any);
 
 // XML-aware text replacement inside PPTX files
 function replacePlaceholdersInPptx(templateBuffer: Buffer, outputPath: string, replacements: Record<string, string>) {
