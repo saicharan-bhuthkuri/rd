@@ -925,17 +925,12 @@ function replacePlaceholdersInPptx(templateBuffer: Buffer, outputPath: string, r
             const eventName = replacements['{{EVENT NAME}}'] || replacements['[[EVENT NAME]]'] || '';
             let targetSz = 1705;
             if (eventName.length > 35) {
-              targetSz = 1300; // 13pt
+              targetSz = 1350; // 13.5pt
             } else if (eventName.length > 20) {
-              targetSz = 1450; // 14.5pt
+              targetSz = 1500; // 15pt
             }
             if (targetSz !== 1705) {
-              return spMatch.replace(/<(a:rPr|a:endParaRPr)\b([^>]*)>/g, (m, tagName, attrs) => {
-                if (attrs.includes('sz=')) {
-                  return `<${tagName} ${attrs.replace(/sz="[^"]*"/, `sz="${targetSz}"`)}>`;
-                }
-                return `<${tagName} ${attrs} sz="${targetSz}">`;
-              });
+              return spMatch.replace(/sz="1705"/g, `sz="${targetSz}"`);
             }
             return spMatch;
           }
@@ -1564,6 +1559,53 @@ app.get('/api/debug-fonts', async (req, res) => {
     res.type('text/plain').send(fonts);
   } catch (err: any) {
     res.status(500).send("Error listing fonts: " + err.message);
+  }
+});
+
+// Debug route to check embedded PDF fonts
+app.get('/api/debug-pdf-fonts', async (req, res) => {
+  try {
+    const tempPptx = path.join(process.cwd(), `test_debug_temp.pptx`);
+    const tempPdf = path.join(process.cwd(), `test_debug_temp.pdf`);
+    
+    // Read template from DB
+    const templateRes = await db.execute({
+      sql: "SELECT data_base64 FROM templates WHERE name = ?",
+      args: ["certificate"]
+    });
+    if (templateRes.rows.length === 0) {
+      return res.status(404).send("Template not found");
+    }
+    const templateBuffer = Buffer.from(templateRes.rows[0].data_base64 as string, 'base64');
+    
+    // Replace placeholders
+    const replacements = {
+      '{{PARTICIPANT NAME}}': 'Test Student',
+      '{{EVENT NAME}}': 'Test Event Title',
+      '{{DATE}}': '03 August 2026',
+      '[[PARTICIPANT NAME]]': 'Test Student',
+      '[[EVENT NAME]]': 'Test Event Title',
+      '[[DATE]]': '03 August 2026'
+    };
+    replacePlaceholdersInPptx(templateBuffer, tempPptx, replacements);
+    
+    // Convert to PDF
+    await convertPptxToPdf(tempPptx, tempPdf);
+    
+    // Read PDF and search for /BaseFont
+    const pdfContent = fs.readFileSync(tempPdf, 'binary');
+    const baseFonts = pdfContent.match(/\/BaseFont\s*\/([^\s>)]+)/g) || [];
+    
+    // Cleanup
+    if (fs.existsSync(tempPptx)) fs.unlinkSync(tempPptx);
+    if (fs.existsSync(tempPdf)) fs.unlinkSync(tempPdf);
+    
+    res.json({
+      success: true,
+      baseFonts: Array.from(new Set(baseFonts))
+    });
+  } catch (err: any) {
+    res.status(500).send("Error: " + err.message);
   }
 });
 
