@@ -931,9 +931,9 @@ function replacePlaceholdersInPptx(templateBuffer: Buffer, outputPath: string, r
             const eventName = replacements['{{EVENT NAME}}'] || replacements['[[EVENT NAME]]'] || '';
             let targetSz = 1705;
             if (eventName.length > 35) {
-              targetSz = 1350; // 13.5pt
-            } else if (eventName.length > 20) {
               targetSz = 1500; // 15pt
+            } else if (eventName.length > 20) {
+              targetSz = 1600; // 16pt
             }
             if (targetSz !== 1705) {
               return spMatch.replace(/sz="1705"/g, `sz="${targetSz}"`);
