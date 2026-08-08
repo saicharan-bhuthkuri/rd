@@ -920,6 +920,12 @@ function replacePlaceholdersInPptx(templateBuffer: Buffer, outputPath: string, r
 
         // Rule: Disable word wrapping for all shapes EXCEPT the main description/paragraph text shape
         slideXml = slideXml.replace(/<p:sp\b[^>]*>(.*?)<\/p:sp>/gs, (spMatch) => {
+          // If this is the student name shape, remove autofit and increase font size to 38pt (sz="3800")
+          if (spMatch.includes('PARTICIPANT NAME')) {
+            let modifiedShape = spMatch.replace(/<a:spAutoFit\/>/g, '<a:noAutofit/>');
+            modifiedShape = modifiedShape.replace(/sz="3200"/g, 'sz="3800"');
+            return modifiedShape;
+          }
           // Keep wrapping for the description paragraph shape, and dynamically adjust its font size if the event title is long
           if (spMatch.includes('participat') || spMatch.includes('congratulat')) {
             const eventName = replacements['{{EVENT NAME}}'] || replacements['[[EVENT NAME]]'] || '';
