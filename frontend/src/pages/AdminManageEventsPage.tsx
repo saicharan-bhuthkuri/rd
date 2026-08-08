@@ -22,6 +22,13 @@ export const AdminManageEventsPage: React.FC = () => {
   const [events, setEvents] = useState<EventItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  
+  // Custom styled confirmation modal state
+  const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; eventId: number; eventTitle: string }>({
+    isOpen: false,
+    eventId: 0,
+    eventTitle: ''
+  });
 
   const fetchEvents = async () => {
     setIsLoading(true);
@@ -59,10 +66,7 @@ export const AdminManageEventsPage: React.FC = () => {
     return () => window.removeEventListener('app-sync', handleSync);
   }, []);
 
-  const handleDeleteEvent = async (id: number, eventTitle: string) => {
-    const confirmDelete = window.confirm(`Are you sure you want to delete event: "${eventTitle}"? This will remove it from public view and selection options.`);
-    if (!confirmDelete) return;
-
+  const handleDeleteEvent = async (id: number) => {
     const token = localStorage.getItem('admin_token');
 
     try {
@@ -78,12 +82,16 @@ export const AdminManageEventsPage: React.FC = () => {
         throw new Error(data.error || 'Failed to delete event.');
       }
 
-      alert(`Event "${eventTitle}" deleted successfully.`);
+      // Refresh list
       fetchEvents();
+      // Notify other tabs
+      const syncEvent = new CustomEvent('app-sync', { detail: 'REFRESH_EVENTS' });
+      window.dispatchEvent(syncEvent);
     } catch (err: any) {
       alert(err.message);
     }
   };
+
 
   return (
     <AdminLayout>
@@ -144,7 +152,7 @@ export const AdminManageEventsPage: React.FC = () => {
                     </td>
                     <td>
                       <button
-                        onClick={() => handleDeleteEvent(evt.id, evt.title)}
+                        onClick={() => setDeleteConfirm({ isOpen: true, eventId: evt.id, eventTitle: evt.title })}
                         className="btn-action reject"
                         title="Delete Event"
                       >
@@ -158,6 +166,50 @@ export const AdminManageEventsPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm.isOpen && (
+        <div className="custom-modal-overlay">
+          <div className="custom-modal-card">
+            <div className="custom-modal-header">
+              <div className="custom-modal-icon-container custom-modal-icon-error">
+                <Trash2 size={20} />
+              </div>
+              <h3 className="custom-modal-title">Delete Event</h3>
+            </div>
+            <p className="custom-modal-body">
+              Are you sure you want to delete event: <strong>"{deleteConfirm.eventTitle}"</strong>? This will remove it from public view and selection options.
+            </p>
+            <div className="custom-modal-footer">
+              <button
+                onClick={() => setDeleteConfirm({ isOpen: false, eventId: 0, eventTitle: '' })}
+                className="custom-modal-btn-cancel"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  const id = deleteConfirm.eventId;
+                  setDeleteConfirm({ isOpen: false, eventId: 0, eventTitle: '' });
+                  await handleDeleteEvent(id);
+                }}
+                className="btn btn-primary"
+                style={{
+                  backgroundColor: '#ef4444',
+                  borderColor: '#ef4444',
+                  color: '#fff',
+                  padding: '0.5rem 1.25rem',
+                  fontSize: '0.875rem',
+                  borderRadius: '0.375rem',
+                  cursor: 'pointer'
+                }}
+              >
+                Confirm Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AdminLayout>
   );
 };

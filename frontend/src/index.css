@@ -4238,6 +4238,7 @@ button, input, textarea, select {
     font-size: 0.75rem;
   }
 
+
   .log-item-row .log-user {
     font-size: 0.8125rem;
   }
@@ -4266,4 +4267,148 @@ button, input, textarea, select {
     display: none;
   }
 }
+
+/* Styled custom select dropdowns */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 1.25rem;
+  padding-right: 2.5rem !important;
+  cursor: pointer;
+  background-color: var(--bg-main, #fff);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: var(--radius-md, 0.375rem);
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+  color: var(--text-main, #0f172a);
+  transition: border-color var(--transition-fast, 0.15s), box-shadow var(--transition-fast, 0.15s);
+}
+
+select:hover {
+  border-color: var(--primary, #0284c7);
+}
+
+select:focus {
+  outline: none;
+  border-color: var(--primary, #0284c7);
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+}
+
+/* Styled options style */
+select option {
+  background-color: #fff;
+  color: #0f172a;
+  padding: 0.5rem;
+}
+
+/* Styled Modal Classes */
+.custom-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1200;
+  padding: 1.5rem;
+  animation: modalFadeIn 0.2s ease-out;
+}
+
+.custom-modal-card {
+  width: 100%;
+  max-width: 440px;
+  background: #ffffff;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 0.75rem;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  animation: modalScaleUp 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.custom-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.custom-modal-icon-container {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.custom-modal-icon-warning {
+  background-color: #fef3c7;
+  color: #d97706;
+}
+
+.custom-modal-icon-error {
+  background-color: #fee2e2;
+  color: #ef4444;
+}
+
+.custom-modal-title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-main, #0f172a);
+}
+
+.custom-modal-body {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--text-secondary, #475569);
+  line-height: 1.5;
+  text-align: left;
+}
+
+.custom-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.custom-modal-btn-cancel {
+  padding: 0.5rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  background: rgba(0, 0, 0, 0.05);
+  border: 1px solid var(--border, #e2e8f0);
+  color: var(--text-main, #0f172a);
+  transition: background 0.15s;
+}
+
+.custom-modal-btn-cancel:hover {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+@keyframes modalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modalScaleUp {
+  from { transform: scale(0.95); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
 

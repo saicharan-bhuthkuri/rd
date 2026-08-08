@@ -17,6 +17,13 @@ export const AdminUsersPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
 
+  // Custom styled confirmation modal state
+  const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; userId: number; username: string }>({
+    isOpen: false,
+    userId: 0,
+    username: ''
+  });
+
   // Get active admin user profile from localStorage
   const activeUser = JSON.parse(localStorage.getItem('admin_user') || '{}');
   const activeRole = activeUser.role || '';
@@ -44,7 +51,7 @@ export const AdminUsersPage: React.FC = () => {
           navigate('/admin/login');
           return;
         }
-        throw new Error('Failed to load administrator accounts registry.');
+        throw new Error('Failed to load administrators registry.');
       }
 
       const data = await response.json();
@@ -75,11 +82,7 @@ export const AdminUsersPage: React.FC = () => {
     return () => window.removeEventListener('app-sync', handleSync);
   }, []);
 
-  const handleDeleteUser = async (id: number, username: string) => {
-    // Double check confirmation
-    const confirmDelete = window.confirm(`Are you sure you want to delete administrator account: "${username}"?`);
-    if (!confirmDelete) return;
-
+  const handleDeleteUser = async (id: number) => {
     const token = localStorage.getItem('admin_token');
 
     try {
@@ -95,10 +98,12 @@ export const AdminUsersPage: React.FC = () => {
         throw new Error(data.error || 'Failed to delete user.');
       }
 
-      alert(`Admin account "${username}" deleted successfully.`);
-      
       // Refresh list
       fetchUsers();
+      // Notify other tabs
+      const syncEvent = new CustomEvent('app-sync', { detail: 'REFRESH_ADMINS' });
+      window.dispatchEvent(syncEvent);
+      setDeleteConfirm({ isOpen: false, userId: 0, username: '' });
     } catch (err: any) {
       alert(err.message);
     }
@@ -163,7 +168,7 @@ export const AdminUsersPage: React.FC = () => {
                       <td>
                         {canDelete ? (
                           <button
-                            onClick={() => handleDeleteUser(user.id, user.username)}
+                            onClick={() => setDeleteConfirm({ isOpen: true, userId: user.id, username: user.username })}
                             className="btn-action reject"
                             title="Delete Account"
                           >
@@ -183,6 +188,49 @@ export const AdminUsersPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm.isOpen && (
+        <div className="custom-modal-overlay">
+          <div className="custom-modal-card">
+            <div className="custom-modal-header">
+              <div className="custom-modal-icon-container custom-modal-icon-error">
+                <Trash2 size={20} />
+              </div>
+              <h3 className="custom-modal-title">Delete Administrator</h3>
+            </div>
+            <p className="custom-modal-body">
+              Are you sure you want to delete administrator account: <strong>"{deleteConfirm.username}"</strong>? This action cannot be undone.
+            </p>
+            <div className="custom-modal-footer">
+              <button
+                onClick={() => setDeleteConfirm({ isOpen: false, userId: 0, username: '' })}
+                className="custom-modal-btn-cancel"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  const id = deleteConfirm.userId;
+                  await handleDeleteUser(id);
+                }}
+                className="btn btn-primary"
+                style={{
+                  backgroundColor: '#ef4444',
+                  borderColor: '#ef4444',
+                  color: '#fff',
+                  padding: '0.5rem 1.25rem',
+                  fontSize: '0.875rem',
+                  borderRadius: '0.375rem',
+                  cursor: 'pointer'
+                }}
+              >
+                Confirm Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AdminLayout>
   );
 };
