@@ -10,6 +10,10 @@ import { execSync, exec } from 'child_process';
 import { promisify } from 'util';
 import nodemailer from 'nodemailer';
 import PizZip from 'pizzip';
+import dns from 'dns';
+
+// Force DNS lookup to prefer IPv4 first. This prevents ENETUNREACH errors on hostings like Render where IPv6 is not routable.
+dns.setDefaultResultOrder('ipv4first');
 
 const execPromise = promisify(exec);
 
