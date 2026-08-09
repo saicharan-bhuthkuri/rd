@@ -175,3 +175,49 @@ git add .
 git commit -m "Deploy latest changes"
 git push origin master
 ```
+
+---
+
+## 🧹 Clearing Database for Testing
+
+To clear all test applications and event registrations from the Turso database, you can run the database clearing script.
+
+Create a file named `clear_db.js` in the `backend` folder with the following content:
+
+```javascript
+const { createClient } = require('@libsql/client');
+require('dotenv').config();
+
+const tursoUrl = process.env.TURSO_URL;
+const tursoToken = process.env.TURSO_TOKEN;
+
+if (!tursoUrl || !tursoToken) {
+  console.error("CRITICAL: TURSO_URL and TURSO_TOKEN must be configured in .env file.");
+  process.exit(1);
+}
+
+const db = createClient({
+  url: tursoUrl,
+  authToken: tursoToken,
+});
+
+async function run() {
+  try {
+    console.log("Clearing club applications...");
+    await db.execute("DELETE FROM club_applications;");
+    console.log("Clearing event registrations...");
+    await db.execute("DELETE FROM event_registrations;");
+    console.log("Database tables cleared successfully!");
+  } catch (error) {
+    console.error("Error clearing database:", error);
+  }
+}
+
+run();
+```
+
+To run the script and clear the tables:
+```bash
+cd backend
+node clear_db.js
+```
