@@ -817,10 +817,12 @@ export const AdminDashboardPage: React.FC = () => {
                           {(() => {
                             const val = reg.status || 'Participation';
                             const presetValues = ['Participation', 'Appreciation', 'Coordinated', 'Won First Place', 'Won Second Place', 'Won Third Place'];
-                            const isCustom = !presetValues.includes(val);
+                            const matchedPreset = presetValues.find(p => p.toLowerCase() === val.toLowerCase());
+                            const displayVal = matchedPreset || val;
+                            const isCustom = !matchedPreset;
                             return (
                               <select
-                                value={val}
+                                value={displayVal}
                                 onChange={(e) => handleUpdateStatus('event', reg.id, e.target.value)}
                                 className="input"
                                 style={{
@@ -846,7 +848,7 @@ export const AdminDashboardPage: React.FC = () => {
                           })()}
                           {(() => {
                             const val = reg.status || 'Participation';
-                            const isPart = val === 'Participation' || val === 'participated' || val === 'participation' || val === 'pending' || val === 'approved';
+                            const isPart = val.toLowerCase() === 'participation' || val.toLowerCase() === 'participated' || val === 'pending' || val === 'approved';
                             const badgeClass = isPart ? 'status-participation' : 'status-appreciation';
                             const badgeText = isPart ? 'Participation' : 'Appreciation';
                             return (
