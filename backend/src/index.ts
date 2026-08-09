@@ -186,7 +186,7 @@ async function setupDatabase() {
     }
 
     try {
-      await db.execute(`ALTER TABLE event_registrations ADD COLUMN status TEXT DEFAULT 'participation';`);
+      await db.execute(`ALTER TABLE event_registrations ADD COLUMN status TEXT DEFAULT 'participated';`);
       console.log("Database verification: status column verified/added to event_registrations.");
     } catch (e) {
       // Column already exists, ignore
@@ -195,11 +195,11 @@ async function setupDatabase() {
     try {
       const legacyUpdate = await db.execute(`
         UPDATE event_registrations 
-        SET status = 'participation' 
-        WHERE status IS NULL OR status = 'pending' OR status = 'approved' OR status = 'rejected'
+        SET status = 'participated' 
+        WHERE status IS NULL OR status = 'pending' OR status = 'approved' OR status = 'rejected' OR status = 'participation'
       `);
       if (legacyUpdate.rowsAffected > 0) {
-        console.log(`Database migration: Updated ${legacyUpdate.rowsAffected} legacy event registration statuses to 'participation'.`);
+        console.log(`Database migration: Updated ${legacyUpdate.rowsAffected} legacy event registration statuses to 'participated'.`);
       }
     } catch (e) {
       console.error("Database migration error for event_registrations status:", e);
@@ -534,7 +534,7 @@ app.post('/api/apply/event', async (req, res) => {
   try {
     const result = await db.execute({
       sql: `INSERT INTO event_registrations (full_name, pin_number, email, mobile, branch, year_of_study, section, event_name, notes, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'participation')`,
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'participated')`,
       args: [
         fullName,
         pinNumber,
@@ -675,8 +675,10 @@ app.post('/api/admin/applications/status', authenticateToken, async (req: Authen
     return res.status(400).json({ error: "Type, ID, and status are required." });
   }
 
-  if (status !== 'approved' && status !== 'rejected' && status !== 'pending' && status !== 'participation' && status !== 'appreciation') {
-    return res.status(400).json({ error: "Invalid status state." });
+  if (type === 'club') {
+    if (status !== 'approved' && status !== 'rejected' && status !== 'pending') {
+      return res.status(400).json({ error: "Invalid status state." });
+    }
   }
 
   const tableName = type === 'club' ? 'club_applications' : 'event_registrations';
@@ -1501,7 +1503,8 @@ app.post('/api/admin/bulk-send/certificates', authenticateToken, async (req: Aut
       const studentName = reg.full_name as string;
       const recipientEmail = reg.email as string;
       const id = reg.id as number;
-      const isAppreciation = reg.status === 'appreciation';
+      const actionText = reg.status || 'participated';
+      const isAppreciation = actionText !== 'participated' && actionText !== 'participation';
 
       const safeName = studentName.replace(/[^a-zA-Z0-9_\s]/g, '').trim();
       // Name PPTX matching expected PDF name so LibreOffice writes directly to correct PDF filename
@@ -1512,11 +1515,11 @@ app.post('/api/admin/bulk-send/certificates', authenticateToken, async (req: Aut
         '{{PARTICIPANT NAME}}': studentName,
         '{{EVENT NAME}}': eventTitle,
         '{{DATE}}': eventDate,
-        '{{CERTIFICATE TYPE}}': certificateTypeText || 'participated',
+        '{{CERTIFICATE TYPE}}': actionText,
         '[[PARTICIPANT NAME]]': studentName,
         '[[EVENT NAME]]': eventTitle,
         '[[DATE]]': eventDate,
-        '[[CERTIFICATE TYPE]]': certificateTypeText || 'participated'
+        '[[CERTIFICATE TYPE]]': actionText
       };
 
       const selectedBuffer = isAppreciation ? appTemplateBuffer : partTemplateBuffer;

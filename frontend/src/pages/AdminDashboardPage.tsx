@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { API_BASE_URL } from '../config';
 import { AdminLayout } from '../components/AdminLayout';
-import { Download, Check, X, Layers, Calendar, Mail, Loader2, Award, User } from 'lucide-react';
+import { Download, Check, X, Layers, Calendar, Mail, Loader2 } from 'lucide-react';
 
 interface ClubApplication {
   id: number;
@@ -32,7 +32,7 @@ interface EventRegistration {
   section?: string;
   event_name: string;
   notes?: string;
-  status: 'pending' | 'approved' | 'rejected' | 'participation' | 'appreciation';
+  status: string;
   certificate_sent?: number;
   created_at: string;
 }
@@ -49,6 +49,7 @@ export const AdminDashboardPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [branchFilter, setBranchFilter] = useState('all');
   const [eventFilter, setEventFilter] = useState('all');
+  const [certSentFilter, setCertSentFilter] = useState<'all' | 'sent' | 'pending'>('all');
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -331,7 +332,7 @@ export const AdminDashboardPage: React.FC = () => {
   };
 
   // Update status action
-  const handleUpdateStatus = async (type: 'club' | 'event', id: number, status: 'approved' | 'rejected' | 'participation' | 'appreciation') => {
+  const handleUpdateStatus = async (type: 'club' | 'event', id: number, status: string) => {
     const token = localStorage.getItem('admin_token');
     try {
       const response = await fetch(`${API_BASE_URL}/api/admin/applications/status`, {
@@ -384,10 +385,12 @@ export const AdminDashboardPage: React.FC = () => {
     const matchesSearch = reg.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           reg.pin_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           reg.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || reg.status === statusFilter;
     const matchesBranch = branchFilter === 'all' || reg.branch.toUpperCase() === branchFilter.toUpperCase();
     const matchesEvent = eventFilter === 'all' || reg.event_name === eventFilter;
-    return matchesSearch && matchesStatus && matchesBranch && matchesEvent;
+    const matchesCertSent = certSentFilter === 'all' ||
+      (certSentFilter === 'sent' && reg.certificate_sent === 1) ||
+      (certSentFilter === 'pending' && (!reg.certificate_sent || reg.certificate_sent === 0));
+    return matchesSearch && matchesBranch && matchesEvent && matchesCertSent;
   });
 
   // Calculate quick metrics
@@ -412,14 +415,13 @@ export const AdminDashboardPage: React.FC = () => {
         ? eventRegs 
         : eventRegs.filter(r => r.event_name === eventFilter);
 
-      const approved = targetRegs.filter(r => r.status === 'approved');
-      const sent = approved.filter(r => r.certificate_sent === 1).length;
-      const unsent = approved.filter(r => r.certificate_sent === 0 || r.certificate_sent === null).length;
+      const sent = targetRegs.filter(r => r.certificate_sent === 1).length;
+      const unsent = targetRegs.filter(r => !r.certificate_sent || r.certificate_sent === 0).length;
       return {
         total: targetRegs.length,
-        pending: targetRegs.filter(r => r.status === 'pending').length,
-        approved: approved.length,
-        rejected: targetRegs.filter(r => r.status === 'rejected').length,
+        pending: unsent,
+        approved: targetRegs.length,
+        rejected: 0,
         sent,
         unsent,
         sentLabel: "Certificates Sent",
@@ -566,16 +568,28 @@ export const AdminDashboardPage: React.FC = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
 
-          <select
-            className="admin-filter-select"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-          >
-            <option value="all">All Statuses</option>
-            <option value="pending">Pending</option>
-            <option value="approved">Approved</option>
-            <option value="rejected">Rejected</option>
-          </select>
+          {activeTab === 'club' ? (
+            <select
+              className="admin-filter-select"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="all">All Statuses</option>
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+            </select>
+          ) : (
+            <select
+              className="admin-filter-select"
+              value={certSentFilter}
+              onChange={(e) => setCertSentFilter(e.target.value as 'all' | 'sent' | 'pending')}
+            >
+              <option value="all">All Certificates</option>
+              <option value="sent">Sent Only</option>
+              <option value="pending">Pending Only</option>
+            </select>
+          )}
 
           <select
             className="admin-filter-select"
@@ -680,8 +694,7 @@ export const AdminDashboardPage: React.FC = () => {
                   <th>Academic Profile</th>
                   <th>Target Event</th>
                   <th>Special Notes</th>
-                  <th>Status</th>
-                  <th>Actions</th>
+                  <th colSpan={2}>Certificate Action / Type</th>
                 </tr>
               )}
             </thead>
@@ -754,7 +767,32 @@ export const AdminDashboardPage: React.FC = () => {
                   filteredEventRegs.map(reg => (
                     <tr key={reg.id}>
                       <td>
-                        <strong>{reg.full_name}</strong>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          <strong>{reg.full_name}</strong>
+                          {reg.certificate_sent === 1 ? (
+                            <span style={{
+                              fontSize: '0.625rem',
+                              fontWeight: 700,
+                              color: '#047857',
+                              backgroundColor: '#ecfdf5',
+                              padding: '0.125rem 0.375rem',
+                              borderRadius: '4px',
+                              textTransform: 'uppercase',
+                              display: 'inline-block'
+                            }}>Sent</span>
+                          ) : (
+                            <span style={{
+                              fontSize: '0.625rem',
+                              fontWeight: 700,
+                              color: '#b45309',
+                              backgroundColor: '#fffbeb',
+                              padding: '0.125rem 0.375rem',
+                              borderRadius: '4px',
+                              textTransform: 'uppercase',
+                              display: 'inline-block'
+                            }}>Pending</span>
+                          )}
+                        </div>
                         <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.125rem' }}>
                           PIN: {reg.pin_number} | {reg.email}
                         </div>
@@ -774,61 +812,45 @@ export const AdminDashboardPage: React.FC = () => {
                       <td style={{ maxWidth: '250px', fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
                         <div style={{ maxHeight: '60px', overflowY: 'auto' }}>{reg.notes || 'No notes provided'}</div>
                       </td>
-                      <td>
-                        {(() => {
-                          const displayStatus = reg.status === 'appreciation' ? 'appreciation' : 'participation';
-                          return (
-                            <span className={`status-pill status-${displayStatus}`}>
-                              {displayStatus}
-                            </span>
-                          );
-                        })()}
-                      </td>
-                      <td>
-                        <div className="actions-cell">
-                          {reg.status === 'appreciation' ? (
-                            <button
-                              onClick={() => handleUpdateStatus('event', reg.id, 'participation')}
-                              className="btn-action approve"
-                              title="Change to Participation"
-                              style={{
-                                background: '#eff6ff',
-                                borderColor: '#bfdbfe',
-                                color: '#1d4ed8',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                width: '28px',
-                                height: '28px',
-                                borderRadius: '0.375rem',
-                                border: '1px solid',
-                                cursor: 'pointer'
-                              }}
-                            >
-                              <User size={14} />
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => handleUpdateStatus('event', reg.id, 'appreciation')}
-                              className="btn-action approve"
-                              title="Change to Appreciation"
-                              style={{
-                                background: '#faf5ff',
-                                borderColor: '#d8b4fe',
-                                color: '#6b21a8',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                width: '28px',
-                                height: '28px',
-                                borderRadius: '0.375rem',
-                                border: '1px solid',
-                                cursor: 'pointer'
-                              }}
-                            >
-                              <Award size={14} />
-                            </button>
-                          )}
+                      <td colSpan={2}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                          <input
+                            type="text"
+                            defaultValue={reg.status || 'participated'}
+                            onBlur={(e) => {
+                              if (e.target.value !== reg.status) {
+                                handleUpdateStatus('event', reg.id, e.target.value);
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                const target = e.target as HTMLInputElement;
+                                target.blur();
+                              }
+                            }}
+                            className="input"
+                            style={{
+                              width: '180px',
+                              padding: '0.375rem 0.625rem',
+                              fontSize: '0.8125rem',
+                              borderRadius: '0.375rem',
+                              border: '1px solid var(--border)',
+                              background: '#fff',
+                              color: 'var(--text-main)'
+                            }}
+                            placeholder="e.g. participated, coordinated"
+                          />
+                          {(() => {
+                            const val = reg.status || 'participated';
+                            const isPart = val === 'participated' || val === 'participation' || val === 'pending' || val === 'approved';
+                            const badgeClass = isPart ? 'status-participation' : 'status-appreciation';
+                            const badgeText = isPart ? 'Participation' : 'Appreciation';
+                            return (
+                              <span className={`status-pill ${badgeClass}`} style={{ whiteSpace: 'nowrap' }}>
+                                {badgeText}
+                              </span>
+                            );
+                          })()}
                         </div>
                       </td>
                     </tr>
