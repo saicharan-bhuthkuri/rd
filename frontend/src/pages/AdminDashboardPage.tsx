@@ -816,7 +816,7 @@ export const AdminDashboardPage: React.FC = () => {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                           {(() => {
                             const val = reg.status || 'participated';
-                            const presetValues = ['participated', 'coordinated', 'won First Place', 'won Second Place', 'won Third Place'];
+                            const presetValues = ['participated', 'appreciation', 'coordinated', 'won First Place', 'won Second Place', 'won Third Place'];
                             const isCustom = !presetValues.includes(val);
                             return (
                               <select
@@ -835,6 +835,7 @@ export const AdminDashboardPage: React.FC = () => {
                                 }}
                               >
                                 <option value="participated">Participation</option>
+                                <option value="appreciation">Appreciation</option>
                                 <option value="coordinated">Coordinated</option>
                                 <option value="won First Place">Won First Place</option>
                                 <option value="won Second Place">Won Second Place</option>
