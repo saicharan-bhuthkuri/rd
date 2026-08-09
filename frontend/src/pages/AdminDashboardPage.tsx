@@ -824,6 +824,7 @@ export const AdminDashboardPage: React.FC = () => {
                               <select
                                 value={displayVal}
                                 onChange={(e) => handleUpdateStatus('event', reg.id, e.target.value)}
+                                disabled={reg.certificate_sent === 1}
                                 className="input"
                                 style={{
                                   width: '180px',
@@ -831,9 +832,10 @@ export const AdminDashboardPage: React.FC = () => {
                                   fontSize: '0.8125rem',
                                   borderRadius: '0.375rem',
                                   border: '1px solid var(--border)',
-                                  background: '#fff',
+                                  background: reg.certificate_sent === 1 ? '#f1f5f9' : '#fff',
                                   color: 'var(--text-main)',
-                                  cursor: 'pointer'
+                                  cursor: reg.certificate_sent === 1 ? 'not-allowed' : 'pointer',
+                                  opacity: reg.certificate_sent === 1 ? 0.7 : 1
                                 }}
                               >
                                 <option value="Participation">Participation</option>
