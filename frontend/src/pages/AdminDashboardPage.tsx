@@ -850,7 +850,7 @@ export const AdminDashboardPage: React.FC = () => {
                             const val = reg.status || 'Participation';
                             const isPart = val.toLowerCase() === 'participation' || val.toLowerCase() === 'participated' || val === 'pending' || val === 'approved';
                             const badgeClass = isPart ? 'status-participation' : 'status-appreciation';
-                            const badgeText = isPart ? 'Participation' : 'Appreciation';
+                            const badgeText = isPart ? 'Participation' : val;
                             return (
                               <span className={`status-pill ${badgeClass}`} style={{ whiteSpace: 'nowrap' }}>
                                 {badgeText}
