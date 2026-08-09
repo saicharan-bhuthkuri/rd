@@ -13,6 +13,7 @@ interface CustomSelectProps {
   placeholder: string;
   icon: React.ReactNode;
   required?: boolean;
+  disabled?: boolean;
 }
 
 const CustomSelect: React.FC<CustomSelectProps> = ({
@@ -22,7 +23,8 @@ const CustomSelect: React.FC<CustomSelectProps> = ({
   options,
   placeholder,
   icon,
-  required = false
+  required = false,
+  disabled = false
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -45,8 +47,8 @@ const CustomSelect: React.FC<CustomSelectProps> = ({
     >
       <div 
         className="input-with-icon" 
-        onClick={() => setIsOpen(!isOpen)}
-        style={{ cursor: 'pointer' }}
+        onClick={() => !disabled && setIsOpen(!isOpen)}
+        style={{ cursor: disabled ? 'not-allowed' : 'pointer' }}
       >
         {icon}
         <div 
@@ -54,26 +56,27 @@ const CustomSelect: React.FC<CustomSelectProps> = ({
           style={{
             padding: '0.75rem 2.75rem 0.75rem 2.75rem',
             borderRadius: 'var(--radius-md)',
-            border: isOpen ? '1px solid var(--primary)' : '1px solid var(--border)',
-            backgroundColor: 'var(--bg-main)',
+            border: isOpen && !disabled ? '1px solid var(--primary)' : '1px solid var(--border)',
+            backgroundColor: disabled ? '#f1f5f9' : 'var(--bg-main)',
             color: value ? 'var(--text-main)' : 'var(--text-muted)',
             fontSize: '0.9375rem',
             width: '100%',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            boxShadow: isOpen ? '0 0 0 3px var(--primary-glow)' : 'none',
+            boxShadow: isOpen && !disabled ? '0 0 0 3px var(--primary-glow)' : 'none',
             transition: 'var(--transition-fast)',
             minHeight: '45px',
-            userSelect: 'none'
+            userSelect: 'none',
+            opacity: disabled ? 0.7 : 1
           }}
         >
           <span>{value || placeholder}</span>
           <ChevronDown 
             size={16} 
             style={{ 
-              color: isOpen ? 'var(--primary)' : 'var(--text-muted)', 
-              transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+              color: isOpen && !disabled ? 'var(--primary)' : 'var(--text-muted)', 
+              transform: isOpen && !disabled ? 'rotate(180deg)' : 'rotate(0deg)',
               transition: 'transform var(--transition-fast)'
             }} 
           />
@@ -559,23 +562,22 @@ export const ApplyPage: React.FC = () => {
                       <div className="form-section-title" style={{ marginTop: '1.5rem' }}>Event Registration</div>
                       <div className="form-group">
                         <label htmlFor="eventName">Select Event / Workshop <span className="req">*</span></label>
-                        <select
+                        <CustomSelect
                           id="eventName"
                           required
                           value={eventName}
-                          onChange={(e) => setEventName(e.target.value)}
-                          disabled={isLoadingEvents}
-                        >
-                          {isLoadingEvents ? (
-                            <option value="">Loading technical events...</option>
-                          ) : eventsList.length === 0 ? (
-                            <option value="">No events scheduled</option>
-                          ) : (
-                            eventsList.map((evt, idx) => (
-                              <option key={idx} value={evt}>{evt}</option>
-                            ))
-                          )}
-                        </select>
+                          onChange={setEventName}
+                          options={eventsList}
+                          placeholder={
+                            isLoadingEvents 
+                              ? "Loading technical events..." 
+                              : eventsList.length === 0 
+                                ? "No events scheduled" 
+                                : "Select Event / Workshop"
+                          }
+                          icon={<Sparkles size={16} />}
+                          disabled={isLoadingEvents || eventsList.length === 0}
+                        />
                       </div>
 
                       <div className="form-group">
