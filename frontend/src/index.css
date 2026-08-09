@@ -82,7 +82,7 @@ a {
   transition: var(--transition-fast);
 }
 
-button, input, textarea, select {
+button, input, textarea, select, option {
   font-family: inherit;
 }
 
@@ -4323,7 +4323,7 @@ select option {
   background-color: #fff;
   color: #0f172a;
   padding: 0.5rem;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
   font-size: 0.9375rem;
 }
 
