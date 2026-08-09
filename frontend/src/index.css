@@ -3165,7 +3165,8 @@ button, input, textarea, select {
   pointer-events: none;
 }
 
-.input-with-icon input {
+.input-with-icon input,
+.input-with-icon select {
   padding-left: 2.75rem;
 }
 
@@ -4303,6 +4304,7 @@ select {
   padding: 0.625rem 1rem;
   font-size: 0.875rem;
   color: var(--text-main, #0f172a);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   transition: border-color var(--transition-fast, 0.15s), box-shadow var(--transition-fast, 0.15s);
 }
 
@@ -4321,6 +4323,8 @@ select option {
   background-color: #fff;
   color: #0f172a;
   padding: 0.5rem;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 0.9375rem;
 }
 
 /* Styled Modal Classes */

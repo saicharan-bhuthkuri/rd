@@ -342,35 +342,41 @@ export const ApplyPage: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="form-group">
+                   <div className="form-group">
                     <label htmlFor="branch">Branch / Department <span className="req">*</span></label>
-                    <select
-                      id="branch"
-                      required
-                      value={branch}
-                      onChange={(e) => setBranch(e.target.value)}
-                    >
-                      <option value="">Select Branch / Department</option>
-                      {branchesList.map((b) => (
-                        <option key={b} value={b}>{b}</option>
-                      ))}
-                    </select>
+                    <div className="input-with-icon">
+                      <GraduationCap size={16} />
+                      <select
+                        id="branch"
+                        required
+                        value={branch}
+                        onChange={(e) => setBranch(e.target.value)}
+                      >
+                        <option value="">Select Branch / Department</option>
+                        {branchesList.map((b) => (
+                          <option key={b} value={b}>{b}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
 
                   <div className="form-group">
                     <label htmlFor="yearOfStudy">Year of Study <span className="req">*</span></label>
-                    <select
-                      id="yearOfStudy"
-                      required
-                      value={yearOfStudy}
-                      onChange={(e) => setYearOfStudy(e.target.value)}
-                    >
-                      <option value="">Select Year</option>
-                      <option value="1st Year">1st Year</option>
-                      <option value="2nd Year">2nd Year</option>
-                      <option value="3rd Year">3rd Year</option>
-                      <option value="4th Year">4th Year</option>
-                    </select>
+                    <div className="input-with-icon">
+                      <Calendar size={16} />
+                      <select
+                        id="yearOfStudy"
+                        required
+                        value={yearOfStudy}
+                        onChange={(e) => setYearOfStudy(e.target.value)}
+                      >
+                        <option value="">Select Year</option>
+                        <option value="1st Year">1st Year</option>
+                        <option value="2nd Year">2nd Year</option>
+                        <option value="3rd Year">3rd Year</option>
+                        <option value="4th Year">4th Year</option>
+                      </select>
+                    </div>
                   </div>
 
                   <div className="form-group">
