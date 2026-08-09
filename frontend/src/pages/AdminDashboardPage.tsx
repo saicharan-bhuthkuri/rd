@@ -108,7 +108,6 @@ export const AdminDashboardPage: React.FC = () => {
 
   // Certificate Type Modal States
   const [isCertModalOpen, setIsCertModalOpen] = useState(false);
-  const [certTypeText, setCertTypeText] = useState('participated');
 
   // Terminal Console Modal States
   const [isConsoleOpen, setIsConsoleOpen] = useState(false);
@@ -240,7 +239,7 @@ export const AdminDashboardPage: React.FC = () => {
     );
   };
 
-  const executeBulkSendCertificates = async (typeText: string) => {
+  const executeBulkSendCertificates = async () => {
     // Reset console states
     setConsoleLogs([]);
     setConsoleProgress(0);
@@ -259,8 +258,7 @@ export const AdminDashboardPage: React.FC = () => {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({ 
-          eventTitle: eventFilter,
-          certificateTypeText: typeText
+          eventTitle: eventFilter
         })
       });
 
@@ -327,7 +325,6 @@ export const AdminDashboardPage: React.FC = () => {
       return;
     }
 
-    setCertTypeText('participated');
     setIsCertModalOpen(true);
   };
 
@@ -1064,35 +1061,8 @@ export const AdminDashboardPage: React.FC = () => {
             </div>
 
             <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-              Customise the text placeholder for attendees of <strong>"{eventFilter}"</strong>. The template type is automatically determined per-student from the dashboard.
+              Are you sure you want to generate and dispatch certificates to all unsent/pending registered attendees of the event <strong>"{eventFilter}"</strong>? The certificate action text (e.g. Coordinated, Won First Place) will be read directly from the table dropdown values.
             </p>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
-                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Certificate Type Placeholder Text ({"{{CERTIFICATE TYPE}}"})
-                </label>
-                <input
-                  type="text"
-                  value={certTypeText}
-                  onChange={(e) => setCertTypeText(e.target.value)}
-                  placeholder="e.g. participated, coordinated, won First Place"
-                  className="input"
-                  style={{
-                    width: '100%',
-                    padding: '0.5rem 0.75rem',
-                    fontSize: '0.875rem',
-                    borderRadius: '0.375rem',
-                    border: '1px solid var(--border)',
-                    background: '#fff',
-                    color: 'var(--text-main)'
-                  }}
-                />
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                  This replaces the <code>{"{{CERTIFICATE TYPE}}"}</code> placeholder in the appreciation templates.
-                </span>
-              </div>
-            </div>
 
             <div style={{
               display: 'flex',
@@ -1118,7 +1088,7 @@ export const AdminDashboardPage: React.FC = () => {
               <button
                 onClick={() => {
                   setIsCertModalOpen(false);
-                  executeBulkSendCertificates(certTypeText);
+                  executeBulkSendCertificates();
                 }}
                 className="btn btn-primary"
                 style={{
