@@ -814,32 +814,35 @@ export const AdminDashboardPage: React.FC = () => {
                       </td>
                       <td colSpan={2}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                          <input
-                            type="text"
-                            defaultValue={reg.status || 'participated'}
-                            onBlur={(e) => {
-                              if (e.target.value !== reg.status) {
-                                handleUpdateStatus('event', reg.id, e.target.value);
-                              }
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                const target = e.target as HTMLInputElement;
-                                target.blur();
-                              }
-                            }}
-                            className="input"
-                            style={{
-                              width: '180px',
-                              padding: '0.375rem 0.625rem',
-                              fontSize: '0.8125rem',
-                              borderRadius: '0.375rem',
-                              border: '1px solid var(--border)',
-                              background: '#fff',
-                              color: 'var(--text-main)'
-                            }}
-                            placeholder="e.g. participated, coordinated"
-                          />
+                          {(() => {
+                            const val = reg.status || 'participated';
+                            const presetValues = ['participated', 'coordinated', 'won First Place', 'won Second Place', 'won Third Place'];
+                            const isCustom = !presetValues.includes(val);
+                            return (
+                              <select
+                                value={val}
+                                onChange={(e) => handleUpdateStatus('event', reg.id, e.target.value)}
+                                className="input"
+                                style={{
+                                  width: '180px',
+                                  padding: '0.375rem 0.625rem',
+                                  fontSize: '0.8125rem',
+                                  borderRadius: '0.375rem',
+                                  border: '1px solid var(--border)',
+                                  background: '#fff',
+                                  color: 'var(--text-main)',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                <option value="participated">Participation</option>
+                                <option value="coordinated">Coordinated</option>
+                                <option value="won First Place">Won First Place</option>
+                                <option value="won Second Place">Won Second Place</option>
+                                <option value="won Third Place">Won Third Place</option>
+                                {isCustom && <option value={val}>{val}</option>}
+                              </select>
+                            );
+                          })()}
                           {(() => {
                             const val = reg.status || 'participated';
                             const isPart = val === 'participated' || val === 'participation' || val === 'pending' || val === 'approved';
