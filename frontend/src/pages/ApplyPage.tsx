@@ -1,9 +1,183 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { API_BASE_URL } from '../config';
-import { ArrowLeft, User, Mail, Phone, GraduationCap, Calendar, Sparkles, Check, Loader2, Code, Users, Server } from 'lucide-react';
+import { ArrowLeft, User, Mail, Phone, GraduationCap, Calendar, Sparkles, Check, Loader2, Code, Users, Server, ChevronDown } from 'lucide-react';
 
 type FormType = 'none' | 'join-club' | 'event';
+
+interface CustomSelectProps {
+  id: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: string[];
+  placeholder: string;
+  icon: React.ReactNode;
+  required?: boolean;
+}
+
+const CustomSelect: React.FC<CustomSelectProps> = ({
+  id,
+  value,
+  onChange,
+  options,
+  placeholder,
+  icon,
+  required = false
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <div 
+      className="custom-select-container" 
+      ref={containerRef} 
+      style={{ position: 'relative', width: '100%' }}
+    >
+      <div 
+        className="input-with-icon" 
+        onClick={() => setIsOpen(!isOpen)}
+        style={{ cursor: 'pointer' }}
+      >
+        {icon}
+        <div 
+          className="custom-select-trigger"
+          style={{
+            padding: '0.75rem 2.75rem 0.75rem 2.75rem',
+            borderRadius: 'var(--radius-md)',
+            border: isOpen ? '1px solid var(--primary)' : '1px solid var(--border)',
+            backgroundColor: 'var(--bg-main)',
+            color: value ? 'var(--text-main)' : 'var(--text-muted)',
+            fontSize: '0.9375rem',
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            boxShadow: isOpen ? '0 0 0 3px var(--primary-glow)' : 'none',
+            transition: 'var(--transition-fast)',
+            minHeight: '45px',
+            userSelect: 'none'
+          }}
+        >
+          <span>{value || placeholder}</span>
+          <ChevronDown 
+            size={16} 
+            style={{ 
+              color: isOpen ? 'var(--primary)' : 'var(--text-muted)', 
+              transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+              transition: 'transform var(--transition-fast)'
+            }} 
+          />
+        </div>
+      </div>
+
+      <select
+        id={id}
+        required={required}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        style={{
+          position: 'absolute',
+          opacity: 0,
+          width: '100%',
+          height: '100%',
+          top: 0,
+          left: 0,
+          pointerEvents: 'none',
+          zIndex: -1
+        }}
+      >
+        <option value="">{placeholder}</option>
+        {options.map(opt => (
+          <option key={opt} value={opt}>{opt}</option>
+        ))}
+      </select>
+
+      {isOpen && (
+        <div 
+          className="custom-select-options"
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + 0.5rem)',
+            left: 0,
+            right: 0,
+            backgroundColor: 'var(--bg-card)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-md)',
+            boxShadow: 'var(--shadow-lg)',
+            zIndex: 100,
+            maxHeight: '200px',
+            overflowY: 'auto',
+            animation: 'modalFadeIn 0.15s ease-out'
+          }}
+        >
+          {required && placeholder && (
+            <div
+              onClick={() => {
+                onChange('');
+                setIsOpen(false);
+              }}
+              style={{
+                padding: '0.625rem 1rem',
+                fontSize: '0.875rem',
+                color: 'var(--text-muted)',
+                cursor: 'pointer',
+                transition: 'background-color 0.15s',
+                backgroundColor: value === '' ? 'var(--primary-light)' : 'transparent',
+                fontWeight: value === '' ? 600 : 400
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-subtle)'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = value === '' ? 'var(--primary-light)' : 'transparent'}
+            >
+              {placeholder}
+            </div>
+          )}
+          {options.map((option) => (
+            <div
+              key={option}
+              onClick={() => {
+                onChange(option);
+                setIsOpen(false);
+              }}
+              style={{
+                padding: '0.625rem 1rem',
+                fontSize: '0.875rem',
+                color: value === option ? 'var(--primary)' : 'var(--text-main)',
+                cursor: 'pointer',
+                transition: 'background-color 0.15s, color 0.15s',
+                backgroundColor: value === option ? 'var(--primary-light)' : 'transparent',
+                fontWeight: value === option ? 600 : 400
+              }}
+              onMouseEnter={(e) => {
+                if (value !== option) {
+                  e.currentTarget.style.backgroundColor = 'var(--primary-light)';
+                  e.currentTarget.style.color = 'var(--primary)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (value !== option) {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                  e.currentTarget.style.color = 'var(--text-main)';
+                }
+              }}
+            >
+              {option}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
 export const ApplyPage: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -342,41 +516,30 @@ export const ApplyPage: React.FC = () => {
                     </div>
                   </div>
 
-                   <div className="form-group">
+                  <div className="form-group">
                     <label htmlFor="branch">Branch / Department <span className="req">*</span></label>
-                    <div className="input-with-icon">
-                      <GraduationCap size={16} />
-                      <select
-                        id="branch"
-                        required
-                        value={branch}
-                        onChange={(e) => setBranch(e.target.value)}
-                      >
-                        <option value="">Select Branch / Department</option>
-                        {branchesList.map((b) => (
-                          <option key={b} value={b}>{b}</option>
-                        ))}
-                      </select>
-                    </div>
+                    <CustomSelect
+                      id="branch"
+                      required
+                      value={branch}
+                      onChange={setBranch}
+                      options={branchesList}
+                      placeholder="Select Branch / Department"
+                      icon={<GraduationCap size={16} />}
+                    />
                   </div>
 
                   <div className="form-group">
                     <label htmlFor="yearOfStudy">Year of Study <span className="req">*</span></label>
-                    <div className="input-with-icon">
-                      <Calendar size={16} />
-                      <select
-                        id="yearOfStudy"
-                        required
-                        value={yearOfStudy}
-                        onChange={(e) => setYearOfStudy(e.target.value)}
-                      >
-                        <option value="">Select Year</option>
-                        <option value="1st Year">1st Year</option>
-                        <option value="2nd Year">2nd Year</option>
-                        <option value="3rd Year">3rd Year</option>
-                        <option value="4th Year">4th Year</option>
-                      </select>
-                    </div>
+                    <CustomSelect
+                      id="yearOfStudy"
+                      required
+                      value={yearOfStudy}
+                      onChange={setYearOfStudy}
+                      options={['1st Year', '2nd Year', '3rd Year', '4th Year']}
+                      placeholder="Select Year"
+                      icon={<Calendar size={16} />}
+                    />
                   </div>
 
                   <div className="form-group">
