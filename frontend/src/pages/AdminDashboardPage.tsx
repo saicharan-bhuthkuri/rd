@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { API_BASE_URL } from '../config';
 import { AdminLayout } from '../components/AdminLayout';
-import { Download, Check, X, Layers, Calendar, Mail, Loader2 } from 'lucide-react';
+import { Download, Check, X, Layers, Calendar, Mail, Loader2, Award, User } from 'lucide-react';
 
 interface ClubApplication {
   id: number;
@@ -32,7 +32,7 @@ interface EventRegistration {
   section?: string;
   event_name: string;
   notes?: string;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'approved' | 'rejected' | 'participation' | 'appreciation';
   certificate_sent?: number;
   created_at: string;
 }
@@ -107,7 +107,6 @@ export const AdminDashboardPage: React.FC = () => {
 
   // Certificate Type Modal States
   const [isCertModalOpen, setIsCertModalOpen] = useState(false);
-  const [selectedCertType, setSelectedCertType] = useState<'participation' | 'appreciation'>('participation');
   const [certTypeText, setCertTypeText] = useState('participated');
 
   // Terminal Console Modal States
@@ -240,7 +239,7 @@ export const AdminDashboardPage: React.FC = () => {
     );
   };
 
-  const executeBulkSendCertificates = async (certType: 'participation' | 'appreciation', typeText: string) => {
+  const executeBulkSendCertificates = async (typeText: string) => {
     // Reset console states
     setConsoleLogs([]);
     setConsoleProgress(0);
@@ -260,7 +259,6 @@ export const AdminDashboardPage: React.FC = () => {
         },
         body: JSON.stringify({ 
           eventTitle: eventFilter,
-          certificateType: certType,
           certificateTypeText: typeText
         })
       });
@@ -328,13 +326,12 @@ export const AdminDashboardPage: React.FC = () => {
       return;
     }
 
-    setSelectedCertType('participation');
     setCertTypeText('participated');
     setIsCertModalOpen(true);
   };
 
   // Update status action
-  const handleUpdateStatus = async (type: 'club' | 'event', id: number, status: 'approved' | 'rejected') => {
+  const handleUpdateStatus = async (type: 'club' | 'event', id: number, status: 'approved' | 'rejected' | 'participation' | 'appreciation') => {
     const token = localStorage.getItem('admin_token');
     try {
       const response = await fetch(`${API_BASE_URL}/api/admin/applications/status`, {
@@ -778,24 +775,59 @@ export const AdminDashboardPage: React.FC = () => {
                         <div style={{ maxHeight: '60px', overflowY: 'auto' }}>{reg.notes || 'No notes provided'}</div>
                       </td>
                       <td>
-                        <span className={`status-pill status-${reg.status}`}>{reg.status}</span>
+                        {(() => {
+                          const displayStatus = reg.status === 'appreciation' ? 'appreciation' : 'participation';
+                          return (
+                            <span className={`status-pill status-${displayStatus}`}>
+                              {displayStatus}
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td>
                         <div className="actions-cell">
-                          {reg.status === 'pending' && (
-                            <>
-                              <button onClick={() => handleUpdateStatus('event', reg.id, 'approved')} className="btn-action approve" title="Approve Registration">
-                                <Check size={14} />
-                              </button>
-                              <button onClick={() => handleUpdateStatus('event', reg.id, 'rejected')} className="btn-action reject" title="Reject Registration">
-                                <X size={14} />
-                              </button>
-                            </>
-                          )}
-                          {reg.status !== 'pending' && (
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                              Checked
-                            </span>
+                          {reg.status === 'appreciation' ? (
+                            <button
+                              onClick={() => handleUpdateStatus('event', reg.id, 'participation')}
+                              className="btn-action approve"
+                              title="Change to Participation"
+                              style={{
+                                background: '#eff6ff',
+                                borderColor: '#bfdbfe',
+                                color: '#1d4ed8',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: '28px',
+                                height: '28px',
+                                borderRadius: '0.375rem',
+                                border: '1px solid',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <User size={14} />
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleUpdateStatus('event', reg.id, 'appreciation')}
+                              className="btn-action approve"
+                              title="Change to Appreciation"
+                              style={{
+                                background: '#faf5ff',
+                                borderColor: '#d8b4fe',
+                                color: '#6b21a8',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: '28px',
+                                height: '28px',
+                                borderRadius: '0.375rem',
+                                border: '1px solid',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <Award size={14} />
+                            </button>
                           )}
                         </div>
                       </td>
@@ -1002,37 +1034,10 @@ export const AdminDashboardPage: React.FC = () => {
             </div>
 
             <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-              Choose the template type and customise the text placeholder for approved attendees of <strong>"{eventFilter}"</strong>.
+              Customise the text placeholder for attendees of <strong>"{eventFilter}"</strong>. The template type is automatically determined per-student from the dashboard.
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
-                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Certificate Template Type
-                </label>
-                <select
-                  value={selectedCertType}
-                  onChange={(e) => {
-                    const val = e.target.value as 'participation' | 'appreciation';
-                    setSelectedCertType(val);
-                    setCertTypeText('participated');
-                  }}
-                  className="input"
-                  style={{
-                    width: '100%',
-                    padding: '0.5rem 0.75rem',
-                    fontSize: '0.875rem',
-                    borderRadius: '0.375rem',
-                    border: '1px solid var(--border)',
-                    background: '#fff',
-                    color: 'var(--text-main)'
-                  }}
-                >
-                  <option value="participation">Participation</option>
-                  <option value="appreciation">Appreciation</option>
-                </select>
-              </div>
-
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
                 <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   Certificate Type Placeholder Text ({"{{CERTIFICATE TYPE}}"})
@@ -1054,7 +1059,7 @@ export const AdminDashboardPage: React.FC = () => {
                   }}
                 />
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                  This replaces the <code>{"{{CERTIFICATE TYPE}}"}</code> placeholder in the template.
+                  This replaces the <code>{"{{CERTIFICATE TYPE}}"}</code> placeholder in the appreciation templates.
                 </span>
               </div>
             </div>
@@ -1083,7 +1088,7 @@ export const AdminDashboardPage: React.FC = () => {
               <button
                 onClick={() => {
                   setIsCertModalOpen(false);
-                  executeBulkSendCertificates(selectedCertType, certTypeText);
+                  executeBulkSendCertificates(certTypeText);
                 }}
                 className="btn btn-primary"
                 style={{

@@ -3792,6 +3792,24 @@ button, input, textarea, select {
   background-color: #ef4444;
 }
 
+.status-participation {
+  background-color: #eff6ff;
+  color: #1d4ed8;
+}
+
+.status-participation::before {
+  background-color: #3b82f6;
+}
+
+.status-appreciation {
+  background-color: #faf5ff;
+  color: #6b21a8;
+}
+
+.status-appreciation::before {
+  background-color: #a855f7;
+}
+
 /* Actions cell */
 .actions-cell {
   display: flex;

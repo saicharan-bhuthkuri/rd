@@ -186,10 +186,23 @@ async function setupDatabase() {
     }
 
     try {
-      await db.execute(`ALTER TABLE event_registrations ADD COLUMN status TEXT DEFAULT 'pending';`);
+      await db.execute(`ALTER TABLE event_registrations ADD COLUMN status TEXT DEFAULT 'participation';`);
       console.log("Database verification: status column verified/added to event_registrations.");
     } catch (e) {
       // Column already exists, ignore
+    }
+
+    try {
+      const legacyUpdate = await db.execute(`
+        UPDATE event_registrations 
+        SET status = 'participation' 
+        WHERE status IS NULL OR status = 'pending' OR status = 'approved' OR status = 'rejected'
+      `);
+      if (legacyUpdate.rowsAffected > 0) {
+        console.log(`Database migration: Updated ${legacyUpdate.rowsAffected} legacy event registration statuses to 'participation'.`);
+      }
+    } catch (e) {
+      console.error("Database migration error for event_registrations status:", e);
     }
 
     try {
@@ -520,8 +533,8 @@ app.post('/api/apply/event', async (req, res) => {
 
   try {
     const result = await db.execute({
-      sql: `INSERT INTO event_registrations (full_name, pin_number, email, mobile, branch, year_of_study, section, event_name, notes)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      sql: `INSERT INTO event_registrations (full_name, pin_number, email, mobile, branch, year_of_study, section, event_name, notes, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'participation')`,
       args: [
         fullName,
         pinNumber,
@@ -662,7 +675,7 @@ app.post('/api/admin/applications/status', authenticateToken, async (req: Authen
     return res.status(400).json({ error: "Type, ID, and status are required." });
   }
 
-  if (status !== 'approved' && status !== 'rejected' && status !== 'pending') {
+  if (status !== 'approved' && status !== 'rejected' && status !== 'pending' && status !== 'participation' && status !== 'appreciation') {
     return res.status(400).json({ error: "Invalid status state." });
   }
 
@@ -1407,8 +1420,7 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
 // 15. Bulk Send Certificates to Approved Event Registrants
 // 15. Bulk Send Certificates to Approved Event Registrants
 app.post('/api/admin/bulk-send/certificates', authenticateToken, async (req: AuthenticatedRequest, res) => {
-  const { eventTitle, certificateType, certificateTypeText } = req.body;
-  const isAppreciation = certificateType === 'appreciation';
+  const { eventTitle, certificateTypeText } = req.body;
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -1428,33 +1440,33 @@ app.post('/api/admin/bulk-send/certificates', authenticateToken, async (req: Aut
   try {
     sendLog("Initializing email service...", 5);
 
-    let templateName = "certificate_participation";
-    if (certificateType === 'appreciation') {
-      templateName = "certificate_appreciation";
-    }
-
-    // 1. Fetch template from DB
-    let templateRes = await db.execute({
+    // 1. Fetch templates from DB
+    let partTemplateRes = await db.execute({
       sql: "SELECT data_base64 FROM templates WHERE name = ?",
-      args: [templateName]
+      args: ["certificate_participation"]
     });
-
-    // Fallback if participation template name does not exist
-    if (templateRes.rows.length === 0 && templateName === "certificate_participation") {
-      templateRes = await db.execute({
+    if (partTemplateRes.rows.length === 0) {
+      partTemplateRes = await db.execute({
         sql: "SELECT data_base64 FROM templates WHERE name = ?",
         args: ["certificate"]
       });
     }
 
-    if (templateRes.rows.length === 0) {
-      res.write(`data: ${JSON.stringify({ error: `Certificate template '${templateName}' not found in database.` })}\n\n`);
+    const appTemplateRes = await db.execute({
+      sql: "SELECT data_base64 FROM templates WHERE name = ?",
+      args: ["certificate_appreciation"]
+    });
+
+    if (partTemplateRes.rows.length === 0) {
+      res.write(`data: ${JSON.stringify({ error: "Default certificate template not found in database." })}\n\n`);
       res.end();
       return;
     }
 
-    const templateBase64 = templateRes.rows[0].data_base64 as string;
-    const templateBuffer = Buffer.from(templateBase64, 'base64');
+    const partTemplateBuffer = Buffer.from(partTemplateRes.rows[0].data_base64 as string, 'base64');
+    const appTemplateBuffer = appTemplateRes.rows.length > 0
+      ? Buffer.from(appTemplateRes.rows[0].data_base64 as string, 'base64')
+      : partTemplateBuffer; // Fallback to participation template if appreciation template is missing
 
     // 2. Fetch event details from DB
     const eventRes = await db.execute({
@@ -1466,20 +1478,20 @@ app.post('/api/admin/bulk-send/certificates', authenticateToken, async (req: Aut
 
     sendLog("Fetching recipient details...", 10);
 
-    // 3. Fetch approved, unsent registrations
+    // 3. Fetch unsent registrations
     const regsRes = await db.execute({
-      sql: "SELECT * FROM event_registrations WHERE event_name = ? AND status = 'approved' AND (certificate_sent = 0 OR certificate_sent IS NULL)",
+      sql: "SELECT * FROM event_registrations WHERE event_name = ? AND (certificate_sent = 0 OR certificate_sent IS NULL)",
       args: [eventTitle]
     });
     const registrations = regsRes.rows;
 
     if (registrations.length === 0) {
-      sendLog(`No approved registrations pending certificates found for: ${eventTitle}.`, 100, true);
+      sendLog(`No registrations pending certificates found for: ${eventTitle}.`, 100, true);
       res.end();
       return;
     }
 
-    sendLog(`Found ${registrations.length} approved attendees pending certificates. Starting bulk dispatch...`, 15);
+    sendLog(`Found ${registrations.length} attendees pending certificates. Starting bulk dispatch...`, 15);
 
     let successCount = 0;
 
@@ -1489,6 +1501,7 @@ app.post('/api/admin/bulk-send/certificates', authenticateToken, async (req: Aut
       const studentName = reg.full_name as string;
       const recipientEmail = reg.email as string;
       const id = reg.id as number;
+      const isAppreciation = reg.status === 'appreciation';
 
       const safeName = studentName.replace(/[^a-zA-Z0-9_\s]/g, '').trim();
       // Name PPTX matching expected PDF name so LibreOffice writes directly to correct PDF filename
@@ -1506,7 +1519,8 @@ app.post('/api/admin/bulk-send/certificates', authenticateToken, async (req: Aut
         '[[CERTIFICATE TYPE]]': certificateTypeText || 'participated'
       };
 
-      replacePlaceholdersInPptx(templateBuffer, tempPptx, replacements);
+      const selectedBuffer = isAppreciation ? appTemplateBuffer : partTemplateBuffer;
+      replacePlaceholdersInPptx(selectedBuffer, tempPptx, replacements);
 
       return {
         reg,
@@ -1515,7 +1529,8 @@ app.post('/api/admin/bulk-send/certificates', authenticateToken, async (req: Aut
         recipientEmail,
         safeName,
         tempPptx,
-        pdfFilename
+        pdfFilename,
+        isAppreciation
       };
     });
 
@@ -1529,7 +1544,7 @@ app.post('/api/admin/bulk-send/certificates', authenticateToken, async (req: Aut
     let completedTasks = 0;
 
     await runWithConcurrency(tasks, 10, async (task) => {
-      const { id, studentName, recipientEmail, safeName, tempPptx, pdfFilename } = task;
+      const { id, studentName, recipientEmail, safeName, tempPptx, pdfFilename, isAppreciation } = task;
       const progressValBefore = Math.floor(50 + (completedTasks / tasks.length) * 45);
       sendLog("Sending email...", progressValBefore);
 
@@ -1638,7 +1653,7 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
     });
 
     notifySyncClients("REFRESH_APPLICATIONS");
-    sendLog(`Successfully sent ${successCount} ${isAppreciation ? 'appreciation' : 'participation'} certificates.`, 95);
+    sendLog(`Successfully sent ${successCount} certificates.`, 95);
     sendLog("Process completed successfully.", 100, true);
     res.end();
   } catch (err: any) {
