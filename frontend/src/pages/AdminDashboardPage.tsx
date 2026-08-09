@@ -105,6 +105,11 @@ export const AdminDashboardPage: React.FC = () => {
 
   const [isSendingBulk, setIsSendingBulk] = useState(false);
 
+  // Certificate Type Modal States
+  const [isCertModalOpen, setIsCertModalOpen] = useState(false);
+  const [selectedCertType, setSelectedCertType] = useState<'participation' | 'appreciation'>('participation');
+  const [certTypeText, setCertTypeText] = useState('participated');
+
   // Terminal Console Modal States
   const [isConsoleOpen, setIsConsoleOpen] = useState(false);
   const [consoleLogs, setConsoleLogs] = useState<string[]>([]);
@@ -235,7 +240,7 @@ export const AdminDashboardPage: React.FC = () => {
     );
   };
 
-  const executeBulkSendCertificates = async () => {
+  const executeBulkSendCertificates = async (certType: 'participation' | 'appreciation', typeText: string) => {
     // Reset console states
     setConsoleLogs([]);
     setConsoleProgress(0);
@@ -253,7 +258,11 @@ export const AdminDashboardPage: React.FC = () => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ eventTitle: eventFilter })
+        body: JSON.stringify({ 
+          eventTitle: eventFilter,
+          certificateType: certType,
+          certificateTypeText: typeText
+        })
       });
 
       if (!response.ok) {
@@ -319,11 +328,9 @@ export const AdminDashboardPage: React.FC = () => {
       return;
     }
 
-    showCustomConfirm(
-      "Send Certificates",
-      `Are you sure you want to generate and email participation certificates to all APPROVED registrants of "${eventFilter}"?`,
-      executeBulkSendCertificates
-    );
+    setSelectedCertType('participation');
+    setCertTypeText('participated');
+    setIsCertModalOpen(true);
   };
 
   // Update status action
@@ -941,6 +948,152 @@ export const AdminDashboardPage: React.FC = () => {
                 }}
               >
                 Close Monitor
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Certificate Configuration Modal */}
+      {isCertModalOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.3)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1100,
+          padding: '1.5rem'
+        }}>
+          <div className="card" style={{
+            width: '100%',
+            maxWidth: '440px',
+            boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)',
+            padding: '1.5rem',
+            borderRadius: '0.75rem',
+            border: '1px solid var(--border)',
+            background: '#fff',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1rem'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <div style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '50%',
+                backgroundColor: '#e0f2fe',
+                color: '#0284c7',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0
+              }}>
+                <Mail size={20} />
+              </div>
+              <h3 style={{ margin: 0, fontSize: '1.125rem', fontWeight: 600, color: 'var(--text-main)' }}>
+                Configure Certificates
+              </h3>
+            </div>
+
+            <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+              Choose the template type and customise the text placeholder for approved attendees of <strong>"{eventFilter}"</strong>.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Certificate Template Type
+                </label>
+                <select
+                  value={selectedCertType}
+                  onChange={(e) => {
+                    const val = e.target.value as 'participation' | 'appreciation';
+                    setSelectedCertType(val);
+                    setCertTypeText('participated');
+                  }}
+                  className="input"
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem 0.75rem',
+                    fontSize: '0.875rem',
+                    borderRadius: '0.375rem',
+                    border: '1px solid var(--border)',
+                    background: '#fff',
+                    color: 'var(--text-main)'
+                  }}
+                >
+                  <option value="participation">Participation</option>
+                  <option value="appreciation">Appreciation</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Certificate Type Placeholder Text ({"{{CERTIFICATE TYPE}}"})
+                </label>
+                <input
+                  type="text"
+                  value={certTypeText}
+                  onChange={(e) => setCertTypeText(e.target.value)}
+                  placeholder="e.g. participated, coordinated, won First Place"
+                  className="input"
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem 0.75rem',
+                    fontSize: '0.875rem',
+                    borderRadius: '0.375rem',
+                    border: '1px solid var(--border)',
+                    background: '#fff',
+                    color: 'var(--text-main)'
+                  }}
+                />
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                  This replaces the <code>{"{{CERTIFICATE TYPE}}"}</code> placeholder in the template.
+                </span>
+              </div>
+            </div>
+
+            <div style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '0.5rem',
+              marginTop: '0.5rem'
+            }}>
+              <button
+                onClick={() => setIsCertModalOpen(false)}
+                className="btn"
+                style={{
+                  padding: '0.5rem 1.25rem',
+                  fontSize: '0.875rem',
+                  borderRadius: '0.375rem',
+                  cursor: 'pointer',
+                  background: 'rgba(0,0,0,0.05)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text-main)'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setIsCertModalOpen(false);
+                  executeBulkSendCertificates(selectedCertType, certTypeText);
+                }}
+                className="btn btn-primary"
+                style={{
+                  padding: '0.5rem 1.25rem',
+                  fontSize: '0.875rem',
+                  borderRadius: '0.375rem',
+                  cursor: 'pointer'
+                }}
+              >
+                Send Certificates
               </button>
             </div>
           </div>

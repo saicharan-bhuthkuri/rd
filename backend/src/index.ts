@@ -325,12 +325,34 @@ async function setupDatabase() {
         }
       }
 
-      // 2. Certificate Template
+      // 2. Certificate Templates (Participation and Appreciation)
+      // 2a. Default/Participation Certificate
       const certCheck = await db.execute({
+        sql: "SELECT count(*) as count FROM templates WHERE name = ?",
+        args: ["certificate_participation"]
+      });
+      if (Number(certCheck.rows[0].count) === 0) {
+        const filePath = path.join(process.cwd(), '../CERTIFICATE_TEMPLATE.pptx');
+        if (fs.existsSync(filePath)) {
+          console.log("Seeding 'certificate_participation' template into database...");
+          const fileData = fs.readFileSync(filePath);
+          const base64 = fileData.toString('base64');
+          await db.execute({
+            sql: "INSERT INTO templates (name, filename, data_base64) VALUES (?, ?, ?)",
+            args: ["certificate_participation", "CERTIFICATE_TEMPLATE.pptx", base64]
+          });
+          console.log("Template 'certificate_participation' seeded successfully.");
+        } else {
+          console.warn(`Warning: Template file not found at ${filePath}. Skipping seeding.`);
+        }
+      }
+
+      // 2b. Legacy Certificate Template (for backward compatibility)
+      const legacyCertCheck = await db.execute({
         sql: "SELECT count(*) as count FROM templates WHERE name = ?",
         args: ["certificate"]
       });
-      if (Number(certCheck.rows[0].count) === 0) {
+      if (Number(legacyCertCheck.rows[0].count) === 0) {
         const filePath = path.join(process.cwd(), '../CERTIFICATE_TEMPLATE.pptx');
         if (fs.existsSync(filePath)) {
           console.log("Seeding 'certificate' template into database...");
@@ -341,6 +363,25 @@ async function setupDatabase() {
             args: ["certificate", "CERTIFICATE_TEMPLATE.pptx", base64]
           });
           console.log("Template 'certificate' seeded successfully.");
+        }
+      }
+
+      // 2c. Appreciation Certificate
+      const appreciationCheck = await db.execute({
+        sql: "SELECT count(*) as count FROM templates WHERE name = ?",
+        args: ["certificate_appreciation"]
+      });
+      if (Number(appreciationCheck.rows[0].count) === 0) {
+        const filePath = path.join(process.cwd(), '../CERTIFICATE_TEMPLATE - APPRECIATION.pptx');
+        if (fs.existsSync(filePath)) {
+          console.log("Seeding 'certificate_appreciation' template into database...");
+          const fileData = fs.readFileSync(filePath);
+          const base64 = fileData.toString('base64');
+          await db.execute({
+            sql: "INSERT INTO templates (name, filename, data_base64) VALUES (?, ?, ?)",
+            args: ["certificate_appreciation", "CERTIFICATE_TEMPLATE - APPRECIATION.pptx", base64]
+          });
+          console.log("Template 'certificate_appreciation' seeded successfully.");
         } else {
           console.warn(`Warning: Template file not found at ${filePath}. Skipping seeding.`);
         }
@@ -920,24 +961,13 @@ function replacePlaceholdersInPptx(templateBuffer: Buffer, outputPath: string, r
 
         // Rule: Disable word wrapping for all shapes EXCEPT the main description/paragraph text shape
         slideXml = slideXml.replace(/<p:sp\b[^>]*>(.*?)<\/p:sp>/gs, (spMatch) => {
-          // If this is the student name shape, remove autofit and increase font size to 38pt (sz="3800")
+          // If this is the student name shape, remove autofit
           if (spMatch.includes('PARTICIPANT NAME')) {
             let modifiedShape = spMatch.replace(/<a:spAutoFit\/>/g, '<a:noAutofit/>');
-            modifiedShape = modifiedShape.replace(/sz="3200"/g, 'sz="3800"');
             return modifiedShape;
           }
-          // Keep wrapping for the description paragraph shape, and dynamically adjust its font size if the event title is long
-          if (spMatch.includes('participat') || spMatch.includes('congratulat')) {
-            const eventName = replacements['{{EVENT NAME}}'] || replacements['[[EVENT NAME]]'] || '';
-            let targetSz = 1705;
-            if (eventName.length > 35) {
-              targetSz = 1500; // 15pt
-            } else if (eventName.length > 20) {
-              targetSz = 1600; // 16pt
-            }
-            if (targetSz !== 1705) {
-              return spMatch.replace(/sz="1705"/g, `sz="${targetSz}"`);
-            }
+          // Keep wrapping for the description paragraph shape
+          if (spMatch.includes('participat') || spMatch.includes('congratulat') || spMatch.includes('appreciat') || spMatch.includes('CERTIFICATE TYPE')) {
             return spMatch;
           }
           // Also keep wrapping for the approval info text box to let it wrap on exactly two lines
@@ -984,6 +1014,17 @@ function replacePlaceholdersInPptx(templateBuffer: Buffer, outputPath: string, r
             const flexRegex = new RegExp(regexPattern, 'g');
             slideXml = slideXml.replace(flexRegex, safeValue);
           });
+
+          // Post-replacement formatting for CERTIFICATE TYPE to keep it standard (non-bold, Cardo font)
+          if (key === '{{CERTIFICATE TYPE}}' || key === '[[CERTIFICATE TYPE]]') {
+            const escapedVal = safeValue.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+            const runRegex = new RegExp(`(<a:rPr\\b[^>]*>)([^<]*<a:latin\\b[^>]*typeface="Cardo Bold"[^>]*>[^<]*)(</a:rPr>)?\\s*<a:t>${escapedVal}</a:t>`, 'g');
+            slideXml = slideXml.replace(runRegex, (match, rPr, latin, rPrClose) => {
+              let cleanRPr = rPr.replace(/\bb="1"/g, '').replace(/\bb="true"/g, '');
+              let cleanLatin = latin.replace(/typeface="Cardo Bold"/g, 'typeface="Cardo"');
+              return `${cleanRPr}${cleanLatin}${rPrClose || ''}<a:t>${safeValue}</a:t>`;
+            });
+          }
         });
 
         // Force font family mappings to match Linux system font registration names
@@ -1288,6 +1329,11 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
       };
 
       try {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!recipientEmail || !emailRegex.test(recipientEmail)) {
+          throw new Error(`Invalid email address format: "${recipientEmail}"`);
+        }
+
         if (!fs.existsSync(pdfFilename)) {
           throw new Error("PDF generation failed during batch process.");
         }
@@ -1359,8 +1405,10 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
 });
 
 // 15. Bulk Send Certificates to Approved Event Registrants
+// 15. Bulk Send Certificates to Approved Event Registrants
 app.post('/api/admin/bulk-send/certificates', authenticateToken, async (req: AuthenticatedRequest, res) => {
-  const { eventTitle } = req.body;
+  const { eventTitle, certificateType, certificateTypeText } = req.body;
+  const isAppreciation = certificateType === 'appreciation';
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -1380,14 +1428,27 @@ app.post('/api/admin/bulk-send/certificates', authenticateToken, async (req: Aut
   try {
     sendLog("Initializing email service...", 5);
 
+    let templateName = "certificate_participation";
+    if (certificateType === 'appreciation') {
+      templateName = "certificate_appreciation";
+    }
+
     // 1. Fetch template from DB
-    const templateRes = await db.execute({
+    let templateRes = await db.execute({
       sql: "SELECT data_base64 FROM templates WHERE name = ?",
-      args: ["certificate"]
+      args: [templateName]
     });
 
+    // Fallback if participation template name does not exist
+    if (templateRes.rows.length === 0 && templateName === "certificate_participation") {
+      templateRes = await db.execute({
+        sql: "SELECT data_base64 FROM templates WHERE name = ?",
+        args: ["certificate"]
+      });
+    }
+
     if (templateRes.rows.length === 0) {
-      res.write(`data: ${JSON.stringify({ error: "Certificate template not found in database." })}\n\n`);
+      res.write(`data: ${JSON.stringify({ error: `Certificate template '${templateName}' not found in database.` })}\n\n`);
       res.end();
       return;
     }
@@ -1438,9 +1499,11 @@ app.post('/api/admin/bulk-send/certificates', authenticateToken, async (req: Aut
         '{{PARTICIPANT NAME}}': studentName,
         '{{EVENT NAME}}': eventTitle,
         '{{DATE}}': eventDate,
+        '{{CERTIFICATE TYPE}}': certificateTypeText || 'participated',
         '[[PARTICIPANT NAME]]': studentName,
         '[[EVENT NAME]]': eventTitle,
-        '[[DATE]]': eventDate
+        '[[DATE]]': eventDate,
+        '[[CERTIFICATE TYPE]]': certificateTypeText || 'participated'
       };
 
       replacePlaceholdersInPptx(templateBuffer, tempPptx, replacements);
@@ -1473,8 +1536,23 @@ app.post('/api/admin/bulk-send/certificates', authenticateToken, async (req: Aut
       const mailOptions = {
         from: SENDER_EMAIL,
         to: recipientEmail,
-        subject: 'Certificate of Participation | Trinity College of Engineering & Technology',
-        text: `Dear ${studentName},
+        subject: isAppreciation 
+          ? 'Certificate of Appreciation | Trinity College of Engineering & Technology'
+          : 'Certificate of Participation | Trinity College of Engineering & Technology',
+        text: isAppreciation
+          ? `Dear ${studentName},
+
+We are pleased to present you with the Certificate of Appreciation for your contribution/involvement in the ${eventTitle} held on ${eventDate} organized by Trinity College of Engineering and Technology, Peddapalli.
+
+Please find attached your Certificate of Appreciation (Certificate_${safeName}.pdf).
+
+We appreciate your dedication, outstanding effort, and active engagement, and wish you the very best in all your future endeavors.
+
+Best regards,
+
+R&D Cell
+Trinity College of Engineering & Technology (Autonomous), Peddapalli`
+          : `Dear ${studentName},
 
 Thank you for your enthusiastic participation in the ${eventTitle} held on ${eventDate} organized by Trinity College of Engineering and Technology, Peddapalli.
 
@@ -1495,6 +1573,11 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
       };
 
       try {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!recipientEmail || !emailRegex.test(recipientEmail)) {
+          throw new Error(`Invalid email address format: "${recipientEmail}"`);
+        }
+
         if (!fs.existsSync(pdfFilename)) {
           throw new Error("PDF generation failed during batch process.");
         }
@@ -1555,7 +1638,7 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
     });
 
     notifySyncClients("REFRESH_APPLICATIONS");
-    sendLog(`Successfully sent ${successCount} participation certificates.`, 95);
+    sendLog(`Successfully sent ${successCount} ${isAppreciation ? 'appreciation' : 'participation'} certificates.`, 95);
     sendLog("Process completed successfully.", 100, true);
     res.end();
   } catch (err: any) {
