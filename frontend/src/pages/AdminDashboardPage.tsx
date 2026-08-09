@@ -424,7 +424,7 @@ export const AdminDashboardPage: React.FC = () => {
         rejected: 0,
         sent,
         unsent,
-        sentLabel: "Certificates Sent",
+        sentLabel: "Certificates Sented",
         unsentLabel: "Certificates Pending"
       };
     }
@@ -586,7 +586,7 @@ export const AdminDashboardPage: React.FC = () => {
               onChange={(e) => setCertSentFilter(e.target.value as 'all' | 'sent' | 'pending')}
             >
               <option value="all">All Certificates</option>
-              <option value="sent">Sent Only</option>
+              <option value="sent">Sented Only</option>
               <option value="pending">Pending Only</option>
             </select>
           )}
@@ -779,7 +779,7 @@ export const AdminDashboardPage: React.FC = () => {
                               borderRadius: '4px',
                               textTransform: 'uppercase',
                               display: 'inline-block'
-                            }}>Sent</span>
+                            }}>Sented</span>
                           ) : (
                             <span style={{
                               fontSize: '0.625rem',
