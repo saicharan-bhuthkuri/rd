@@ -186,7 +186,7 @@ async function setupDatabase() {
     }
 
     try {
-      await db.execute(`ALTER TABLE event_registrations ADD COLUMN status TEXT DEFAULT 'participated';`);
+      await db.execute(`ALTER TABLE event_registrations ADD COLUMN status TEXT DEFAULT 'Participation';`);
       console.log("Database verification: status column verified/added to event_registrations.");
     } catch (e) {
       // Column already exists, ignore
@@ -195,11 +195,11 @@ async function setupDatabase() {
     try {
       const legacyUpdate = await db.execute(`
         UPDATE event_registrations 
-        SET status = 'participated' 
-        WHERE status IS NULL OR status = 'pending' OR status = 'approved' OR status = 'rejected' OR status = 'participation'
+        SET status = 'Participation' 
+        WHERE status IS NULL OR status = 'pending' OR status = 'approved' OR status = 'rejected' OR status = 'participation' OR status = 'participated'
       `);
       if (legacyUpdate.rowsAffected > 0) {
-        console.log(`Database migration: Updated ${legacyUpdate.rowsAffected} legacy event registration statuses to 'participated'.`);
+        console.log(`Database migration: Updated ${legacyUpdate.rowsAffected} legacy event registration statuses to 'Participation'.`);
       }
     } catch (e) {
       console.error("Database migration error for event_registrations status:", e);
@@ -534,7 +534,7 @@ app.post('/api/apply/event', async (req, res) => {
   try {
     const result = await db.execute({
       sql: `INSERT INTO event_registrations (full_name, pin_number, email, mobile, branch, year_of_study, section, event_name, notes, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'participated')`,
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Participation')`,
       args: [
         fullName,
         pinNumber,
@@ -1503,8 +1503,8 @@ app.post('/api/admin/bulk-send/certificates', authenticateToken, async (req: Aut
       const studentName = reg.full_name as string;
       const recipientEmail = reg.email as string;
       const id = reg.id as number;
-      const actionText = reg.status || 'participated';
-      const isAppreciation = actionText !== 'participated' && actionText !== 'participation';
+      const actionText = reg.status || 'Participation';
+      const isAppreciation = actionText !== 'Participation' && actionText !== 'participated' && actionText !== 'participation';
 
       const safeName = studentName.replace(/[^a-zA-Z0-9_\s]/g, '').trim();
       // Name PPTX matching expected PDF name so LibreOffice writes directly to correct PDF filename

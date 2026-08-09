@@ -815,8 +815,8 @@ export const AdminDashboardPage: React.FC = () => {
                       <td colSpan={2}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                           {(() => {
-                            const val = reg.status || 'participated';
-                            const presetValues = ['participated', 'appreciation', 'coordinated', 'won First Place', 'won Second Place', 'won Third Place'];
+                            const val = reg.status || 'Participation';
+                            const presetValues = ['Participation', 'Appreciation', 'Coordinated', 'Won First Place', 'Won Second Place', 'Won Third Place'];
                             const isCustom = !presetValues.includes(val);
                             return (
                               <select
@@ -834,19 +834,19 @@ export const AdminDashboardPage: React.FC = () => {
                                   cursor: 'pointer'
                                 }}
                               >
-                                <option value="participated">Participation</option>
-                                <option value="appreciation">Appreciation</option>
-                                <option value="coordinated">Coordinated</option>
-                                <option value="won First Place">Won First Place</option>
-                                <option value="won Second Place">Won Second Place</option>
-                                <option value="won Third Place">Won Third Place</option>
+                                <option value="Participation">Participation</option>
+                                <option value="Appreciation">Appreciation</option>
+                                <option value="Coordinated">Coordinated</option>
+                                <option value="Won First Place">Won First Place</option>
+                                <option value="Won Second Place">Won Second Place</option>
+                                <option value="Won Third Place">Won Third Place</option>
                                 {isCustom && <option value={val}>{val}</option>}
                               </select>
                             );
                           })()}
                           {(() => {
-                            const val = reg.status || 'participated';
-                            const isPart = val === 'participated' || val === 'participation' || val === 'pending' || val === 'approved';
+                            const val = reg.status || 'Participation';
+                            const isPart = val === 'Participation' || val === 'participated' || val === 'participation' || val === 'pending' || val === 'approved';
                             const badgeClass = isPart ? 'status-participation' : 'status-appreciation';
                             const badgeText = isPart ? 'Participation' : 'Appreciation';
                             return (
