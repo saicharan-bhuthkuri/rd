@@ -54,8 +54,11 @@ graph TD
 ### 4. Headless PPTX-to-PDF Conversion
 - Runs batch conversion through LibreOffice CLI, converting dozens of PPTX files to PDF concurrently inside the container in less than 2 seconds (vs 15 seconds sequentially).
 
-### 5. Automated Text Auto-Scaling
-- Automatically detects event title length and scales down font sizes to prevent line-wrapping or overlapping placeholders on certificates.
+### 6. Public Certificate Verification Portal
+- **Reference ID Validation**: Public interface (`/verify`) allowing visitors to input a unique certificate ID code (e.g. `TCEK/RD/2026/0001`) to query its database record.
+- **Dynamic PDF Viewer**: Displays the exact dynamically compiled certificate PDF inline inside a responsive, scrollbar-free widescreen 16:9 viewport.
+- **Loading Feedback**: Integrates a clean overlay spinner ("Generating official PDF...") while the backend runs the LibreOffice compiler.
+- **Direct PDF Export**: Direct download link to save or print the authentic PDF credential document.
 
 ---
 
@@ -79,8 +82,9 @@ graph TD
 │   │   │   ├── AdminLoginPage.tsx      # Admin authentication page
 │   │   │   ├── ApplyPage.tsx           # Public club recruitment application form
 │   │   │   ├── ResearchPage.tsx        # Public event registration / student form
+│   │   │   ├── VerifyCertificatePage.tsx # Public certificate verification portal
+│   │   │   └── index.css               # Global stylesheet containing variables and responsive grids
 │   │   ├── App.tsx             # Application router
-│   │   ├── index.css           # Global stylesheet containing variables and responsive grids
 │   │   └── main.tsx            # React bootstrap entry point
 │   ├── vite.config.ts          # Vite build config
 │   └── package.json            # Node dependencies
@@ -156,6 +160,12 @@ graph TD
 5. Confirm the action in the popup modal. The console drawer will expand at the bottom of the screen, printing real-time stream logs as certificates are compiled, converted to PDF, and dispatched.
 6. Once complete, the student's status badge will update to a green `Sented` label, and their dropdown will lock.
 
+### 📜 Verifying Certificates
+1. Access the public **Certificate Verification Portal** via `/verify` (accessible from the top navigation bar).
+2. Enter the unique Reference ID printed on the certificate footer (e.g., `TCEK/RD/2026/0034`).
+3. Click **Validate Credential**. The loading spinner overlay will display while the backend compiles the certificate.
+4. Once verified, the success notification badge will appear along with the record metadata. The original high-resolution PDF certificate will render scrollbar-free in the widescreen viewport, ready to print or download.
+
 ---
 
 ## 📦 Deployment
@@ -180,19 +190,23 @@ git push origin master
 
 ## 🧹 Clearing Database for Testing
 
-To clear all test applications and event registrations from the Turso database, you can run the database clearing script.
+To clear all test applications, event registrations, and log histories from the Turso database, and reset auto-increment indices (so next records start at ID 1 again), run the database clearing script.
 
 Create a file named `clear_db.js` in the `backend` folder with the following content:
 
 ```javascript
 const { createClient } = require('@libsql/client');
-require('dotenv').config();
+const dotenv = require('dotenv');
+const path = require('path');
+
+// Load environment variables
+dotenv.config({ path: path.join(__dirname, '.env') });
 
 const tursoUrl = process.env.TURSO_URL;
 const tursoToken = process.env.TURSO_TOKEN;
 
 if (!tursoUrl || !tursoToken) {
-  console.error("CRITICAL: TURSO_URL and TURSO_TOKEN must be configured in .env file.");
+  console.error("Error: TURSO_URL and TURSO_TOKEN must be configured in backend/.env");
   process.exit(1);
 }
 
@@ -201,19 +215,30 @@ const db = createClient({
   authToken: tursoToken,
 });
 
-async function run() {
+async function clearDatabase() {
+  console.log("Connecting to Turso database...");
   try {
-    console.log("Clearing club applications...");
-    await db.execute("DELETE FROM club_applications;");
-    console.log("Clearing event registrations...");
+    console.log("Clearing event_registrations table...");
     await db.execute("DELETE FROM event_registrations;");
-    console.log("Database tables cleared successfully!");
+    await db.execute("DELETE FROM sqlite_sequence WHERE name = 'event_registrations';");
+    
+    console.log("Clearing club_applications table...");
+    await db.execute("DELETE FROM club_applications;");
+    await db.execute("DELETE FROM sqlite_sequence WHERE name = 'club_applications';");
+
+    console.log("Clearing activity_logs table...");
+    await db.execute("DELETE FROM activity_logs;");
+    await db.execute("DELETE FROM sqlite_sequence WHERE name = 'activity_logs';");
+
+    console.log("Database reset complete! All test registrations, certificate IDs, and offer letter IDs have been cleared.");
+    process.exit(0);
   } catch (error) {
-    console.error("Error clearing database:", error);
+    console.error("Failed to clear database:", error);
+    process.exit(1);
   }
 }
 
-run();
+clearDatabase();
 ```
 
 To run the script and clear the tables:
