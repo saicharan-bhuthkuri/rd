@@ -1833,18 +1833,33 @@ app.delete('/api/admin/branches/:id', authenticateToken, async (req: Authenticat
 });
 
 // 19. Public Certificate Verification Route
-app.get('/api/verify-certificate/:certificateId', async (req, res) => {
-  const { certificateId } = req.params;
+app.get('/api/verify-certificate/*', async (req, res) => {
+  const certificateId = decodeURIComponent((req.params as any)[0] || '');
   
-  if (!certificateId) {
+  if (!certificateId || certificateId.trim() === '') {
     return res.status(400).json({ error: "Certificate ID is required." });
   }
   
   try {
-    const result = await db.execute({
-      sql: "SELECT * FROM event_registrations WHERE certificate_id = ? AND certificate_sent = 1",
-      args: [certificateId]
-    });
+    // Legacy fallback: parse potential numeric ID from format TCEK/RD/2026/XXXX
+    let parsedId: number | null = null;
+    const legacyMatch = certificateId.match(/^TCEK\/RD\/2026\/(\d+)$/i);
+    if (legacyMatch) {
+      parsedId = parseInt(legacyMatch[1], 10);
+    }
+
+    let result;
+    if (parsedId !== null) {
+      result = await db.execute({
+        sql: "SELECT * FROM event_registrations WHERE (certificate_id = ? OR id = ?) AND certificate_sent = 1",
+        args: [certificateId, parsedId]
+      });
+    } else {
+      result = await db.execute({
+        sql: "SELECT * FROM event_registrations WHERE certificate_id = ? AND certificate_sent = 1",
+        args: [certificateId]
+      });
+    }
     
     if (result.rows.length === 0) {
       return res.status(404).json({ error: "Certificate not found or not yet issued." });
@@ -1871,7 +1886,7 @@ app.get('/api/verify-certificate/:certificateId', async (req, res) => {
         section: reg.section,
         eventName: reg.event_name,
         status: reg.status || 'Participation',
-        certificateId: reg.certificate_id,
+        certificateId: reg.certificate_id || certificateId,
         eventDate: eventDate,
         issuedAt: reg.created_at
       }
