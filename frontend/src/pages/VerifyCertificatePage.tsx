@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { API_BASE_URL } from '../config';
-import { Award, ShieldCheck, AlertCircle, Calendar, User, BookOpen, ArrowLeft, Loader2, Landmark } from 'lucide-react';
+import { Award, ShieldCheck, AlertCircle, ArrowLeft, Loader2, Landmark, Download, FileText } from 'lucide-react';
 
 interface VerifiedData {
   id: number;
@@ -27,6 +27,7 @@ export const VerifyCertificatePage: React.FC = () => {
   const [verifiedData, setVerifiedData] = useState<VerifiedData | null>(null);
   const [error, setError] = useState('');
   const [searched, setSearched] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
 
   useEffect(() => {
     if (initialId) {
@@ -47,7 +48,6 @@ export const VerifyCertificatePage: React.FC = () => {
     setSearched(true);
 
     try {
-      // URL encode the certificate ID since it contains slashes (e.g., TCEK/RD/2026/0001)
       const encodedId = encodeURIComponent(cleanId);
       const res = await fetch(`${API_BASE_URL}/api/verify-certificate/${encodedId}`);
       const result = await res.json();
@@ -69,105 +69,177 @@ export const VerifyCertificatePage: React.FC = () => {
     setSearchParams({ id: certificateId.trim() });
   };
 
+  // Get dynamic PDF link
+  const getPdfUrl = (certId: string) => {
+    return `${API_BASE_URL}/api/verify-certificate/${encodeURIComponent(certId)}/pdf`;
+  };
+
   return (
     <div style={{
-      minHeight: '80vh',
+      minHeight: '90vh',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      padding: '2rem 1rem',
-      background: 'radial-gradient(circle at top, rgba(99, 102, 241, 0.05) 0%, transparent 60%)',
+      padding: '3rem 1.5rem',
+      background: 'radial-gradient(circle at top, rgba(16, 185, 129, 0.08) 0%, rgba(99, 102, 241, 0.03) 50%, transparent 100%)',
     }}>
       <div style={{
         width: '100%',
-        maxWidth: '640px',
-        background: 'var(--card-bg, #fff)',
-        borderRadius: '16px',
-        boxShadow: '0 10px 30px rgba(0, 0, 0, 0.08)',
-        border: '1px solid var(--border-color, #e2e8f0)',
+        maxWidth: '800px', // Spacious layout for the real PDF certificate preview
+        background: 'var(--bg-card, #ffffff)',
+        borderRadius: '24px',
+        boxShadow: '0 20px 40px -15px rgba(15, 23, 42, 0.08), 0 0 1px 0 rgba(0, 0, 0, 0.1)',
+        border: '1px solid var(--border, #e2e8f0)',
         overflow: 'hidden',
         transition: 'all 0.3s ease'
       }}>
         {/* Top Decorative Header */}
         <div style={{
-          background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
-          color: '#fff',
+          background: 'linear-gradient(135deg, #090d16 0%, #1e1b4b 50%, #0f172a 100%)',
           padding: '2.5rem 2rem',
           textAlign: 'center',
-          position: 'relative'
+          position: 'relative',
+          borderBottom: '4px solid var(--primary, #10b981)'
         }}>
+          {/* Subtle grid pattern overlay */}
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            opacity: 0.05,
+            backgroundImage: 'radial-gradient(#ffffff 1px, transparent 1px)',
+            backgroundSize: '16px 16px',
+            pointerEvents: 'none'
+          }} />
+
           <div style={{
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
-            width: '60px',
-            height: '60px',
-            borderRadius: '50%',
-            backgroundColor: 'rgba(99, 102, 241, 0.15)',
-            color: '#818cf8',
+            width: '56px',
+            height: '56px',
+            borderRadius: '16px',
+            backgroundColor: 'rgba(16, 185, 129, 0.12)',
+            color: 'var(--primary, #10b981)',
             marginBottom: '1rem',
-            boxShadow: '0 0 20px rgba(99, 102, 241, 0.2)'
+            boxShadow: '0 0 25px rgba(16, 185, 129, 0.25)',
+            border: '1px solid rgba(16, 185, 129, 0.3)',
+            position: 'relative',
+            zIndex: 2
           }}>
-            <Award size={32} />
+            <Award size={30} />
           </div>
-          <h2 style={{ fontSize: '1.75rem', fontWeight: 700, margin: '0 0 0.5rem 0', letterSpacing: '-0.025em' }}>
-            Credential Verification
+          <h2 style={{
+            fontFamily: "'Outfit', sans-serif",
+            fontSize: '1.75rem',
+            fontWeight: 800,
+            margin: '0 0 0.5rem 0',
+            letterSpacing: '-0.02em',
+            color: '#ffffff',
+            textShadow: '0 2px 4px rgba(0,0,0,0.3)',
+            position: 'relative',
+            zIndex: 2
+          }}>
+            Credential Verification Portal
           </h2>
-          <p style={{ margin: 0, fontSize: '0.9375rem', color: '#94a3b8' }}>
-            Verify the authenticity of academic & research certifications issued by Trinity College R&D Cell
+          <p style={{
+            margin: 0,
+            fontSize: '0.925rem',
+            color: '#cbd5e1',
+            lineHeight: 1.5,
+            maxWidth: '520px',
+            marginLeft: 'auto',
+            marginRight: 'auto',
+            position: 'relative',
+            zIndex: 2
+          }}>
+            Verify and validate authentic R&D academic credentials, certifications, and event achievements issued by Trinity College of Engineering & Technology.
           </p>
         </div>
 
         {/* Form and Results Section */}
-        <div style={{ padding: '2.5rem 2rem' }}>
-          <form onSubmit={handleSubmit} style={{ marginBottom: '2rem' }}>
+        <div style={{ padding: '2.5rem' }}>
+          <form onSubmit={handleSubmit} style={{ marginBottom: '2.25rem' }}>
             <label style={{
               display: 'block',
-              fontSize: '0.875rem',
-              fontWeight: 600,
-              color: 'var(--text-secondary, #475569)',
-              marginBottom: '0.5rem'
+              fontSize: '0.8125rem',
+              fontWeight: 700,
+              color: 'var(--text-secondary, #334155)',
+              marginBottom: '0.625rem',
+              letterSpacing: '0.05em',
+              textTransform: 'uppercase'
             }}>
-              Certificate ID / Reference Number
+              Certificate Reference Number
             </label>
-            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <div style={{
+              display: 'flex',
+              gap: '0.75rem',
+              backgroundColor: 'var(--bg-main, #f8fafc)',
+              padding: '0.375rem',
+              borderRadius: '14px',
+              border: isFocused ? '2px solid var(--primary, #10b981)' : '2px solid var(--border, #e2e8f0)',
+              boxShadow: isFocused ? '0 0 0 4px rgba(16, 185, 129, 0.1)' : 'none',
+              transition: 'all 0.2s ease',
+              alignItems: 'center'
+            }}>
               <input
                 type="text"
                 value={certificateId}
                 onChange={(e) => setCertificateId(e.target.value)}
-                placeholder="e.g., TCEK/RD/2026/0001"
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setIsFocused(false)}
+                placeholder="TCEK/RD/2026/0001"
                 style={{
                   flex: 1,
-                  minWidth: '240px',
-                  padding: '0.75rem 1rem',
-                  fontSize: '1rem',
-                  borderRadius: '8px',
-                  border: '2px solid var(--border-color, #cbd5e1)',
+                  padding: '0.625rem 0.875rem',
+                  fontSize: '1.0625rem',
+                  borderRadius: '10px',
+                  border: 'none',
                   outline: 'none',
-                  transition: 'all 0.2s ease',
-                  fontFamily: 'monospace'
+                  background: 'transparent',
+                  fontFamily: 'monospace',
+                  fontWeight: 600,
+                  color: 'var(--text-main, #0f172a)'
                 }}
                 disabled={isLoading}
               />
               <button
                 type="submit"
                 disabled={isLoading}
-                className="btn btn-primary"
                 style={{
-                  padding: '0.75rem 1.5rem',
+                  padding: '0.75rem 1.75rem',
                   fontSize: '0.9375rem',
-                  fontWeight: 600,
+                  fontWeight: 700,
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '0.5rem',
-                  height: '100%',
-                  cursor: 'pointer'
+                  borderRadius: '10px',
+                  backgroundColor: 'var(--primary, #10b981)',
+                  color: '#ffffff',
+                  border: 'none',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(16, 185, 129, 0.2)',
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseOver={(e) => {
+                  if (!isLoading) {
+                    e.currentTarget.style.backgroundColor = 'var(--primary-hover, #059669)';
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                  }
+                }}
+                onMouseOut={(e) => {
+                  if (!isLoading) {
+                    e.currentTarget.style.backgroundColor = 'var(--primary, #10b981)';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                  }
                 }}
               >
                 {isLoading ? (
                   <>
                     <Loader2 size={16} className="animate-spin" />
-                    Verifying...
+                    Checking...
                   </>
                 ) : (
                   'Verify'
@@ -178,165 +250,207 @@ export const VerifyCertificatePage: React.FC = () => {
 
           {/* Verification Status */}
           {isLoading && (
-            <div style={{ textAlign: 'center', padding: '2rem 0' }}>
-              <Loader2 size={40} className="animate-spin" style={{ color: 'var(--primary)', margin: '0 auto 1rem auto' }} />
-              <p style={{ color: 'var(--text-muted, #64748b)', margin: 0 }}>Validating digital credentials against edge ledger...</p>
+            <div style={{ textAlign: 'center', padding: '3rem 0' }}>
+              <Loader2 size={42} className="animate-spin" style={{ color: 'var(--primary, #10b981)', margin: '0 auto 1.25rem auto' }} />
+              <p style={{ color: 'var(--text-muted, #64748b)', margin: 0, fontWeight: 500 }}>
+                Querying database archives and compiling original certificate PDF...
+              </p>
             </div>
           )}
 
           {error && searched && !isLoading && (
             <div style={{
-              background: '#fef2f2',
+              background: 'linear-gradient(to right, #fef2f2, #fff5f5)',
               border: '1px solid #fee2e2',
-              borderRadius: '8px',
-              padding: '1.5rem',
+              borderRadius: '16px',
+              padding: '1.75rem',
               display: 'flex',
-              gap: '1rem',
-              alignItems: 'flex-start'
+              gap: '1.25rem',
+              alignItems: 'flex-start',
+              animation: 'fadeIn 0.3s ease',
+              boxShadow: '0 4px 15px rgba(239, 68, 68, 0.04)'
             }}>
-              <AlertCircle size={24} style={{ color: '#ef4444', flexShrink: 0 }} />
+              <div style={{
+                backgroundColor: '#fee2e2',
+                color: '#ef4444',
+                padding: '0.5rem',
+                borderRadius: '10px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0
+              }}>
+                <AlertCircle size={24} />
+              </div>
               <div>
-                <h4 style={{ margin: '0 0 0.25rem 0', color: '#991b1b', fontWeight: 600 }}>Verification Failed</h4>
-                <p style={{ margin: 0, fontSize: '0.875rem', color: '#991b1b' }}>{error}</p>
-                <div style={{ marginTop: '0.75rem', fontSize: '0.8125rem', color: '#7f1d1d' }}>
-                  Please verify that the Certificate ID has been input correctly, including capitalization and slashes.
+                <h4 style={{ margin: '0 0 0.375rem 0', color: '#991b1b', fontWeight: 700, fontFamily: "'Outfit', sans-serif", fontSize: '1.0625rem' }}>
+                  Verification Failed
+                </h4>
+                <p style={{ margin: 0, fontSize: '0.875rem', color: '#ef4444', lineHeight: 1.5, fontWeight: 500 }}>
+                  {error}
+                </p>
+                <div style={{
+                  marginTop: '0.75rem',
+                  fontSize: '0.8125rem',
+                  color: '#991b1b',
+                  opacity: 0.8,
+                  lineHeight: 1.4
+                }}>
+                  Ensure the Reference Number is typed exactly as it appears on the certificate (e.g. capitalized, proper slashes).
                 </div>
               </div>
             </div>
           )}
 
           {verifiedData && !isLoading && (
-            <div style={{ animation: 'fadeIn 0.4s ease' }}>
+            <div style={{ animation: 'fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1)' }}>
               {/* Verified Badge */}
               <div style={{
-                background: '#f0fdf4',
-                border: '1px solid #bbf7d0',
-                borderRadius: '8px',
-                padding: '1.25rem',
+                background: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)',
+                border: '1px solid #a7f3d0',
+                borderRadius: '16px',
+                padding: '1.25rem 1.5rem',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '0.75rem',
-                marginBottom: '2rem',
-                boxShadow: '0 4px 12px rgba(34, 197, 94, 0.05)'
+                gap: '1rem',
+                marginBottom: '1.5rem',
+                boxShadow: '0 4px 15px rgba(16, 185, 129, 0.06)'
               }}>
-                <ShieldCheck size={28} style={{ color: '#22c55e', flexShrink: 0 }} />
-                <div>
-                  <h4 style={{ margin: '0 0 0.125rem 0', color: '#166534', fontWeight: 700, fontSize: '0.9375rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                <div style={{
+                  backgroundColor: '#34d399',
+                  color: '#ffffff',
+                  padding: '0.45rem',
+                  borderRadius: '10px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  boxShadow: '0 4px 10px rgba(52, 211, 153, 0.3)'
+                }}>
+                  <ShieldCheck size={22} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <h4 style={{
+                    margin: '0 0 0.125rem 0',
+                    color: '#065f46',
+                    fontWeight: 800,
+                    fontFamily: "'Outfit', sans-serif",
+                    fontSize: '1rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em'
+                  }}>
                     Authentic Credential Verified
                   </h4>
-                  <p style={{ margin: 0, fontSize: '0.8125rem', color: '#15803d' }}>
-                    This certificate is validly registered in Trinity College R&D Cell's archives.
+                  <p style={{ margin: 0, fontSize: '0.8125rem', color: '#047857', fontWeight: 500, lineHeight: 1.4 }}>
+                    This certificate is an authentic document officially recorded in our secure digital database.
                   </p>
                 </div>
+
+                {/* Print/Download Button */}
+                <a
+                  href={getPdfUrl(verifiedData.certificateId)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    padding: '0.625rem 1.25rem',
+                    fontSize: '0.8125rem',
+                    fontWeight: 700,
+                    borderRadius: '8px',
+                    backgroundColor: '#10b981',
+                    color: '#ffffff',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.375rem',
+                    textDecoration: 'none',
+                    boxShadow: '0 2px 8px rgba(16, 185, 129, 0.15)',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
+                  onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                >
+                  <Download size={14} /> Download PDF
+                </a>
               </div>
 
-              {/* Certificate Details Card */}
+              {/* Real PDF Certificate Viewer */}
               <div style={{
-                border: '1px dashed var(--border-color, #cbd5e1)',
-                borderRadius: '12px',
-                padding: '2rem 1.5rem',
-                background: 'linear-gradient(to bottom right, var(--bg-primary, #f8fafc), var(--bg-secondary, #f1f5f9))',
-                position: 'relative'
+                position: 'relative',
+                borderRadius: '16px',
+                overflow: 'hidden',
+                border: '2px solid rgba(16, 185, 129, 0.15)',
+                boxShadow: '0 12px 30px rgba(0, 0, 0, 0.04)',
+                backgroundColor: '#f8fafc',
+                marginBottom: '2rem',
+                aspectRatio: '1.414', // Fits standard A4 certificate landscape aspect ratio!
+                width: '100%'
               }}>
-                {/* Background Watermark */}
-                <Landmark size={120} style={{
-                  position: 'absolute',
-                  right: '1.5rem',
-                  bottom: '1.5rem',
-                  opacity: 0.03,
-                  color: 'var(--text-secondary, #475569)',
-                  pointerEvents: 'none'
-                }} />
+                <iframe
+                  src={`${getPdfUrl(verifiedData.certificateId)}#toolbar=1`}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    border: 'none',
+                    display: 'block'
+                  }}
+                  title={`Official Certificate for ${verifiedData.fullName}`}
+                />
+              </div>
 
+              {/* Verified Metadata Summary */}
+              <div style={{
+                border: '1px dashed var(--border, #cbd5e1)',
+                borderRadius: '14px',
+                padding: '1.5rem',
+                background: 'var(--bg-main, #f8fafc)'
+              }}>
                 <h3 style={{
-                  margin: '0 0 1.5rem 0',
-                  fontSize: '1.125rem',
-                  fontWeight: 700,
-                  color: 'var(--text-primary, #1e293b)',
-                  borderBottom: '1px solid var(--border-color, #e2e8f0)',
-                  paddingBottom: '0.5rem',
+                  margin: '0 0 1rem 0',
+                  fontSize: '0.9375rem',
+                  fontWeight: 800,
+                  fontFamily: "'Outfit', sans-serif",
+                  color: 'var(--text-main, #0f172a)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
                   display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
+                  alignItems: 'center',
+                  gap: '0.375rem'
                 }}>
-                  <span>Certificate Metadata</span>
-                  <span style={{
-                    fontSize: '0.75rem',
-                    color: 'var(--text-muted, #64748b)',
-                    fontFamily: 'monospace',
-                    fontWeight: 500,
-                    marginLeft: 'auto'
-                  }}>{verifiedData.certificateId}</span>
+                  <FileText size={16} style={{ color: 'var(--primary, #10b981)' }} />
+                  Record Metadata
                 </h3>
 
-                <div style={{ display: 'grid', gap: '1.25rem', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
-                  {/* Recipient */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                  gap: '1rem 1.25rem',
+                  fontSize: '0.8125rem',
+                  lineHeight: 1.4
+                }}>
                   <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted, #64748b)', marginBottom: '0.25rem', fontWeight: 600 }}>
-                      <User size={14} /> RECIPIENT NAME
-                    </div>
-                    <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary, #0f172a)' }}>
-                      {verifiedData.fullName}
-                    </div>
-                    <div style={{ fontSize: '0.8125rem', color: 'var(--text-secondary, #475569)', marginTop: '0.125rem' }}>
-                      PIN: {verifiedData.pinNumber}
-                    </div>
+                    <span style={{ color: 'var(--text-muted, #64748b)', display: 'block', fontWeight: 600 }}>RECIPIENT NAME</span>
+                    <strong style={{ color: 'var(--text-secondary, #1e293b)' }}>{verifiedData.fullName}</strong>
                   </div>
-
-                  {/* Academic Profile */}
                   <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted, #64748b)', marginBottom: '0.25rem', fontWeight: 600 }}>
-                      <BookOpen size={14} /> ACADEMIC PROFILE
-                    </div>
-                    <div style={{ fontSize: '0.9375rem', fontWeight: 600, color: 'var(--text-primary, #334155)' }}>
-                      {verifiedData.branch}
-                    </div>
-                    <div style={{ fontSize: '0.8125rem', color: 'var(--text-secondary, #475569)', marginTop: '0.125rem' }}>
-                      Year of Study: {verifiedData.yearOfStudy}
-                      {verifiedData.section && ` | Sec: ${verifiedData.section}`}
-                    </div>
+                    <span style={{ color: 'var(--text-muted, #64748b)', display: 'block', fontWeight: 600 }}>ROLL / PIN NUMBER</span>
+                    <strong style={{ color: 'var(--text-secondary, #1e293b)', fontFamily: 'monospace' }}>{verifiedData.pinNumber}</strong>
                   </div>
-
-                  {/* Event Details */}
                   <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted, #64748b)', marginBottom: '0.25rem', fontWeight: 600 }}>
-                      <Landmark size={14} /> EVENT / DISPATCH
-                    </div>
-                    <div style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--primary, #6366f1)' }}>
-                      {verifiedData.eventName}
-                    </div>
+                    <span style={{ color: 'var(--text-muted, #64748b)', display: 'block', fontWeight: 600 }}>DEPARTMENT / YEAR</span>
+                    <strong style={{ color: 'var(--text-secondary, #1e293b)' }}>{verifiedData.branch} ({verifiedData.yearOfStudy})</strong>
                   </div>
-
-                  {/* Credential Status */}
                   <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted, #64748b)', marginBottom: '0.25rem', fontWeight: 600 }}>
-                      <Award size={14} /> INVOLVEMENT ROLE
-                    </div>
-                    <span style={{
-                      fontSize: '0.75rem',
-                      fontWeight: 700,
-                      color: '#6366f1',
-                      backgroundColor: 'rgba(99, 102, 241, 0.08)',
-                      padding: '0.25rem 0.625rem',
-                      borderRadius: '9999px',
-                      display: 'inline-block',
-                      marginTop: '0.125rem'
-                    }}>
-                      {verifiedData.status}
-                    </span>
+                    <span style={{ color: 'var(--text-muted, #64748b)', display: 'block', fontWeight: 600 }}>EVENT / ACHIEVEMENT</span>
+                    <strong style={{ color: 'var(--text-secondary, #1e293b)' }}>{verifiedData.eventName} ({verifiedData.status})</strong>
                   </div>
-
-                  {/* Dates */}
                   <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted, #64748b)', marginBottom: '0.25rem', fontWeight: 600 }}>
-                      <Calendar size={14} /> ISSUE & EVENT DATE
-                    </div>
-                    <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary, #334155)' }}>
-                      {verifiedData.eventDate}
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted, #64748b)', marginTop: '0.125rem' }}>
-                      Verified Dispatch: {new Date(verifiedData.issuedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
-                    </div>
+                    <span style={{ color: 'var(--text-muted, #64748b)', display: 'block', fontWeight: 600 }}>VALIDATION KEY</span>
+                    <strong style={{ color: 'var(--text-secondary, #1e293b)', fontFamily: 'monospace' }}>{verifiedData.certificateId}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--text-muted, #64748b)', display: 'block', fontWeight: 600 }}>ISSUE TIMESTAMP</span>
+                    <strong style={{ color: 'var(--text-secondary, #1e293b)' }}>
+                      {new Date(verifiedData.issuedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </strong>
                   </div>
                 </div>
               </div>
@@ -347,37 +461,51 @@ export const VerifyCertificatePage: React.FC = () => {
           {!searched && (
             <div style={{
               textAlign: 'center',
-              padding: '1.5rem',
-              border: '1px dashed var(--border-color, #cbd5e1)',
-              borderRadius: '8px',
+              padding: '2.5rem 2rem',
+              border: '2px dashed var(--border, #cbd5e1)',
+              borderRadius: '16px',
               color: 'var(--text-muted, #64748b)',
-              fontSize: '0.875rem'
+              fontSize: '0.9375rem',
+              lineHeight: 1.6,
+              background: 'var(--bg-main, #f8fafc)'
             }}>
-              Enter a certificate identification key to verify its authenticity, recipient details, and event parameters directly from our secure student registry database.
+              <Landmark size={36} style={{ color: 'var(--text-muted, #94a3b8)', marginBottom: '0.75rem' }} />
+              <p style={{ margin: 0, fontWeight: 500 }}>
+                Enter the unique certificate Reference Number to verify award validity, recipient information, and specific event participation parameters directly from our secure collegiate records.
+              </p>
             </div>
           )}
         </div>
 
         {/* Back Link */}
         <div style={{
-          padding: '1.25rem 2rem',
-          borderTop: '1px solid var(--border-color, #e2e8f0)',
-          backgroundColor: 'var(--bg-secondary, #f8fafc)',
+          padding: '1.5rem 2.5rem',
+          borderTop: '1px solid var(--border, #e2e8f0)',
+          backgroundColor: 'var(--bg-subtle, #f8fafc)',
           textAlign: 'center'
         }}>
           <Link
             to="/"
             style={{
-              fontSize: '0.875rem',
-              color: 'var(--primary, #6366f1)',
-              fontWeight: 600,
+              fontSize: '0.9375rem',
+              color: 'var(--secondary, #4f46e5)',
+              fontWeight: 700,
               textDecoration: 'none',
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '0.375rem'
+              gap: '0.5rem',
+              transition: 'all 0.2s ease'
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.color = 'var(--secondary-hover, #4338ca)';
+              e.currentTarget.style.transform = 'translateX(-2px)';
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.color = 'var(--secondary, #4f46e5)';
+              e.currentTarget.style.transform = 'translateX(0)';
             }}
           >
-            <ArrowLeft size={16} /> Back to Home Page
+            <ArrowLeft size={16} /> Return to Home Dashboard
           </Link>
         </div>
       </div>
