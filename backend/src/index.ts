@@ -1832,16 +1832,25 @@ app.delete('/api/admin/branches/:id', authenticateToken, async (req: Authenticat
   }
 });
 
-// 19. Public Certificate Verification Route
+// 19. Public Certificate Verification Route (Handles both JSON metadata and dynamic PDF streaming)
 app.get('/api/verify-certificate/*', async (req, res) => {
-  const certificateId = decodeURIComponent((req.params as any)[0] || '');
+  let certificateId = decodeURIComponent((req.params as any)[0] || '');
+  let isPdf = false;
+
+  if (certificateId.endsWith('/pdf')) {
+    isPdf = true;
+    certificateId = certificateId.slice(0, -4); // Remove the '/pdf' suffix
+  }
   
   if (!certificateId || certificateId.trim() === '') {
+    if (isPdf) {
+      return res.status(400).send("Certificate ID is required.");
+    }
     return res.status(400).json({ error: "Certificate ID is required." });
   }
   
   try {
-    // Legacy fallback: parse potential numeric ID from format TCEK/RD/2026/XXXX
+    // Resolve student registration (with legacy fallback for TCEK/RD/2026/XXXX ID)
     let parsedId: number | null = null;
     const legacyMatch = certificateId.match(/^TCEK\/RD\/2026\/(\d+)$/i);
     if (legacyMatch) {
@@ -1862,153 +1871,116 @@ app.get('/api/verify-certificate/*', async (req, res) => {
     }
     
     if (result.rows.length === 0) {
+      if (isPdf) {
+        return res.status(404).send("Certificate not found or not yet issued.");
+      }
       return res.status(404).json({ error: "Certificate not found or not yet issued." });
     }
     
-    const reg = result.rows[0];
-    
-    // Fetch event details to get the exact event date
-    const eventRes = await db.execute({
-      sql: "SELECT date FROM events WHERE title = ?",
-      args: [reg.event_name as string]
-    });
-    const eventDate = eventRes.rows.length > 0 ? eventRes.rows[0].date as string : '03 August 2026';
-
-    return res.json({
-      success: true,
-      data: {
-        id: reg.id,
-        fullName: reg.full_name,
-        pinNumber: reg.pin_number,
-        email: reg.email,
-        branch: reg.branch,
-        yearOfStudy: reg.year_of_study,
-        section: reg.section,
-        eventName: reg.event_name,
-        status: reg.status || 'Participation',
-        certificateId: reg.certificate_id || certificateId,
-        eventDate: eventDate,
-        issuedAt: reg.created_at
-      }
-    });
-  } catch (err: any) {
-    console.error("Certificate verification error:", err);
-    return res.status(500).json({ error: "Internal server error." });
-  }
-});
-
-// 20. Public Certificate PDF Stream Route (For Verification Page PDF Preview)
-app.get('/api/verify-certificate/*/pdf', async (req, res) => {
-  const certificateId = decodeURIComponent((req.params as any)[0] || '');
-  
-  if (!certificateId || certificateId.trim() === '') {
-    return res.status(400).send("Certificate ID is required.");
-  }
-  
-  try {
-    // 1. Resolve student registration
-    let parsedId: number | null = null;
-    const legacyMatch = certificateId.match(/^TCEK\/RD\/2026\/(\d+)$/i);
-    if (legacyMatch) {
-      parsedId = parseInt(legacyMatch[1], 10);
-    }
-
-    let result;
-    if (parsedId !== null) {
-      result = await db.execute({
-        sql: "SELECT * FROM event_registrations WHERE (certificate_id = ? OR id = ?) AND certificate_sent = 1",
-        args: [certificateId, parsedId]
-      });
-    } else {
-      result = await db.execute({
-        sql: "SELECT * FROM event_registrations WHERE certificate_id = ? AND certificate_sent = 1",
-        args: [certificateId]
-      });
-    }
-
-    if (result.rows.length === 0) {
-      return res.status(404).send("Certificate not found or not yet issued.");
-    }
-
     const reg = result.rows[0];
     const studentName = reg.full_name as string;
     const eventTitle = reg.event_name as string;
     const actionText = reg.status || 'Participation';
     const id = reg.id as number;
-    
-    const isAppreciation = actionText !== 'Participation' && actionText !== 'participated' && actionText !== 'participation';
 
-    // 2. Fetch event details
+    // Fetch event details to get the exact event date
     const eventRes = await db.execute({
       sql: "SELECT date FROM events WHERE title = ?",
       args: [eventTitle]
     });
     const eventDate = eventRes.rows.length > 0 ? eventRes.rows[0].date as string : '03 August 2026';
 
-    // 3. Fetch template from DB
-    const templateName = isAppreciation ? "certificate_appreciation" : "certificate_participation";
-    let templateRes = await db.execute({
-      sql: "SELECT data_base64 FROM templates WHERE name = ?",
-      args: [templateName]
-    });
-    
-    if (templateRes.rows.length === 0 && !isAppreciation) {
-      templateRes = await db.execute({
-        sql: "SELECT data_base64 FROM templates WHERE name = ?",
-        args: ["certificate"]
-      });
-    }
-
-    if (templateRes.rows.length === 0) {
-      return res.status(500).send("Certificate template not found in database.");
-    }
-
-    const templateBase64 = templateRes.rows[0].data_base64 as string;
-    const templateBuffer = Buffer.from(templateBase64, 'base64');
-
-    // 4. Generate modified PPTX
-    const safeName = studentName.replace(/[^a-zA-Z0-9_\s]/g, '').trim();
-    const tempPptx = path.join(process.cwd(), `Verify_Temp_${safeName}_${id}.pptx`);
-    const tempPdf = path.join(process.cwd(), `Verify_Temp_${safeName}_${id}.pdf`);
-
     const certId = reg.certificate_id || `TCEK/RD/2026/${String(id).padStart(4, '0')}`;
 
-    const replacements: Record<string, string> = {
-      '{{PARTICIPANT NAME}}': String(studentName),
-      '{{EVENT NAME}}': String(eventTitle),
-      '{{DATE}}': String(eventDate),
-      '{{CERTIFICATE TYPE}}': String(actionText),
-      '{{CERTIFICATE ID}}': String(certId),
-      '[[PARTICIPANT NAME]]': String(studentName),
-      '[[EVENT NAME]]': String(eventTitle),
-      '[[DATE]]': String(eventDate),
-      '[[CERTIFICATE TYPE]]': String(actionText),
-      '[[CERTIFICATE ID]]': String(certId),
-      'TCEK/RD/2026/0001': String(certId)
-    };
+    if (isPdf) {
+      // Compile and stream the original PDF certificate
+      const isAppreciation = actionText !== 'Participation' && actionText !== 'participated' && actionText !== 'participation';
 
-    replacePlaceholdersInPptx(templateBuffer, tempPptx, replacements);
+      // Fetch template from DB
+      const templateName = isAppreciation ? "certificate_appreciation" : "certificate_participation";
+      let templateRes = await db.execute({
+        sql: "SELECT data_base64 FROM templates WHERE name = ?",
+        args: [templateName]
+      });
+      
+      if (templateRes.rows.length === 0 && !isAppreciation) {
+        templateRes = await db.execute({
+          sql: "SELECT data_base64 FROM templates WHERE name = ?",
+          args: ["certificate"]
+        });
+      }
 
-    // 5. Convert to PDF
-    await convertPptxToPdf(tempPptx, tempPdf);
+      if (templateRes.rows.length === 0) {
+        return res.status(500).send("Certificate template not found in database.");
+      }
 
-    // 6. Stream PDF to client
-    if (fs.existsSync(tempPdf)) {
-      const pdfContent = fs.readFileSync(tempPdf);
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `inline; filename="Certificate_${safeName}.pdf"`);
-      res.send(pdfContent);
+      const templateBase64 = templateRes.rows[0].data_base64 as string;
+      const templateBuffer = Buffer.from(templateBase64, 'base64');
+
+      // Generate customized PPTX file
+      const safeName = studentName.replace(/[^a-zA-Z0-9_\s]/g, '').trim();
+      const tempPptx = path.join(process.cwd(), `Verify_Temp_${safeName}_${id}.pptx`);
+      const tempPdf = path.join(process.cwd(), `Verify_Temp_${safeName}_${id}.pdf`);
+
+      const replacements: Record<string, string> = {
+        '{{PARTICIPANT NAME}}': String(studentName),
+        '{{EVENT NAME}}': String(eventTitle),
+        '{{DATE}}': String(eventDate),
+        '{{CERTIFICATE TYPE}}': String(actionText),
+        '{{CERTIFICATE ID}}': String(certId),
+        '[[PARTICIPANT NAME]]': String(studentName),
+        '[[EVENT NAME]]': String(eventTitle),
+        '[[DATE]]': String(eventDate),
+        '[[CERTIFICATE TYPE]]': String(actionText),
+        '[[CERTIFICATE ID]]': String(certId),
+        'TCEK/RD/2026/0001': String(certId)
+      };
+
+      replacePlaceholdersInPptx(templateBuffer, tempPptx, replacements);
+
+      // Convert customized PPTX to PDF using LibreOffice
+      await convertPptxToPdf(tempPptx, tempPdf);
+
+      // Stream PDF to the client browser
+      if (fs.existsSync(tempPdf)) {
+        const pdfContent = fs.readFileSync(tempPdf);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `inline; filename="Certificate_${safeName}.pdf"`);
+        res.send(pdfContent);
+      } else {
+        res.status(500).send("Failed to compile certificate PDF.");
+      }
+
+      // Cleanup temp files
+      if (fs.existsSync(tempPptx)) fs.unlinkSync(tempPptx);
+      if (fs.existsSync(tempPdf)) fs.unlinkSync(tempPdf);
+
     } else {
-      res.status(500).send("Failed to compile certificate PDF.");
+      // Return JSON metadata
+      return res.json({
+        success: true,
+        data: {
+          id: reg.id,
+          fullName: reg.full_name,
+          pinNumber: reg.pin_number,
+          email: reg.email,
+          branch: reg.branch,
+          yearOfStudy: reg.year_of_study,
+          section: reg.section,
+          eventName: reg.event_name,
+          status: reg.status || 'Participation',
+          certificateId: certId,
+          eventDate: eventDate,
+          issuedAt: reg.created_at
+        }
+      });
     }
-
-    // Cleanup temp files
-    if (fs.existsSync(tempPptx)) fs.unlinkSync(tempPptx);
-    if (fs.existsSync(tempPdf)) fs.unlinkSync(tempPdf);
-
   } catch (err: any) {
-    console.error("Download certificate error:", err);
-    res.status(500).send("Error compiling certificate: " + err.message);
+    console.error("Certificate verification error:", err);
+    if (isPdf) {
+      return res.status(500).send("Internal server error: " + err.message);
+    }
+    return res.status(500).json({ error: "Internal server error." });
   }
 });
 
