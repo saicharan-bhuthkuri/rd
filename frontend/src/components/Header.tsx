@@ -30,6 +30,7 @@ export const Header: React.FC = () => {
     { label: 'Team', to: '/team' },
     { label: 'FAQs', to: '/faqs' },
     { label: 'Contact', to: '/contact' },
+    { label: 'Verify Certificate', to: '/verify' },
   ];
 
   return (
