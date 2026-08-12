@@ -21,6 +21,7 @@ import { TeamPage } from './pages/TeamPage';
 import { FAQPage } from './pages/FAQPage';
 import { ContactPage } from './pages/ContactPage';
 import { ApplyPage } from './pages/ApplyPage';
+import { VerifyCertificatePage } from './pages/VerifyCertificatePage';
 
 // Admin Pages
 import { AdminLoginPage } from './pages/AdminLoginPage';
@@ -144,6 +145,7 @@ function App() {
           <Route path="/faqs" element={<FAQPage />} />
           <Route path="/contact" element={<ContactPage />} />
           <Route path="/apply" element={<ApplyPage />} />
+          <Route path="/verify" element={<VerifyCertificatePage />} />
 
           {/* Admin Routes */}
           <Route path="/admin/login" element={<AdminLoginPage />} />

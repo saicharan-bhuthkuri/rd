@@ -1832,6 +1832,56 @@ app.delete('/api/admin/branches/:id', authenticateToken, async (req: Authenticat
   }
 });
 
+// 19. Public Certificate Verification Route
+app.get('/api/verify-certificate/:certificateId', async (req, res) => {
+  const { certificateId } = req.params;
+  
+  if (!certificateId) {
+    return res.status(400).json({ error: "Certificate ID is required." });
+  }
+  
+  try {
+    const result = await db.execute({
+      sql: "SELECT * FROM event_registrations WHERE certificate_id = ? AND certificate_sent = 1",
+      args: [certificateId]
+    });
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Certificate not found or not yet issued." });
+    }
+    
+    const reg = result.rows[0];
+    
+    // Fetch event details to get the exact event date
+    const eventRes = await db.execute({
+      sql: "SELECT date FROM events WHERE title = ?",
+      args: [reg.event_name as string]
+    });
+    const eventDate = eventRes.rows.length > 0 ? eventRes.rows[0].date as string : '03 August 2026';
+
+    return res.json({
+      success: true,
+      data: {
+        id: reg.id,
+        fullName: reg.full_name,
+        pinNumber: reg.pin_number,
+        email: reg.email,
+        branch: reg.branch,
+        yearOfStudy: reg.year_of_study,
+        section: reg.section,
+        eventName: reg.event_name,
+        status: reg.status || 'Participation',
+        certificateId: reg.certificate_id,
+        eventDate: eventDate,
+        issuedAt: reg.created_at
+      }
+    });
+  } catch (err: any) {
+    console.error("Certificate verification error:", err);
+    return res.status(500).json({ error: "Internal server error." });
+  }
+});
+
 // Start the express server
 app.listen(port, async () => {
   console.log(`Server listening on http://localhost:${port}`);

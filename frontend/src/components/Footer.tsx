@@ -89,6 +89,7 @@ export const Footer: React.FC = () => {
             <li><Link to="/events">Events Calendar</Link></li>
             <li><Link to="/benefits">Member Benefits</Link></li>
             <li><Link to="/team">Our Team</Link></li>
+            <li><Link to="/verify">Verify Certificate</Link></li>
           </ul>
         </div>
 
