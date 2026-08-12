@@ -17,6 +17,15 @@ dns.setDefaultResultOrder('ipv4first');
 
 const execPromise = promisify(exec);
 
+// Helper to locate template files across local and docker/production environments
+function findTemplateFile(filename: string): string | null {
+  const localPath = path.join(process.cwd(), filename);
+  if (fs.existsSync(localPath)) return localPath;
+  const parentPath = path.join(process.cwd(), '..', filename);
+  if (fs.existsSync(parentPath)) return parentPath;
+  return null;
+}
+
 // Initialize env
 dotenv.config();
 
@@ -219,6 +228,13 @@ async function setupDatabase() {
       // Column already exists, ignore
     }
 
+    try {
+      await db.execute(`ALTER TABLE event_registrations ADD COLUMN certificate_id TEXT;`);
+      console.log("Database verification: certificate_id column verified/added to event_registrations.");
+    } catch (e) {
+      // Column already exists, ignore
+    }
+
     // Seed Default accounts
     // Seeding Developer: charan / Bharat@8336
     const devPassHash = await bcrypt.hash('Bharat@8336', 10);
@@ -315,92 +331,63 @@ async function setupDatabase() {
       console.error("Error seeding default events:", e);
     }
 
-    // Seed templates if missing
+    // Seed and sync templates
     try {
       // 1. Offer Letter Template
-      const offerCheck = await db.execute({
-        sql: "SELECT count(*) as count FROM templates WHERE name = ?",
-        args: ["offer_letter"]
-      });
-      if (Number(offerCheck.rows[0].count) === 0) {
-        const filePath = path.join(process.cwd(), '../OFFER LETTER (1).pptx');
-        if (fs.existsSync(filePath)) {
-          console.log("Seeding 'offer_letter' template into database...");
-          const fileData = fs.readFileSync(filePath);
-          const base64 = fileData.toString('base64');
-          await db.execute({
-            sql: "INSERT INTO templates (name, filename, data_base64) VALUES (?, ?, ?)",
-            args: ["offer_letter", "OFFER LETTER (1).pptx", base64]
-          });
-          console.log("Template 'offer_letter' seeded successfully.");
-        } else {
-          console.warn(`Warning: Template file not found at ${filePath}. Skipping seeding.`);
-        }
+      const offerPath = findTemplateFile('OFFER LETTER (1).pptx');
+      if (offerPath) {
+        console.log(`Syncing/updating 'offer_letter' template into database from ${offerPath}...`);
+        const fileData = fs.readFileSync(offerPath);
+        const base64 = fileData.toString('base64');
+        await db.execute({
+          sql: "INSERT OR REPLACE INTO templates (name, filename, data_base64) VALUES (?, ?, ?)",
+          args: ["offer_letter", "OFFER LETTER (1).pptx", base64]
+        });
+        console.log("Template 'offer_letter' synced successfully.");
+      } else {
+        console.warn("Warning: Template 'OFFER LETTER (1).pptx' not found. Skipping sync.");
       }
 
       // 2. Certificate Templates (Participation and Appreciation)
       // 2a. Default/Participation Certificate
-      const certCheck = await db.execute({
-        sql: "SELECT count(*) as count FROM templates WHERE name = ?",
-        args: ["certificate_participation"]
-      });
-      if (Number(certCheck.rows[0].count) === 0) {
-        const filePath = path.join(process.cwd(), '../CERTIFICATE_TEMPLATE.pptx');
-        if (fs.existsSync(filePath)) {
-          console.log("Seeding 'certificate_participation' template into database...");
-          const fileData = fs.readFileSync(filePath);
-          const base64 = fileData.toString('base64');
-          await db.execute({
-            sql: "INSERT INTO templates (name, filename, data_base64) VALUES (?, ?, ?)",
-            args: ["certificate_participation", "CERTIFICATE_TEMPLATE.pptx", base64]
-          });
-          console.log("Template 'certificate_participation' seeded successfully.");
-        } else {
-          console.warn(`Warning: Template file not found at ${filePath}. Skipping seeding.`);
-        }
-      }
+      const certPath = findTemplateFile('CERTIFICATE_TEMPLATE.pptx');
+      if (certPath) {
+        console.log(`Syncing/updating 'certificate_participation' template into database from ${certPath}...`);
+        const fileData = fs.readFileSync(certPath);
+        const base64 = fileData.toString('base64');
+        await db.execute({
+          sql: "INSERT OR REPLACE INTO templates (name, filename, data_base64) VALUES (?, ?, ?)",
+          args: ["certificate_participation", "CERTIFICATE_TEMPLATE.pptx", base64]
+        });
+        console.log("Template 'certificate_participation' synced successfully.");
 
-      // 2b. Legacy Certificate Template (for backward compatibility)
-      const legacyCertCheck = await db.execute({
-        sql: "SELECT count(*) as count FROM templates WHERE name = ?",
-        args: ["certificate"]
-      });
-      if (Number(legacyCertCheck.rows[0].count) === 0) {
-        const filePath = path.join(process.cwd(), '../CERTIFICATE_TEMPLATE.pptx');
-        if (fs.existsSync(filePath)) {
-          console.log("Seeding 'certificate' template into database...");
-          const fileData = fs.readFileSync(filePath);
-          const base64 = fileData.toString('base64');
-          await db.execute({
-            sql: "INSERT INTO templates (name, filename, data_base64) VALUES (?, ?, ?)",
-            args: ["certificate", "CERTIFICATE_TEMPLATE.pptx", base64]
-          });
-          console.log("Template 'certificate' seeded successfully.");
-        }
+        // 2b. Legacy Certificate Template (for backward compatibility)
+        console.log(`Syncing/updating 'certificate' template into database from ${certPath}...`);
+        await db.execute({
+          sql: "INSERT OR REPLACE INTO templates (name, filename, data_base64) VALUES (?, ?, ?)",
+          args: ["certificate", "CERTIFICATE_TEMPLATE.pptx", base64]
+        });
+        console.log("Template 'certificate' synced successfully.");
+      } else {
+        console.warn("Warning: Template 'CERTIFICATE_TEMPLATE.pptx' not found. Skipping sync.");
       }
 
       // 2c. Appreciation Certificate
-      const appreciationCheck = await db.execute({
-        sql: "SELECT count(*) as count FROM templates WHERE name = ?",
-        args: ["certificate_appreciation"]
-      });
-      if (Number(appreciationCheck.rows[0].count) === 0) {
-        const filePath = path.join(process.cwd(), '../CERTIFICATE_TEMPLATE - APPRECIATION.pptx');
-        if (fs.existsSync(filePath)) {
-          console.log("Seeding 'certificate_appreciation' template into database...");
-          const fileData = fs.readFileSync(filePath);
-          const base64 = fileData.toString('base64');
-          await db.execute({
-            sql: "INSERT INTO templates (name, filename, data_base64) VALUES (?, ?, ?)",
-            args: ["certificate_appreciation", "CERTIFICATE_TEMPLATE - APPRECIATION.pptx", base64]
-          });
-          console.log("Template 'certificate_appreciation' seeded successfully.");
-        } else {
-          console.warn(`Warning: Template file not found at ${filePath}. Skipping seeding.`);
-        }
+      const appreciationPath = findTemplateFile('CERTIFICATE_TEMPLATE - APPRECIATION.pptx');
+      if (appreciationPath) {
+        console.log(`Syncing/updating 'certificate_appreciation' template into database from ${appreciationPath}...`);
+        const fileData = fs.readFileSync(appreciationPath);
+        const base64 = fileData.toString('base64');
+        await db.execute({
+          sql: "INSERT OR REPLACE INTO templates (name, filename, data_base64) VALUES (?, ?, ?)",
+          args: ["certificate_appreciation", "CERTIFICATE_TEMPLATE - APPRECIATION.pptx", base64]
+        });
+        console.log("Template 'certificate_appreciation' synced successfully.");
+      } else {
+        console.warn("Warning: Template 'CERTIFICATE_TEMPLATE - APPRECIATION.pptx' not found. Skipping sync.");
       }
     } catch (e: any) {
-      console.error("Error seeding templates:", e.message);
+      console.error("Error seeding/syncing templates:", e.message);
     }
 
     // Seed default branches if empty
@@ -1511,15 +1498,20 @@ app.post('/api/admin/bulk-send/certificates', authenticateToken, async (req: Aut
       const tempPptx = path.join(process.cwd(), `Certificate_${safeName}_${id}.pptx`);
       const pdfFilename = path.join(process.cwd(), `Certificate_${safeName}_${id}.pdf`);
 
+      const certId = `TCEK/RD/2026/${String(id).padStart(4, '0')}`;
+
       const replacements = {
         '{{PARTICIPANT NAME}}': studentName,
         '{{EVENT NAME}}': eventTitle,
         '{{DATE}}': eventDate,
         '{{CERTIFICATE TYPE}}': actionText,
+        '{{CERTIFICATE ID}}': certId,
         '[[PARTICIPANT NAME]]': studentName,
         '[[EVENT NAME]]': eventTitle,
         '[[DATE]]': eventDate,
-        '[[CERTIFICATE TYPE]]': actionText
+        '[[CERTIFICATE TYPE]]': actionText,
+        '[[CERTIFICATE ID]]': certId,
+        'TCEK/RD/2026/0001': certId
       };
 
       const selectedBuffer = isAppreciation ? appTemplateBuffer : partTemplateBuffer;
@@ -1528,6 +1520,7 @@ app.post('/api/admin/bulk-send/certificates', authenticateToken, async (req: Aut
       return {
         reg,
         id,
+        certId,
         studentName,
         recipientEmail,
         safeName,
@@ -1547,7 +1540,7 @@ app.post('/api/admin/bulk-send/certificates', authenticateToken, async (req: Aut
     let completedTasks = 0;
 
     await runWithConcurrency(tasks, 10, async (task) => {
-      const { id, studentName, recipientEmail, safeName, tempPptx, pdfFilename, isAppreciation } = task;
+      const { id, certId, studentName, recipientEmail, safeName, tempPptx, pdfFilename, isAppreciation } = task;
       const progressValBefore = Math.floor(50 + (completedTasks / tasks.length) * 45);
       sendLog("Sending email...", progressValBefore);
 
@@ -1626,8 +1619,8 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
 
         // Update DB
         await db.execute({
-          sql: "UPDATE event_registrations SET certificate_sent = 1 WHERE id = ?",
-          args: [id]
+          sql: "UPDATE event_registrations SET certificate_sent = 1, certificate_id = ? WHERE id = ?",
+          args: [certId, id]
         });
 
         // Log Activity

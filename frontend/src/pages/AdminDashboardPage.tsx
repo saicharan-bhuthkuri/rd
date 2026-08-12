@@ -34,6 +34,7 @@ interface EventRegistration {
   notes?: string;
   status: string;
   certificate_sent?: number;
+  certificate_id?: string;
   created_at: string;
 }
 
@@ -767,16 +768,29 @@ export const AdminDashboardPage: React.FC = () => {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                           <strong>{reg.full_name}</strong>
                           {reg.certificate_sent === 1 ? (
-                            <span style={{
-                              fontSize: '0.625rem',
-                              fontWeight: 700,
-                              color: '#047857',
-                              backgroundColor: '#ecfdf5',
-                              padding: '0.125rem 0.375rem',
-                              borderRadius: '4px',
-                              textTransform: 'uppercase',
-                              display: 'inline-block'
-                            }}>Sented</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', flexWrap: 'wrap' }}>
+                              <span style={{
+                                fontSize: '0.625rem',
+                                fontWeight: 700,
+                                color: '#047857',
+                                backgroundColor: '#ecfdf5',
+                                padding: '0.125rem 0.375rem',
+                                borderRadius: '4px',
+                                textTransform: 'uppercase',
+                                display: 'inline-block'
+                              }}>Sented</span>
+                              {reg.certificate_id && (
+                                <span style={{
+                                  fontSize: '0.6875rem',
+                                  color: 'var(--text-muted)',
+                                  fontFamily: 'monospace',
+                                  backgroundColor: 'rgba(150, 150, 150, 0.1)',
+                                  padding: '0.0625rem 0.375rem',
+                                  borderRadius: '3px',
+                                  fontWeight: 500
+                                }}>{reg.certificate_id}</span>
+                              )}
+                            </div>
                           ) : (
                             <span style={{
                               fontSize: '0.625rem',
