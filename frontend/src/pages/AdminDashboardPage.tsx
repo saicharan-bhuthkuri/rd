@@ -291,7 +291,9 @@ export const AdminDashboardPage: React.FC = () => {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to establish stream connection.');
+        const errBody = await response.json().catch(() => null);
+        const errMsg = errBody?.error || errBody?.message || 'Failed to establish stream connection.';
+        throw new Error(`${errMsg} (Status: ${response.status})`);
       }
 
       const reader = response.body?.getReader();
@@ -380,7 +382,9 @@ export const AdminDashboardPage: React.FC = () => {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to establish stream connection.');
+        const errBody = await response.json().catch(() => null);
+        const errMsg = errBody?.error || errBody?.message || 'Failed to establish stream connection.';
+        throw new Error(`${errMsg} (Status: ${response.status})`);
       }
 
       const reader = response.body?.getReader();
