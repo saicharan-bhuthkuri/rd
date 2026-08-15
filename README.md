@@ -45,17 +45,24 @@ graph TD
 - **Modification Guard**: Once a certificate has been successfully dispatched (status `Sented`), the action select dropdown becomes **disabled** (renders greyed out with a `not-allowed` cursor) to prevent accidental post-dispatch changes.
 - **Sented / Pending Status Badge**: Small green `Sented` or amber `Pending` badges render next to the student's name showing dispatch success.
 
-### 3. Event Registrations Status Filtering
+### 4. Event Registrations Status Filtering
 - Filter list items by Certificate status:
   - **All Certificates**
-  - **Sented Only**
+  - **Sent Only**
   - **Pending Only**
 
-### 4. Headless PPTX-to-PDF Conversion
+### 5. Hackathon Team Registrations & Bulk Certificate Dispatch
+- **Dynamic Team Registration Portal**: Fully customizable team application flow supporting real-time addition/removal of members (`+ Add Member`) and dynamic profile fields based on role selection (Student vs. Professional).
+- **Important Notice Checkboxes**: Integrated a certificate disclaimer banner and required checkout checkbox at the bottom of the registration page.
+- **Hackathon-Wide Bulk Generation**: Parses all team members (including the Team Leader) and generates customized credentials in a single batch.
+- **Certificate Action / Type Selection**: Renders a dropdown in the Hackathon table list, allowing administrators to customize slide output variables (e.g. `Winner`, `Runner-up`, `Special Mention`, `Participation`) per team.
+- **Unique Track IDs**: Emits certificate IDs formatted as `TCEK/RD/HACK/2026/[teamId]-[index]` for verification audits.
+
+### 6. Headless PPTX-to-PDF Conversion
 - Runs batch conversion through LibreOffice CLI, converting dozens of PPTX files to PDF concurrently inside the container in less than 2 seconds (vs 15 seconds sequentially).
 
-### 6. Public Certificate Verification Portal
-- **Reference ID Validation**: Public interface (`/verify`) allowing visitors to input a unique certificate ID code (e.g. `TCEK/RD/2026/0001`) to query its database record.
+### 7. Public Certificate Verification Portal
+- **Reference ID Validation**: Public interface (`/verify`) allowing visitors to input a unique certificate ID code (e.g. `TCEK/RD/2026/0001` or `TCEK/RD/HACK/2026/0001-1`) to query its database record.
 - **Dynamic PDF Viewer**: Displays the exact dynamically compiled certificate PDF inline inside a responsive, scrollbar-free widescreen 16:9 viewport.
 - **Loading Feedback**: Integrates a clean overlay spinner ("Generating official PDF...") while the backend runs the LibreOffice compiler.
 - **Direct PDF Export**: Direct download link to save or print the authentic PDF credential document.
