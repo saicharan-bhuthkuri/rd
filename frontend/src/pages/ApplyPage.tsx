@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { API_BASE_URL } from '../config';
-import { ArrowLeft, User, Mail, Phone, GraduationCap, Calendar, Sparkles, Check, Loader2, Code, Users, Server, ChevronDown, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, User, Mail, Phone, GraduationCap, Calendar, Sparkles, Check, Loader2, Code, Users, Server, ChevronDown, Plus, Trash2, AlertTriangle } from 'lucide-react';
 
 type FormType = 'none' | 'join-club' | 'event' | 'hackathon';
 
@@ -211,6 +211,9 @@ export const ApplyPage: React.FC = () => {
   const [projectTitle, setProjectTitle] = useState('');
   const [projectDescription, setProjectDescription] = useState('');
   const [problemStatement, setProblemStatement] = useState('');
+  const [selectedHackathonName, setSelectedHackathonName] = useState('');
+  const [hackathonsList, setHackathonsList] = useState<string[]>([]);
+  const [hackathonConfirmed, setHackathonConfirmed] = useState(false);
 
   // Team Leader Details (reuses fullName, email, mobile for Name, Email, Phone)
   const [leaderRole, setLeaderRole] = useState<'Student' | 'Professional' | 'Other'>('Student');
@@ -252,6 +255,15 @@ export const ApplyPage: React.FC = () => {
           const titles = data.map((evt: any) => evt.title);
           setEventsList(titles);
           
+          const hackathons = data
+            .filter((evt: any) => evt.category === 'Hackathon')
+            .map((evt: any) => evt.title);
+          setHackathonsList(hackathons);
+          
+          if (hackathons.length > 0) {
+            setSelectedHackathonName(hackathons[0]);
+          }
+
           // Pre-select the query parameter event if present
           const eventParam = searchParams.get('event');
           if (eventParam && titles.includes(eventParam)) {
@@ -319,6 +331,7 @@ export const ApplyPage: React.FC = () => {
     setProjectTitle('');
     setProjectDescription('');
     setProblemStatement('');
+    setSelectedHackathonName(hackathonsList.length > 0 ? hackathonsList[0] : '');
     setLeaderRole('Student');
     setLeaderYear('');
     setLeaderBranch('');
@@ -354,6 +367,130 @@ export const ApplyPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // JS-based manual form verification to prevent hidden inputs focus block issues
+    if (formType === 'join-club') {
+      if (!fullName.trim() || !pinNumber.trim() || !email.trim() || !mobile.trim() || !branch || !yearOfStudy || !interests.trim() || !skills.trim() || !reasonToJoin.trim()) {
+        alert("Please fill in all required fields.");
+        return;
+      }
+    } else if (formType === 'event') {
+      if (!fullName.trim() || !pinNumber.trim() || !email.trim() || !mobile.trim() || !branch || !yearOfStudy || !eventName) {
+        alert("Please fill in all required fields.");
+        return;
+      }
+    } else if (formType === 'hackathon') {
+      if (!selectedHackathonName) {
+        alert("Please select a Hackathon event.");
+        return;
+      }
+      if (!teamName.trim()) {
+        alert("Please enter a Team Name.");
+        return;
+      }
+      if (!fullName.trim()) {
+        alert("Please enter the Team Leader's Full Name.");
+        return;
+      }
+      if (!email.trim()) {
+        alert("Please enter the Team Leader's Email Address.");
+        return;
+      }
+      if (!mobile.trim()) {
+        alert("Please enter the Team Leader's Phone Number.");
+        return;
+      }
+      if (!leaderRole) {
+        alert("Please select the Team Leader's Designation / Role.");
+        return;
+      }
+      if (leaderRole === 'Student') {
+        if (!leaderYear) {
+          alert("Please select the Team Leader's Year of Study.");
+          return;
+        }
+        if (!leaderBranch) {
+          alert("Please select the Team Leader's Branch / Department.");
+          return;
+        }
+        if (!leaderInstitution.trim()) {
+          alert("Please enter the Team Leader's College / University / School Name.");
+          return;
+        }
+      } else {
+        if (!leaderCompany.trim()) {
+          alert("Please enter the Team Leader's Company / Organization.");
+          return;
+        }
+        if (!leaderJobTitle.trim()) {
+          alert("Please enter the Team Leader's Job Title / Designation.");
+          return;
+        }
+      }
+
+      // Verify each team member
+      for (let i = 0; i < members.length; i++) {
+        const num = i + 2;
+        const m = members[i];
+        if (!m.fullName.trim()) {
+          alert(`Please enter Member ${num}'s Full Name.`);
+          return;
+        }
+        if (!m.email.trim()) {
+          alert(`Please enter Member ${num}'s Email Address.`);
+          return;
+        }
+        if (!m.phone.trim()) {
+          alert(`Please enter Member ${num}'s Phone Number.`);
+          return;
+        }
+        if (!m.role) {
+          alert(`Please select Member ${num}'s Designation / Role.`);
+          return;
+        }
+        if (m.role === 'Student') {
+          if (!m.year) {
+            alert(`Please select Member ${num}'s Year of Study.`);
+            return;
+          }
+          if (!m.branch) {
+            alert(`Please select Member ${num}'s Branch / Department.`);
+            return;
+          }
+          if (!m.institution?.trim()) {
+            alert(`Please enter Member ${num}'s College / University / School Name.`);
+            return;
+          }
+        } else {
+          if (!m.company?.trim()) {
+            alert(`Please enter Member ${num}'s Company / Organization.`);
+            return;
+          }
+          if (!m.jobTitle?.trim()) {
+            alert(`Please enter Member ${num}'s Job Title / Designation.`);
+            return;
+          }
+        }
+      }
+
+      if (!projectTitle.trim()) {
+        alert("Please enter the Project Title.");
+        return;
+      }
+      if (!projectDescription.trim()) {
+        alert("Please enter the Project Description.");
+        return;
+      }
+      if (!problemStatement.trim()) {
+        alert("Please enter the Problem Statement.");
+        return;
+      }
+      if (!hackathonConfirmed) {
+        alert("Please confirm the details check box at the bottom before submitting.");
+        return;
+      }
+    }
+
     setIsSubmitting(true);
 
     const payload = formType === 'join-club' ? {
@@ -378,6 +515,7 @@ export const ApplyPage: React.FC = () => {
       eventName,
       notes
     } : {
+      hackathonName: selectedHackathonName,
       teamName,
       projectTitle,
       projectDescription,
@@ -732,9 +870,48 @@ export const ApplyPage: React.FC = () => {
                     </>
                   )}
 
-                  {/* Hackathon Details */}
                   {formType === 'hackathon' && (
                     <>
+                      <div className="alert-notice-box" style={{ 
+                        backgroundColor: '#fffbeb', 
+                        border: '1px solid #fef3c7', 
+                        borderRadius: '8px', 
+                        padding: '1.25rem', 
+                        marginBottom: '2rem',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.5rem',
+                        boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, color: '#b45309', fontSize: '0.9375rem' }}>
+                          <AlertTriangle size={18} />
+                          <span>Important Notice:</span>
+                        </div>
+                        <p style={{ margin: 0, fontSize: '0.875rem', color: '#b45309', lineHeight: 1.6 }}>
+                          Please enter all details carefully and accurately. The information provided in this form will be used to generate and issue hackathon certificates. If any information is incorrect, incomplete, or misspelled, the organizers will not be responsible for errors appearing on the issued certificate.
+                        </p>
+                      </div>
+
+                      <div className="form-section-title" style={{ marginTop: '1.5rem' }}>Select Hackathon</div>
+                      <div className="form-group">
+                        <label htmlFor="selectedHackathonName">Select Hackathon <span className="req">*</span></label>
+                        <CustomSelect
+                          id="selectedHackathonName"
+                          required
+                          value={selectedHackathonName}
+                          onChange={setSelectedHackathonName}
+                          options={hackathonsList}
+                          placeholder={
+                            isLoadingEvents 
+                              ? "Loading hackathons..." 
+                              : hackathonsList.length === 0 
+                                ? "No hackathons scheduled" 
+                                : "Select Hackathon"
+                          }
+                          icon={<Sparkles size={16} />}
+                        />
+                      </div>
+
                       {/* Team & Project Info */}
                       <div className="form-section-title">Team Info</div>
                       
@@ -899,19 +1076,6 @@ export const ApplyPage: React.FC = () => {
 
                       {/* Team Members Section */}
                       <div className="form-section-title" style={{ marginTop: '2rem' }}>Team Members</div>
-                      
-                      {/* Member 1: Team Leader Summary Card */}
-                      <div className="team-leader-summary-card">
-                        <div className="leader-summary-title">
-                          <Users size={18} /> Member 1: Team Leader (You)
-                        </div>
-                        <div className="leader-summary-details">
-                          <div><strong>Name:</strong> {fullName || <span style={{ color: 'var(--text-muted)' }}>Not entered yet</span>}</div>
-                          <div><strong>Email:</strong> {email || <span style={{ color: 'var(--text-muted)' }}>Not entered yet</span>}</div>
-                          <div><strong>Phone:</strong> {mobile || <span style={{ color: 'var(--text-muted)' }}>Not entered yet</span>}</div>
-                          <div><strong>Role:</strong> {leaderRole} {leaderRole === 'Student' ? (leaderBranch ? `(${leaderBranch})` : '') : (leaderCompany ? `(${leaderCompany})` : '')}</div>
-                        </div>
-                      </div>
 
                       {/* Additional Dynamic Members */}
                       {members.map((member, index) => (
@@ -1114,6 +1278,27 @@ export const ApplyPage: React.FC = () => {
                           value={problemStatement}
                           onChange={(e) => setProblemStatement(e.target.value)}
                         />
+                      </div>
+
+                      <div className="form-group" style={{ 
+                        marginTop: '2rem', 
+                        padding: '1.25rem', 
+                        backgroundColor: 'rgba(79, 70, 229, 0.05)', 
+                        border: '1px solid rgba(79, 70, 229, 0.1)', 
+                        borderRadius: '8px' 
+                      }}>
+                        <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', cursor: 'pointer', userSelect: 'none' }}>
+                          <input
+                            type="checkbox"
+                            required
+                            checked={hackathonConfirmed}
+                            onChange={(e) => setHackathonConfirmed(e.target.checked)}
+                            style={{ marginTop: '0.25rem', width: '16px', height: '16px', cursor: 'pointer' }}
+                          />
+                          <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                            I confirm that all the information provided above is correct, accurate, and genuine. I understand that these details will be used for certificate generation, and I accept responsibility for any incorrect or false information submitted by me.
+                          </span>
+                        </label>
                       </div>
                     </>
                   )}

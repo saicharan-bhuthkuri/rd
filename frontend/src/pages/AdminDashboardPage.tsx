@@ -40,6 +40,7 @@ interface EventRegistration {
 
 interface HackathonRegistration {
   id: number;
+  hackathon_name?: string;
   team_name: string;
   project_title: string;
   project_description: string;
@@ -55,6 +56,8 @@ interface HackathonRegistration {
   leader_job_title?: string;
   members: string; // JSON string
   status: 'pending' | 'approved' | 'rejected';
+  certificate_sent?: number;
+  certificate_type?: string;
   created_at: string;
 }
 
@@ -72,6 +75,7 @@ export const AdminDashboardPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [branchFilter, setBranchFilter] = useState('all');
   const [eventFilter, setEventFilter] = useState('all');
+  const [hackathonFilter, setHackathonFilter] = useState('all');
   const [certSentFilter, setCertSentFilter] = useState<'all' | 'sent' | 'pending'>('all');
 
   const [isLoading, setIsLoading] = useState(true);
@@ -352,8 +356,101 @@ export const AdminDashboardPage: React.FC = () => {
     setIsCertModalOpen(true);
   };
 
+  const executeBulkSendHackathonCertificates = async () => {
+    // Reset console states
+    setConsoleLogs([]);
+    setConsoleProgress(0);
+    setConsoleStatus('running');
+    setConsoleTitle(`Bulk Dispatch Hackathon Certificates: ${hackathonFilter}`);
+    setIsConsoleOpen(true);
+    setIsSendingBulk(true);
+
+    const token = localStorage.getItem('admin_token');
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/admin/bulk-send/hackathon-certificates`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ 
+          hackathonName: hackathonFilter
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to establish stream connection.');
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('Readable stream not supported.');
+      }
+
+      const decoder = new TextDecoder();
+      let partialChunk = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = (partialChunk + chunk).split('\n\n');
+        partialChunk = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.error) {
+                setConsoleLogs(prev => [...prev, `[ERROR] ${data.error}`]);
+                setConsoleStatus('failed');
+              } else {
+                if (data.message) {
+                  setConsoleLogs(prev => [...prev, data.message]);
+                }
+                if (data.progress !== undefined) {
+                  setConsoleProgress(data.progress);
+                }
+                if (data.isDone) {
+                  setConsoleStatus('completed');
+                }
+              }
+            } catch (e) {
+              console.error("JSON parse error on SSE line:", line, e);
+            }
+          }
+        }
+      }
+
+      fetchApplications();
+    } catch (err: any) {
+      setConsoleLogs(prev => [...prev, `[ERROR] ${err.message}`]);
+      setConsoleStatus('failed');
+    } finally {
+      setIsSendingBulk(false);
+    }
+  };
+
+  const handleBulkSendHackathonCertificates = () => {
+    if (hackathonFilter === 'all') {
+      showCustomAlert(
+        "Hackathon Selection Required",
+        "Please select a specific hackathon from the hackathon filter dropdown next to the search bar before sending certificates."
+      );
+      return;
+    }
+
+    showCustomConfirm(
+      "Send Hackathon Certificates",
+      `Are you sure you want to generate and dispatch certificates to ALL approved team members registered for the hackathon "${hackathonFilter}"?`,
+      executeBulkSendHackathonCertificates
+    );
+  };
+
   // Update status action
-  const handleUpdateStatus = async (type: 'club' | 'event' | 'hackathon', id: number, status: string) => {
+  const handleUpdateStatus = async (type: 'club' | 'event' | 'hackathon' | 'hackathon-certificate-type', id: number, status: string) => {
     const token = localStorage.getItem('admin_token');
     try {
       const response = await fetch(`${API_BASE_URL}/api/admin/applications/status`, {
@@ -397,6 +494,15 @@ export const AdminDashboardPage: React.FC = () => {
     return Array.from(events);
   };
 
+  // Get distinct hackathons for filter dropdown
+  const getHackathons = () => {
+    const hackathons = new Set<string>();
+    hackathonRegs.forEach(reg => {
+      hackathons.add(reg.hackathon_name || 'R&D AlphaQuest Hackathon');
+    });
+    return Array.from(hackathons);
+  };
+
   // Apply filters
   const filteredClubApps = clubApps.filter(app => {
     const matchesSearch = app.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -427,7 +533,9 @@ export const AdminDashboardPage: React.FC = () => {
     const matchesStatus = statusFilter === 'all' || reg.status === statusFilter;
     const matchesBranch = branchFilter === 'all' || 
       (reg.leader_branch && reg.leader_branch.toUpperCase() === branchFilter.toUpperCase());
-    return matchesSearch && matchesStatus && matchesBranch;
+    const matchesHackathon = hackathonFilter === 'all' || 
+      (reg.hackathon_name || 'R&D AlphaQuest Hackathon') === hackathonFilter;
+    return matchesSearch && matchesStatus && matchesBranch && matchesHackathon;
   });
 
   // Calculate quick metrics
@@ -466,16 +574,22 @@ export const AdminDashboardPage: React.FC = () => {
       };
     } else {
       // Hackathons
-      const approved = hackathonRegs.filter(r => r.status === 'approved');
+      const targetRegs = hackathonFilter === 'all'
+        ? hackathonRegs
+        : hackathonRegs.filter(r => r.hackathon_name === hackathonFilter);
+
+      const approved = targetRegs.filter(r => r.status === 'approved');
+      const sent = approved.filter(r => r.certificate_sent === 1).length;
+      const unsent = approved.filter(r => !r.certificate_sent || r.certificate_sent === 0).length;
       return {
-        total: hackathonRegs.length,
-        pending: hackathonRegs.filter(r => r.status === 'pending').length,
+        total: targetRegs.length,
+        pending: targetRegs.filter(r => r.status === 'pending').length,
         approved: approved.length,
-        rejected: hackathonRegs.filter(r => r.status === 'rejected').length,
-        sent: 0,
-        unsent: 0,
-        sentLabel: "Status Sent",
-        unsentLabel: "Status Pending"
+        rejected: targetRegs.filter(r => r.status === 'rejected').length,
+        sent,
+        unsent,
+        sentLabel: "Certificates Sent",
+        unsentLabel: "Certificates Pending"
       };
     }
   };
@@ -525,7 +639,7 @@ export const AdminDashboardPage: React.FC = () => {
       ]);
     } else {
       filename = 'RD_Club_Hackathon_Registrations.csv';
-      headers = ['ID', 'Team Name', 'Project Title', 'Project Description', 'Problem Statement', 'Leader Name', 'Leader Email', 'Leader Phone', 'Leader Role', 'Leader Year', 'Leader Branch', 'Leader Institution', 'Leader Company', 'Leader Job Title', 'Members Count', 'Status', 'Registered At'];
+      headers = ['ID', 'Hackathon Event', 'Team Name', 'Project Title', 'Project Description', 'Problem Statement', 'Leader Name', 'Leader Email', 'Leader Phone', 'Leader Role', 'Leader Year', 'Leader Branch', 'Leader Institution', 'Leader Company', 'Leader Job Title', 'Members Count', 'Status', 'Registered At'];
       rows = filteredHackathonRegs.map(reg => {
         let membersCount = 1;
         try {
@@ -534,6 +648,7 @@ export const AdminDashboardPage: React.FC = () => {
         } catch (e) {}
         return [
           reg.id.toString(),
+          reg.hackathon_name || 'R&D AlphaQuest Hackathon',
           reg.team_name,
           reg.project_title,
           reg.project_description.replace(/\n/g, ' '),
@@ -697,6 +812,19 @@ export const AdminDashboardPage: React.FC = () => {
               ))}
             </select>
           )}
+
+          {activeTab === 'hackathon' && (
+            <select
+              className="admin-filter-select"
+              value={hackathonFilter}
+              onChange={(e) => setHackathonFilter(e.target.value)}
+            >
+              <option value="all">All Hackathons</option>
+              {getHackathons().map((hack, idx) => (
+                <option key={idx} value={hack}>{hack}</option>
+              ))}
+            </select>
+          )}
         </div>
 
         <div className="admin-dashboard-actions" style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
@@ -722,6 +850,33 @@ export const AdminDashboardPage: React.FC = () => {
           {activeTab === 'event' && (
             <button 
               onClick={handleBulkSendCertificates} 
+              disabled={isSendingBulk}
+              className="btn btn-primary"
+              style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '0.5rem', 
+                fontSize: '0.875rem', 
+                padding: '0.575rem 1rem', 
+                borderRadius: '0.375rem', 
+                cursor: 'pointer'
+              }}
+            >
+              {isSendingBulk ? (
+                <>
+                  <Loader2 className="spinner-icon" size={16} /> Processing Dispatch...
+                </>
+              ) : (
+                <>
+                  <Mail size={16} /> Bulk Send Certificates
+                </>
+              )}
+            </button>
+          )}
+
+          {activeTab === 'hackathon' && (
+            <button 
+              onClick={handleBulkSendHackathonCertificates} 
               disabled={isSendingBulk}
               className="btn btn-primary"
               style={{ 
@@ -788,7 +943,7 @@ export const AdminDashboardPage: React.FC = () => {
                   <th>Problem Statement</th>
                   <th>Members</th>
                   <th>Status</th>
-                  <th>Actions</th>
+                  <th colSpan={2}>Certificate Action / Type</th>
                 </tr>
               )}
             </thead>
@@ -989,7 +1144,18 @@ export const AdminDashboardPage: React.FC = () => {
                     return (
                       <tr key={reg.id}>
                         <td>
-                          <strong>{reg.team_name}</strong>
+                          <span style={{
+                            fontSize: '0.6875rem',
+                            fontWeight: 700,
+                            color: '#4f46e5',
+                            backgroundColor: '#e0e7ff',
+                            padding: '0.125rem 0.375rem',
+                            borderRadius: '4px',
+                            textTransform: 'uppercase',
+                            display: 'inline-block',
+                            marginBottom: '0.25rem'
+                          }}>{reg.hackathon_name || 'R&D AlphaQuest Hackathon'}</span>
+                          <div><strong>{reg.team_name}</strong></div>
                           <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
                             Leader: {reg.leader_name}
                           </div>
@@ -1022,26 +1188,87 @@ export const AdminDashboardPage: React.FC = () => {
                           </div>
                         </td>
                         <td>
-                          <span className={`status-pill status-${reg.status}`}>{reg.status}</span>
-                        </td>
-                        <td>
-                          <div className="actions-cell">
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', alignItems: 'flex-start' }}>
+                            <span className={`status-pill status-${reg.status}`}>{reg.status}</span>
+                            
                             {reg.status === 'pending' && (
-                              <>
+                              <div className="actions-cell" style={{ marginTop: '0.5rem' }}>
                                 <button onClick={() => handleUpdateStatus('hackathon', reg.id, 'approved')} className="btn-action approve" title="Approve Registration">
                                   <Check size={14} />
                                 </button>
                                 <button onClick={() => handleUpdateStatus('hackathon', reg.id, 'rejected')} className="btn-action reject" title="Reject Registration">
                                   <X size={14} />
                                 </button>
-                              </>
-                            )}
-                            {reg.status !== 'pending' && (
-                              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                                Checked
-                              </span>
+                              </div>
                             )}
                           </div>
+                        </td>
+                        <td colSpan={2}>
+                          {reg.status === 'approved' && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                              {(() => {
+                                const val = reg.certificate_type || 'Participation';
+                                const presetValues = ['Participation', 'Winner', 'Runner-up', 'Special Mention'];
+                                const matchedPreset = presetValues.find(p => p.toLowerCase() === val.toLowerCase());
+                                const displayVal = matchedPreset || val;
+                                const isCustom = !matchedPreset;
+                                return (
+                                  <select
+                                    value={displayVal}
+                                    onChange={(e) => handleUpdateStatus('hackathon-certificate-type', reg.id, e.target.value)}
+                                    disabled={reg.certificate_sent === 1}
+                                    className="input"
+                                    style={{
+                                      width: '180px',
+                                      padding: '0.375rem 0.625rem',
+                                      fontSize: '0.8125rem',
+                                      borderRadius: '0.375rem',
+                                      border: '1px solid var(--border)',
+                                      background: reg.certificate_sent === 1 ? '#f1f5f9' : '#fff',
+                                      color: 'var(--text-main)',
+                                      cursor: reg.certificate_sent === 1 ? 'not-allowed' : 'pointer',
+                                      opacity: reg.certificate_sent === 1 ? 0.7 : 1
+                                    }}
+                                  >
+                                    <option value="Participation">Participation</option>
+                                    <option value="Winner">Winner</option>
+                                    <option value="Runner-up">Runner-up</option>
+                                    <option value="Special Mention">Special Mention</option>
+                                    {isCustom && <option value={val}>{val}</option>}
+                                  </select>
+                                );
+                              })()}
+
+                              {reg.certificate_sent === 1 ? (
+                                <span style={{
+                                  fontSize: '0.625rem',
+                                  fontWeight: 700,
+                                  color: '#047857',
+                                  backgroundColor: '#ecfdf5',
+                                  padding: '0.125rem 0.375rem',
+                                  borderRadius: '4px',
+                                  textTransform: 'uppercase',
+                                  whiteSpace: 'nowrap'
+                                }}>Sent</span>
+                              ) : (
+                                <span style={{
+                                  fontSize: '0.625rem',
+                                  fontWeight: 700,
+                                  color: '#b45309',
+                                  backgroundColor: '#fffbeb',
+                                  padding: '0.125rem 0.375rem',
+                                  borderRadius: '4px',
+                                  textTransform: 'uppercase',
+                                  whiteSpace: 'nowrap'
+                                }}>Pending</span>
+                              )}
+                            </div>
+                          )}
+                          {reg.status !== 'approved' && (
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                              Not Applicable
+                            </span>
+                          )}
                         </td>
                       </tr>
                     );
@@ -1292,150 +1519,249 @@ export const AdminDashboardPage: React.FC = () => {
       )}
 
       {/* Hackathon Details Modal */}
-      {selectedHackathon && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(15, 23, 42, 0.4)',
-          backdropFilter: 'blur(4px)',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          zIndex: 1100,
-          padding: '1.5rem'
-        }}>
-          <div className="card" style={{
-            width: '100%',
-            maxWidth: '680px',
-            boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)',
-            padding: '2rem',
-            borderRadius: '0.75rem',
-            border: '1px solid var(--border)',
-            background: '#fff',
+      {selectedHackathon && (() => {
+        let parsedMembers: any[] = [];
+        try {
+          parsedMembers = typeof selectedHackathon.members === 'string' 
+            ? JSON.parse(selectedHackathon.members || '[]')
+            : selectedHackathon.members || [];
+        } catch (e) {
+          console.error("Failed to parse members JSON:", e);
+        }
+        const membersCount = parsedMembers.length + 1;
+
+        return (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.4)',
+            backdropFilter: 'blur(4px)',
             display: 'flex',
-            flexDirection: 'column',
-            gap: '1.5rem',
-            maxHeight: '90vh',
-            overflowY: 'auto'
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 1100,
+            padding: '1.5rem'
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem' }}>
-              <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'var(--primary)' }}>
-                Team Details: {selectedHackathon.team_name}
-              </h3>
-              <button 
-                onClick={() => setSelectedHackathon(null)} 
-                className="btn btn-secondary btn-sm"
-                style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', cursor: 'pointer' }}
-              >
-                Close
-              </button>
-            </div>
-
-            {/* Project Details Section */}
-            <div>
-              <h4 style={{ fontSize: '1rem', marginBottom: '0.5rem', color: 'var(--text-main)', borderBottom: '1px solid var(--border)', paddingBottom: '0.25rem' }}>
-                Project Details
-              </h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.875rem' }}>
-                <div><strong>Project Title:</strong> {selectedHackathon.project_title}</div>
-                <div><strong>Project Description:</strong></div>
-                <div style={{ padding: '0.75rem', backgroundColor: 'var(--bg-main)', borderRadius: 'var(--radius-sm)', whiteSpace: 'pre-wrap', color: 'var(--text-secondary)' }}>
-                  {selectedHackathon.project_description}
+            <div style={{
+              width: '100%',
+              maxWidth: '680px',
+              boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)',
+              borderRadius: '0.75rem',
+              border: '1px solid var(--border)',
+              background: '#fff',
+              display: 'flex',
+              flexDirection: 'column',
+              maxHeight: '85vh',
+              overflow: 'hidden'
+            }}>
+              {/* Sticky Header */}
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center', 
+                borderBottom: '1px solid var(--border)', 
+                padding: '1.5rem 2rem',
+                backgroundColor: '#fff'
+              }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                  <span style={{ 
+                    fontSize: '0.75rem', 
+                    fontWeight: 700, 
+                    color: '#4f46e5', 
+                    backgroundColor: '#e0e7ff', 
+                    padding: '0.125rem 0.375rem', 
+                    borderRadius: '4px', 
+                    alignSelf: 'flex-start', 
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em'
+                  }}>
+                    {selectedHackathon.hackathon_name || 'R&D AlphaQuest Hackathon'}
+                  </span>
+                  <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'var(--primary)' }}>
+                    Team Details: {selectedHackathon.team_name}
+                  </h3>
                 </div>
-                <div><strong>Problem Statement:</strong></div>
-                <div style={{ padding: '0.75rem', backgroundColor: 'var(--bg-main)', borderRadius: 'var(--radius-sm)', whiteSpace: 'pre-wrap', color: 'var(--text-secondary)' }}>
-                  {selectedHackathon.problem_statement}
-                </div>
+                <button 
+                  onClick={() => setSelectedHackathon(null)} 
+                  className="btn btn-secondary btn-sm"
+                  style={{ padding: '0.375rem 0.75rem', fontSize: '0.8125rem', cursor: 'pointer', borderRadius: '0.375rem' }}
+                >
+                  Close
+                </button>
               </div>
-            </div>
 
-            {/* Team Leader Section */}
-            <div>
-              <h4 style={{ fontSize: '1rem', marginBottom: '0.5rem', color: 'var(--text-main)', borderBottom: '1px solid var(--border)', paddingBottom: '0.25rem' }}>
-                Team Leader Details
-              </h4>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem', fontSize: '0.875rem' }}>
-                <div><strong>Name:</strong> {selectedHackathon.leader_name}</div>
-                <div><strong>Email:</strong> {selectedHackathon.leader_email}</div>
-                <div><strong>Phone:</strong> {selectedHackathon.leader_phone}</div>
-                <div><strong>Role:</strong> {selectedHackathon.leader_role}</div>
-                {selectedHackathon.leader_role === 'Student' ? (
-                  <>
-                    <div><strong>Year:</strong> {selectedHackathon.leader_year}</div>
-                    <div><strong>Branch:</strong> {selectedHackathon.leader_branch}</div>
-                    <div style={{ gridColumn: 'span 2' }}><strong>College:</strong> {selectedHackathon.leader_institution}</div>
-                  </>
-                ) : (
-                  <>
-                    <div><strong>Company:</strong> {selectedHackathon.leader_company}</div>
-                    <div><strong>Job Title:</strong> {selectedHackathon.leader_job_title}</div>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* Team Members Section */}
-            <div>
-              <h4 style={{ fontSize: '1rem', marginBottom: '0.5rem', color: 'var(--text-main)', borderBottom: '1px solid var(--border)', paddingBottom: '0.25rem' }}>
-                Team Members
-              </h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                {/* Visual Representation of Team Leader as Member 1 */}
-                <div style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--primary-light)', fontSize: '0.875rem' }}>
-                  <div style={{ fontWeight: 600, color: 'var(--primary)', marginBottom: '0.25rem' }}>Member 1: Team Leader</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.5rem' }}>
-                    <div><strong>Name:</strong> {selectedHackathon.leader_name}</div>
-                    <div><strong>Email:</strong> {selectedHackathon.leader_email}</div>
-                    <div><strong>Role:</strong> {selectedHackathon.leader_role}</div>
+              {/* Scrollable Content Body */}
+              <div style={{
+                padding: '2rem',
+                overflowY: 'auto',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '1.75rem',
+                flex: 1
+              }}>
+                {/* Project Details Section */}
+                <div>
+                  <h4 style={{ 
+                    fontSize: '0.9375rem', 
+                    fontWeight: 700, 
+                    textTransform: 'uppercase', 
+                    letterSpacing: '0.05em', 
+                    marginBottom: '0.75rem', 
+                    color: 'var(--text-main)', 
+                    borderBottom: '2px solid var(--border)', 
+                    paddingBottom: '0.375rem' 
+                  }}>
+                    Project Details
+                  </h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.875rem' }}>
+                    <div><strong>Project Title:</strong> {selectedHackathon.project_title}</div>
+                    <div><strong>Project Description:</strong></div>
+                    <div style={{ 
+                      padding: '0.875rem 1rem', 
+                      backgroundColor: 'var(--bg-main)', 
+                      borderRadius: 'var(--radius-md)', 
+                      whiteSpace: 'pre-wrap', 
+                      color: 'var(--text-secondary)',
+                      lineHeight: 1.5,
+                      border: '1px solid var(--border)'
+                    }}>
+                      {selectedHackathon.project_description}
+                    </div>
+                    <div><strong>Problem Statement:</strong></div>
+                    <div style={{ 
+                      padding: '0.875rem 1rem', 
+                      backgroundColor: 'var(--bg-main)', 
+                      borderRadius: 'var(--radius-md)', 
+                      whiteSpace: 'pre-wrap', 
+                      color: 'var(--text-secondary)',
+                      lineHeight: 1.5,
+                      border: '1px solid var(--border)'
+                    }}>
+                      {selectedHackathon.problem_statement}
+                    </div>
                   </div>
                 </div>
 
-                {(() => {
-                  let parsedMembers: any[] = [];
-                  try {
-                    parsedMembers = typeof selectedHackathon.members === 'string' 
-                      ? JSON.parse(selectedHackathon.members || '[]')
-                      : selectedHackathon.members || [];
-                  } catch (e) {
-                    console.error("Failed to parse members JSON:", e);
-                  }
+                {/* Team Leader Section */}
+                <div>
+                  <h4 style={{ 
+                    fontSize: '0.9375rem', 
+                    fontWeight: 700, 
+                    textTransform: 'uppercase', 
+                    letterSpacing: '0.05em', 
+                    marginBottom: '0.75rem', 
+                    color: 'var(--text-main)', 
+                    borderBottom: '2px solid var(--border)', 
+                    paddingBottom: '0.375rem' 
+                  }}>
+                    Team Leader Details
+                  </h4>
+                  <div style={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
+                    gap: '1rem', 
+                    fontSize: '0.875rem',
+                    lineHeight: 1.5
+                  }}>
+                    <div><strong>Name:</strong> {selectedHackathon.leader_name}</div>
+                    <div><strong>Email:</strong> <a href={`mailto:${selectedHackathon.leader_email}`} style={{ color: 'var(--primary)', textDecoration: 'none' }}>{selectedHackathon.leader_email}</a></div>
+                    <div><strong>Phone:</strong> {selectedHackathon.leader_phone}</div>
+                    <div><strong>Role:</strong> {selectedHackathon.leader_role}</div>
+                    {selectedHackathon.leader_role === 'Student' ? (
+                      <>
+                        <div><strong>Year:</strong> {selectedHackathon.leader_year}</div>
+                        <div><strong>Branch:</strong> {selectedHackathon.leader_branch}</div>
+                        <div style={{ gridColumn: 'span 2' }}><strong>College:</strong> {selectedHackathon.leader_institution}</div>
+                      </>
+                    ) : (
+                      <>
+                        <div><strong>Company:</strong> {selectedHackathon.leader_company}</div>
+                        <div><strong>Job Title:</strong> {selectedHackathon.leader_job_title}</div>
+                      </>
+                    )}
+                  </div>
+                </div>
 
-                  if (parsedMembers.length === 0) {
-                    return <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>No additional team members.</div>;
-                  }
-
-                  return parsedMembers.map((m, idx) => (
-                    <div key={idx} style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-main)', fontSize: '0.875rem' }}>
-                      <div style={{ fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.25rem' }}>Member {idx + 2} Details</div>
+                {/* Team Members Section */}
+                <div>
+                  <h4 style={{ 
+                    fontSize: '0.9375rem', 
+                    fontWeight: 700, 
+                    textTransform: 'uppercase', 
+                    letterSpacing: '0.05em', 
+                    marginBottom: '0.75rem', 
+                    color: 'var(--text-main)', 
+                    borderBottom: '2px solid var(--border)', 
+                    paddingBottom: '0.375rem' 
+                  }}>
+                    Team Members ({membersCount} Total)
+                  </h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {/* Visual Representation of Team Leader as Member 1 */}
+                    <div style={{ 
+                      padding: '1.25rem', 
+                      border: '1px solid #c7d2fe', 
+                      borderRadius: 'var(--radius-md)', 
+                      backgroundColor: '#eef2ff', 
+                      fontSize: '0.875rem' 
+                    }}>
+                      <div style={{ fontWeight: 700, color: '#4f46e5', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                        <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#4f46e5' }}></span>
+                        Member 1: Team Leader
+                      </div>
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.5rem' }}>
-                        <div><strong>Name:</strong> {m.fullName}</div>
-                        <div><strong>Email:</strong> {m.email}</div>
-                        <div><strong>Phone:</strong> {m.phone}</div>
-                        <div><strong>Role:</strong> {m.role}</div>
-                        {m.role === 'Student' ? (
-                          <>
-                            <div><strong>Year:</strong> {m.year}</div>
-                            <div><strong>Branch:</strong> {m.branch}</div>
-                            <div style={{ gridColumn: 'span 2' }}><strong>College:</strong> {m.institution}</div>
-                          </>
-                        ) : (
-                          <>
-                            <div><strong>Company:</strong> {m.company}</div>
-                            <div><strong>Job Title:</strong> {m.jobTitle}</div>
-                          </>
-                        )}
+                        <div><strong>Name:</strong> {selectedHackathon.leader_name}</div>
+                        <div><strong>Email:</strong> {selectedHackathon.leader_email}</div>
+                        <div><strong>Role:</strong> {selectedHackathon.leader_role}</div>
                       </div>
                     </div>
-                  ));
-                })()}
+
+                    {parsedMembers.length === 0 ? (
+                      <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>No additional team members.</div>
+                    ) : (
+                      parsedMembers.map((m, idx) => (
+                        <div key={idx} style={{ 
+                          padding: '1.25rem', 
+                          border: '1px solid var(--border)', 
+                          borderRadius: 'var(--radius-md)', 
+                          backgroundColor: 'var(--bg-main)', 
+                          fontSize: '0.875rem' 
+                        }}>
+                          <div style={{ fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                            <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--text-muted)' }}></span>
+                            Member {idx + 2} Details
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.5rem' }}>
+                            <div><strong>Name:</strong> {m.fullName}</div>
+                            <div><strong>Email:</strong> {m.email}</div>
+                            <div><strong>Phone:</strong> {m.phone}</div>
+                            <div><strong>Role:</strong> {m.role}</div>
+                            {m.role === 'Student' ? (
+                              <>
+                                <div><strong>Year:</strong> {m.year}</div>
+                                <div><strong>Branch:</strong> {m.branch}</div>
+                                <div style={{ gridColumn: 'span 2' }}><strong>College:</strong> {m.institution}</div>
+                              </>
+                            ) : (
+                              <>
+                                <div><strong>Company:</strong> {m.company}</div>
+                                <div><strong>Job Title:</strong> {m.jobTitle}</div>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Custom Alert/Confirm Modal Dialog */}
       {dialogConfig.isOpen && (

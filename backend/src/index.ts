@@ -190,6 +190,7 @@ async function setupDatabase() {
     await db.execute(`
       CREATE TABLE IF NOT EXISTS hackathon_registrations (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        hackathon_name TEXT,
         team_name TEXT NOT NULL,
         project_title TEXT NOT NULL,
         project_description TEXT NOT NULL,
@@ -205,6 +206,8 @@ async function setupDatabase() {
         leader_job_title TEXT,
         members TEXT NOT NULL,
         status TEXT DEFAULT 'pending',
+        certificate_sent INTEGER DEFAULT 0,
+        certificate_type TEXT DEFAULT 'Participation',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
     `);
@@ -213,6 +216,13 @@ async function setupDatabase() {
     try {
       await db.execute(`ALTER TABLE club_applications ADD COLUMN status TEXT DEFAULT 'pending';`);
       console.log("Database verification: status column verified/added to club_applications.");
+    } catch (e) {
+      // Column already exists, ignore
+    }
+
+    try {
+      await db.execute(`ALTER TABLE hackathon_registrations ADD COLUMN hackathon_name TEXT;`);
+      console.log("Database verification: hackathon_name column verified/added to hackathon_registrations.");
     } catch (e) {
       // Column already exists, ignore
     }
@@ -247,6 +257,20 @@ async function setupDatabase() {
     try {
       await db.execute(`ALTER TABLE event_registrations ADD COLUMN certificate_sent INTEGER DEFAULT 0;`);
       console.log("Database verification: certificate_sent column verified/added to event_registrations.");
+    } catch (e) {
+      // Column already exists, ignore
+    }
+
+    try {
+      await db.execute(`ALTER TABLE hackathon_registrations ADD COLUMN certificate_sent INTEGER DEFAULT 0;`);
+      console.log("Database verification: certificate_sent column verified/added to hackathon_registrations.");
+    } catch (e) {
+      // Column already exists, ignore
+    }
+
+    try {
+      await db.execute(`ALTER TABLE hackathon_registrations ADD COLUMN certificate_type TEXT DEFAULT 'Participation';`);
+      console.log("Database verification: certificate_type column verified/added to hackathon_registrations.");
     } catch (e) {
       // Column already exists, ignore
     }
@@ -408,6 +432,21 @@ async function setupDatabase() {
         console.log("Template 'certificate_appreciation' synced successfully.");
       } else {
         console.warn("Warning: Template 'CERTIFICATE_TEMPLATE - APPRECIATION.pptx' not found. Skipping sync.");
+      }
+
+      // 2d. Hackathon Certificate
+      const hackathonCertPath = findTemplateFile('CERTIFICATE_TEMPLATE - hackathon.pptx');
+      if (hackathonCertPath) {
+        console.log(`Syncing/updating 'certificate_hackathon' template into database from ${hackathonCertPath}...`);
+        const fileData = fs.readFileSync(hackathonCertPath);
+        const base64 = fileData.toString('base64');
+        await db.execute({
+          sql: "INSERT OR REPLACE INTO templates (name, filename, data_base64) VALUES (?, ?, ?)",
+          args: ["certificate_hackathon", "CERTIFICATE_TEMPLATE - hackathon.pptx", base64]
+        });
+        console.log("Template 'certificate_hackathon' synced successfully.");
+      } else {
+        console.warn("Warning: Template 'CERTIFICATE_TEMPLATE - hackathon.pptx' not found. Skipping sync.");
       }
     } catch (e: any) {
       console.error("Error seeding/syncing templates:", e.message);
@@ -573,6 +612,7 @@ app.post('/api/apply/event', async (req, res) => {
 // 2.5 Hackathon Registration endpoint
 app.post('/api/apply/hackathon', async (req, res) => {
   const {
+    hackathonName,
     teamName,
     projectTitle,
     projectDescription,
@@ -598,12 +638,13 @@ app.post('/api/apply/hackathon', async (req, res) => {
   try {
     const result = await db.execute({
       sql: `INSERT INTO hackathon_registrations (
-              team_name, project_title, project_description, problem_statement,
+              hackathon_name, team_name, project_title, project_description, problem_statement,
               leader_name, leader_email, leader_phone, leader_role,
               leader_year, leader_branch, leader_institution,
               leader_company, leader_job_title, members, status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
       args: [
+        hackathonName || 'R&D AlphaQuest Hackathon',
         teamName,
         projectTitle,
         projectDescription,
@@ -758,10 +799,10 @@ app.post('/api/admin/applications/status', authenticateToken, async (req: Authen
 
   let tableName = 'club_applications';
   if (type === 'event') tableName = 'event_registrations';
-  if (type === 'hackathon') tableName = 'hackathon_registrations';
+  if (type === 'hackathon' || type === 'hackathon-certificate-type') tableName = 'hackathon_registrations';
 
   try {
-    const nameField = type === 'hackathon' ? 'leader_name' : 'full_name';
+    const nameField = (type === 'hackathon' || type === 'hackathon-certificate-type') ? 'leader_name' : 'full_name';
     const checkRes = await db.execute({
       sql: `SELECT ${nameField} AS name FROM ${tableName} WHERE id = ?`,
       args: [id]
@@ -773,13 +814,27 @@ app.post('/api/admin/applications/status', authenticateToken, async (req: Authen
 
     const studentName = checkRes.rows[0].name;
 
-    await db.execute({
-      sql: `UPDATE ${tableName} SET status = ? WHERE id = ?`,
-      args: [status, id]
-    });
+    if (type === 'hackathon-certificate-type') {
+      await db.execute({
+        sql: `UPDATE hackathon_registrations SET certificate_type = ? WHERE id = ?`,
+        args: [status, id]
+      });
+    } else {
+      await db.execute({
+        sql: `UPDATE ${tableName} SET status = ? WHERE id = ?`,
+        args: [status, id]
+      });
+    }
 
     // Log Activity
-    const appTypeLabel = type === 'club' ? 'Club Membership' : type === 'event' ? 'Event Registration' : 'Hackathon Registration';
+    const appTypeLabel = type === 'club' 
+      ? 'Club Membership' 
+      : type === 'event' 
+        ? 'Event Registration' 
+        : type === 'hackathon-certificate-type'
+          ? 'Hackathon Certificate Type'
+          : 'Hackathon Registration';
+
     await db.execute({
       sql: "INSERT INTO activity_logs (username, action, details) VALUES (?, ?, ?)",
       args: [
@@ -1738,7 +1793,309 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
         if (fs.existsSync(tempPptx)) fs.unlinkSync(tempPptx);
         if (fs.existsSync(pdfFilename)) fs.unlinkSync(pdfFilename);
       }
+});
+
+// 15.5. Bulk Send Certificates to Approved Hackathon Registrants
+app.post('/api/admin/bulk-send/hackathon-certificates', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  const { hackathonName, certificateTypeText } = req.body;
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  const sendLog = (message: string, progress: number, isDone = false) => {
+    res.write(`data: ${JSON.stringify({ message, progress, isDone })}\n\n`);
+  };
+
+  if (!hackathonName) {
+    res.write(`data: ${JSON.stringify({ error: "Hackathon name is required for generating certificates." })}\n\n`);
+    res.end();
+    return;
+  }
+
+  try {
+    sendLog("Initializing email service...", 5);
+
+    // 1. Fetch template from DB
+    let templateRes = await db.execute({
+      sql: "SELECT data_base64 FROM templates WHERE name = ?",
+      args: ["certificate_hackathon"]
     });
+    if (templateRes.rows.length === 0) {
+      templateRes = await db.execute({
+        sql: "SELECT data_base64 FROM templates WHERE name = ?",
+        args: ["certificate_participation"]
+      });
+    }
+    if (templateRes.rows.length === 0) {
+      templateRes = await db.execute({
+        sql: "SELECT data_base64 FROM templates WHERE name = ?",
+        args: ["certificate"]
+      });
+    }
+
+    if (templateRes.rows.length === 0) {
+      res.write(`data: ${JSON.stringify({ error: "No certificate template found in database." })}\n\n`);
+      res.end();
+      return;
+    }
+
+    const templateBuffer = Buffer.from(templateRes.rows[0].data_base64 as string, 'base64');
+
+    // 2. Fetch hackathon details from DB for date
+    const eventRes = await db.execute({
+      sql: "SELECT date FROM events WHERE title = ?",
+      args: [hackathonName]
+    });
+    const hackathonDate = eventRes.rows.length > 0 ? eventRes.rows[0].date as string : 'September 11-13, 2026';
+
+    sendLog("Fetching approved unsent team registrations...", 10);
+
+    // 3. Fetch approved teams where certificate_sent = 0
+    const teamsRes = await db.execute({
+      sql: "SELECT * FROM hackathon_registrations WHERE hackathon_name = ? AND status = 'approved' AND (certificate_sent = 0 OR certificate_sent IS NULL)",
+      args: [hackathonName]
+    });
+    const approvedTeams = teamsRes.rows;
+
+    if (approvedTeams.length === 0) {
+      sendLog(`No approved team registrations pending certificates found for: ${hackathonName}.`, 100, true);
+      res.end();
+      return;
+    }
+
+    sendLog(`Found ${approvedTeams.length} approved teams pending certificates. Generating recipient tasks...`, 15);
+
+    // 4. Build individual recipient tasks for leader + members
+    const tasks: any[] = [];
+    const teamSentCounts: { [key: number]: { total: number; sent: number } } = {};
+
+    approvedTeams.forEach((team: any) => {
+      const teamId = team.id as number;
+      const teamName = team.team_name as string;
+      const projectTitle = team.project_title as string;
+      let validMembersCount = 0;
+      let parsedMembers: any[] = [];
+
+      try {
+        parsedMembers = typeof team.members === 'string' 
+          ? JSON.parse(team.members || '[]')
+          : team.members || [];
+      } catch (e) {
+        console.error(`Failed to parse members for team ID ${teamId}:`, e);
+      }
+
+      // Filter members to ensure they have valid names and emails
+      const filteredMembers = parsedMembers.filter((m: any) => m && m.fullName && m.fullName.trim() && m.email && m.email.trim());
+      validMembersCount = filteredMembers.length;
+
+      teamSentCounts[teamId] = {
+        total: 1 + validMembersCount, // leader + valid members
+        sent: 0
+      };
+
+      // Add team leader task
+      tasks.push({
+        teamId,
+        teamName,
+        projectTitle,
+        participantName: team.leader_name as string,
+        recipientEmail: team.leader_email as string,
+        roleIndex: 1, // leader is 1st member
+        isLeader: true,
+        certificateType: team.certificate_type || 'Participation'
+      });
+
+      // Add other team members tasks
+      filteredMembers.forEach((m: any, idx: number) => {
+        tasks.push({
+          teamId,
+          teamName,
+          projectTitle,
+          participantName: m.fullName.trim(),
+          recipientEmail: m.email.trim(),
+          roleIndex: idx + 2,
+          isLeader: false,
+          certificateType: team.certificate_type || 'Participation'
+        });
+      });
+    });
+
+    if (tasks.length === 0) {
+      sendLog("No valid recipient records found.", 100, true);
+      res.end();
+      return;
+    }
+
+    sendLog(`Created ${tasks.length} certificate tasks for all team members. Starting generation...`, 20);
+
+    let successCount = 0;
+
+    const processedTasks = tasks.map((task) => {
+      const { teamId, teamName, projectTitle, participantName, recipientEmail, roleIndex, isLeader } = task;
+      
+      const safeName = participantName.replace(/[^a-zA-Z0-9_\s]/g, '').trim();
+      const tempPptx = path.join(process.cwd(), `Hack_Cert_${safeName}_${teamId}_${roleIndex}.pptx`);
+      const pdfFilename = path.join(process.cwd(), `Hack_Cert_${safeName}_${teamId}_${roleIndex}.pdf`);
+
+      const certId = `TCEK/RD/HACK/2026/${String(teamId).padStart(4, '0')}-${roleIndex}`;
+      const actionText = task.certificateType || certificateTypeText || 'Participation';
+      const roleText = isLeader ? 'Team Leader' : 'Team Member';
+
+      const replacements = {
+        '{{PARTICIPANT NAME}}': participantName,
+        '{{EVENT NAME}}': hackathonName,
+        '{{HACKATHON NAME}}': hackathonName,
+        '{{DATE}}': hackathonDate,
+        '{{CERTIFICATE TYPE}}': actionText,
+        '{{CERTIFICATE ID}}': certId,
+        '{{ROLE}}': roleText,
+        '{{TEAM NAME}}': teamName,
+        '{{PROJECT TITLE}}': projectTitle,
+        '[[PARTICIPANT NAME]]': participantName,
+        '[[EVENT NAME]]': hackathonName,
+        '[[HACKATHON NAME]]': hackathonName,
+        '[[DATE]]': hackathonDate,
+        '[[CERTIFICATE TYPE]]': actionText,
+        '[[CERTIFICATE ID]]': certId,
+        '[[ROLE]]': roleText,
+        '[[TEAM NAME]]': teamName,
+        '[[PROJECT TITLE]]': projectTitle,
+        'TCEK/RD/2026/0001': certId,
+        'TCEK/RD/2026/H0001': certId
+      };
+
+      replacePlaceholdersInPptx(templateBuffer, tempPptx, replacements);
+
+      return {
+        ...task,
+        certId,
+        safeName,
+        tempPptx,
+        pdfFilename,
+        actionText
+      };
+    });
+
+    // 6. Convert all PPTX to PDF in a single batch
+    sendLog("Converting all certificates to PDF in a single batch...", 35);
+    const pptxPaths = processedTasks.map(t => t.tempPptx);
+    await convertPptxToPdfBatch(pptxPaths, process.cwd());
+
+    // 7. Dispatch emails concurrently
+    sendLog("Dispatching emails to all team members...", 50);
+    let completedTasks = 0;
+
+    await runWithConcurrency(processedTasks, 10, async (task) => {
+      const { teamId, teamName, projectTitle, participantName, recipientEmail, certId, safeName, tempPptx, pdfFilename, actionText } = task;
+      const progressValBefore = Math.floor(50 + (completedTasks / processedTasks.length) * 45);
+      sendLog(`Sending to ${participantName} (${recipientEmail})...`, progressValBefore);
+
+      const mailOptions = {
+        from: SENDER_EMAIL,
+        to: recipientEmail,
+        subject: `Certificate of Participation | ${hackathonName} | ${participantName}`,
+        text: `Dear ${participantName},
+        
+Thank you for your enthusiastic participation in the ${hackathonName} held on ${hackathonDate} organized by the Research & Development (R&D) Cell of Trinity College of Engineering and Technology, Peddapalli.
+
+Please find attached your official Certificate of Participation (Certificate_${safeName}.pdf). We appreciate your innovative ideas, outstanding team efforts, and technical presentation in Team "${teamName}" for the project "${projectTitle}".
+
+We wish you continued success in all your future endeavors.
+
+Best regards,
+
+R&D Cell
+Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
+        attachments: [
+          {
+            filename: `Certificate_${safeName}.pdf`,
+            path: pdfFilename
+          }
+        ]
+      };
+
+      try {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!recipientEmail || !emailRegex.test(recipientEmail)) {
+          throw new Error(`Invalid email address format: "${recipientEmail}"`);
+        }
+
+        if (!fs.existsSync(pdfFilename)) {
+          throw new Error("PDF generation failed during batch process.");
+        }
+
+        // Send via Proxy or Nodemailer SMTP
+        if (process.env.GMAIL_HTTP_PROXY_URL) {
+          const attachmentContent = fs.readFileSync(pdfFilename);
+          const attachmentBase64 = attachmentContent.toString('base64');
+          const payload = {
+            to: recipientEmail,
+            subject: mailOptions.subject,
+            text: mailOptions.text,
+            attachments: [
+              {
+                filename: `Certificate_${safeName}.pdf`,
+                base64: attachmentBase64,
+                mimeType: 'application/pdf'
+              }
+            ]
+          };
+          const proxyRes = await postToAppsScript(process.env.GMAIL_HTTP_PROXY_URL, payload);
+          if (!proxyRes.success) {
+            throw new Error(`Google Apps Script Proxy failed: ${proxyRes.error}`);
+          }
+        } else {
+          await transporter.sendMail(mailOptions);
+        }
+
+        // Update sent count for this team
+        teamSentCounts[teamId].sent++;
+        
+        // If all members of this team have been sent their certificates, mark team as complete
+        if (teamSentCounts[teamId].sent === teamSentCounts[teamId].total) {
+          await db.execute({
+            sql: "UPDATE hackathon_registrations SET certificate_sent = 1 WHERE id = ?",
+            args: [teamId]
+          });
+        }
+
+        // Log Activity for each member
+        await db.execute({
+          sql: "INSERT INTO activity_logs (username, action, details) VALUES (?, ?, ?)",
+          args: [
+            req.user?.username || 'unknown',
+            "Send Hackathon Certificate",
+            `Emailed Certificate for "${hackathonName}" to ${participantName} (${recipientEmail}) of team "${teamName}"`
+          ]
+        });
+
+        successCount++;
+      } catch (err: any) {
+        console.error(`Failed to process hackathon certificate for ${participantName}:`, err.message);
+        sendLog(`Failed for ${participantName}: ${err.message}`, Math.floor(50 + ((completedTasks + 1) / processedTasks.length) * 45));
+      } finally {
+        completedTasks++;
+        const progressValAfter = Math.floor(50 + (completedTasks / processedTasks.length) * 45);
+        sendLog(`Completed: ${participantName}`, progressValAfter);
+
+        // Cleanup temp files
+        if (fs.existsSync(tempPptx)) fs.unlinkSync(tempPptx);
+        if (fs.existsSync(pdfFilename)) fs.unlinkSync(pdfFilename);
+      }
+    });
+
+    notifySyncClients("REFRESH_APPLICATIONS");
+    sendLog(`Successfully sent ${successCount} hackathon certificates.`, 95);
+    sendLog("Process completed successfully.", 100, true);
+    res.end();
+  } catch (err: any) {
+    console.error("Bulk hackathon certificates error:", err);
+    res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+    res.end();
+  }
+});
 
     notifySyncClients("REFRESH_APPLICATIONS");
     sendLog(`Successfully sent ${successCount} certificates.`, 95);
