@@ -186,6 +186,29 @@ async function setupDatabase() {
       );
     `);
 
+    // 9. Hackathon Registrations Table
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS hackathon_registrations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        team_name TEXT NOT NULL,
+        project_title TEXT NOT NULL,
+        project_description TEXT NOT NULL,
+        problem_statement TEXT NOT NULL,
+        leader_name TEXT NOT NULL,
+        leader_email TEXT NOT NULL,
+        leader_phone TEXT NOT NULL,
+        leader_role TEXT NOT NULL,
+        leader_year TEXT,
+        leader_branch TEXT,
+        leader_institution TEXT,
+        leader_company TEXT,
+        leader_job_title TEXT,
+        members TEXT NOT NULL,
+        status TEXT DEFAULT 'pending',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
     // Alter table schemas to add status columns if missing
     try {
       await db.execute(`ALTER TABLE club_applications ADD COLUMN status TEXT DEFAULT 'pending';`);
@@ -547,6 +570,69 @@ app.post('/api/apply/event', async (req, res) => {
   }
 });
 
+// 2.5 Hackathon Registration endpoint
+app.post('/api/apply/hackathon', async (req, res) => {
+  const {
+    teamName,
+    projectTitle,
+    projectDescription,
+    problemStatement,
+    leaderName,
+    leaderEmail,
+    leaderPhone,
+    leaderRole,
+    leaderYear,
+    leaderBranch,
+    leaderInstitution,
+    leaderCompany,
+    leaderJobTitle,
+    members
+  } = req.body;
+
+  // Simple validation
+  if (!teamName || !projectTitle || !projectDescription || !problemStatement ||
+      !leaderName || !leaderEmail || !leaderPhone || !leaderRole || !members) {
+    return res.status(400).json({ error: "Missing required fields." });
+  }
+
+  try {
+    const result = await db.execute({
+      sql: `INSERT INTO hackathon_registrations (
+              team_name, project_title, project_description, problem_statement,
+              leader_name, leader_email, leader_phone, leader_role,
+              leader_year, leader_branch, leader_institution,
+              leader_company, leader_job_title, members, status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+      args: [
+        teamName,
+        projectTitle,
+        projectDescription,
+        problemStatement,
+        leaderName,
+        leaderEmail,
+        leaderPhone,
+        leaderRole,
+        leaderYear || null,
+        leaderBranch || null,
+        leaderInstitution || null,
+        leaderCompany || null,
+        leaderJobTitle || null,
+        typeof members === 'string' ? members : JSON.stringify(members)
+      ]
+    });
+
+    notifySyncClients("REFRESH_APPLICATIONS");
+    return res.status(201).json({
+      success: true,
+      message: "Hackathon team registration recorded successfully.",
+      id: Number(result.lastInsertRowid)
+    });
+  } catch (error: any) {
+    console.error("Error inserting hackathon registration:", error);
+    return res.status(500).json({ error: "Failed to submit hackathon registration.", details: error.message });
+  }
+});
+
 // 3. Contact/Enquiry feedback endpoint
 app.post('/api/contact', async (req, res) => {
   const { name, email, subject, message } = req.body;
@@ -644,10 +730,12 @@ app.get('/api/admin/applications', authenticateToken, async (req: AuthenticatedR
   try {
     const clubRes = await db.execute("SELECT * FROM club_applications ORDER BY created_at DESC");
     const eventRes = await db.execute("SELECT * FROM event_registrations ORDER BY created_at DESC");
+    const hackathonRes = await db.execute("SELECT * FROM hackathon_registrations ORDER BY created_at DESC");
 
     return res.status(200).json({
       clubApplications: clubRes.rows,
-      eventRegistrations: eventRes.rows
+      eventRegistrations: eventRes.rows,
+      hackathonRegistrations: hackathonRes.rows
     });
   } catch (err: any) {
     console.error("Error fetching applications:", err);
@@ -662,17 +750,20 @@ app.post('/api/admin/applications/status', authenticateToken, async (req: Authen
     return res.status(400).json({ error: "Type, ID, and status are required." });
   }
 
-  if (type === 'club') {
+  if (type === 'club' || type === 'hackathon') {
     if (status !== 'approved' && status !== 'rejected' && status !== 'pending') {
       return res.status(400).json({ error: "Invalid status state." });
     }
   }
 
-  const tableName = type === 'club' ? 'club_applications' : 'event_registrations';
+  let tableName = 'club_applications';
+  if (type === 'event') tableName = 'event_registrations';
+  if (type === 'hackathon') tableName = 'hackathon_registrations';
 
   try {
+    const nameField = type === 'hackathon' ? 'leader_name' : 'full_name';
     const checkRes = await db.execute({
-      sql: `SELECT full_name FROM ${tableName} WHERE id = ?`,
+      sql: `SELECT ${nameField} AS name FROM ${tableName} WHERE id = ?`,
       args: [id]
     });
 
@@ -680,7 +771,7 @@ app.post('/api/admin/applications/status', authenticateToken, async (req: Authen
       return res.status(404).json({ error: "Application record not found." });
     }
 
-    const studentName = checkRes.rows[0].full_name;
+    const studentName = checkRes.rows[0].name;
 
     await db.execute({
       sql: `UPDATE ${tableName} SET status = ? WHERE id = ?`,
@@ -688,12 +779,13 @@ app.post('/api/admin/applications/status', authenticateToken, async (req: Authen
     });
 
     // Log Activity
+    const appTypeLabel = type === 'club' ? 'Club Membership' : type === 'event' ? 'Event Registration' : 'Hackathon Registration';
     await db.execute({
       sql: "INSERT INTO activity_logs (username, action, details) VALUES (?, ?, ?)",
       args: [
         req.user?.username || 'unknown',
         "Update Application Status",
-        `Changed status of ${type === 'club' ? 'Club Membership' : 'Event Registration'} application (ID: ${id}, Student: ${studentName}) to: ${status}`
+        `Changed status of ${appTypeLabel} application (ID: ${id}, Student: ${studentName}) to: ${status}`
       ]
     });
 

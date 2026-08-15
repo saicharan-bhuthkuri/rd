@@ -174,6 +174,15 @@ function App() {
           />
 
           <Route
+            path="/admin/hackathons"
+            element={
+              <ProtectedRoute>
+                <AdminDashboardPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
             path="/admin/users"
             element={
               <ProtectedRoute allowedRoles={['developer', 'superadmin']}>

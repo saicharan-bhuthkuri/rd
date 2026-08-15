@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { API_BASE_URL } from '../config';
-import { ArrowLeft, User, Mail, Phone, GraduationCap, Calendar, Sparkles, Check, Loader2, Code, Users, Server, ChevronDown } from 'lucide-react';
+import { ArrowLeft, User, Mail, Phone, GraduationCap, Calendar, Sparkles, Check, Loader2, Code, Users, Server, ChevronDown, Plus, Trash2 } from 'lucide-react';
 
-type FormType = 'none' | 'join-club' | 'event';
+type FormType = 'none' | 'join-club' | 'event' | 'hackathon';
 
 interface CustomSelectProps {
   id: string;
@@ -206,6 +206,35 @@ export const ApplyPage: React.FC = () => {
   const [skills, setSkills] = useState('');
   const [reasonToJoin, setReasonToJoin] = useState('');
 
+  // Hackathon specific fields state
+  const [teamName, setTeamName] = useState('');
+  const [projectTitle, setProjectTitle] = useState('');
+  const [projectDescription, setProjectDescription] = useState('');
+  const [problemStatement, setProblemStatement] = useState('');
+
+  // Team Leader Details (reuses fullName, email, mobile for Name, Email, Phone)
+  const [leaderRole, setLeaderRole] = useState<'Student' | 'Professional' | 'Other'>('Student');
+  const [leaderYear, setLeaderYear] = useState('');
+  const [leaderBranch, setLeaderBranch] = useState('');
+  const [leaderInstitution, setLeaderInstitution] = useState('');
+  const [leaderCompany, setLeaderCompany] = useState('');
+  const [leaderJobTitle, setLeaderJobTitle] = useState('');
+
+  interface Member {
+    id: string;
+    fullName: string;
+    email: string;
+    phone: string;
+    role: 'Student' | 'Professional' | 'Other';
+    year: string;
+    branch: string;
+    institution: string;
+    company: string;
+    jobTitle: string;
+  }
+
+  const [members, setMembers] = useState<Member[]>([]);
+
   const [eventsList, setEventsList] = useState<string[]>([]);
   const [isLoadingEvents, setIsLoadingEvents] = useState(true);
   const [branchesList, setBranchesList] = useState<string[]>([]);
@@ -284,6 +313,43 @@ export const ApplyPage: React.FC = () => {
     setInterests('');
     setSkills('');
     setReasonToJoin('');
+    
+    // Hackathon reset
+    setTeamName('');
+    setProjectTitle('');
+    setProjectDescription('');
+    setProblemStatement('');
+    setLeaderRole('Student');
+    setLeaderYear('');
+    setLeaderBranch('');
+    setLeaderInstitution('');
+    setLeaderCompany('');
+    setLeaderJobTitle('');
+    setMembers([]);
+  };
+
+  const handleAddMember = () => {
+    const newMember: Member = {
+      id: Math.random().toString(36).substring(2, 9),
+      fullName: '',
+      email: '',
+      phone: '',
+      role: 'Student',
+      year: '1st Year',
+      branch: branchesList.length > 0 ? branchesList[0] : '',
+      institution: '',
+      company: '',
+      jobTitle: ''
+    };
+    setMembers([...members, newMember]);
+  };
+
+  const handleRemoveMember = (id: string) => {
+    setMembers(members.filter(m => m.id !== id));
+  };
+
+  const handleMemberChange = (id: string, field: keyof Member, value: any) => {
+    setMembers(members.map(m => m.id === id ? { ...m, [field]: value } : m));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -301,7 +367,7 @@ export const ApplyPage: React.FC = () => {
       interests,
       skills,
       reasonToJoin
-    } : {
+    } : formType === 'event' ? {
       fullName,
       pinNumber,
       email,
@@ -311,9 +377,24 @@ export const ApplyPage: React.FC = () => {
       section,
       eventName,
       notes
+    } : {
+      teamName,
+      projectTitle,
+      projectDescription,
+      problemStatement,
+      leaderName: fullName,
+      leaderEmail: email,
+      leaderPhone: mobile,
+      leaderRole,
+      leaderYear: leaderRole === 'Student' ? leaderYear : null,
+      leaderBranch: leaderRole === 'Student' ? leaderBranch : null,
+      leaderInstitution: leaderRole === 'Student' ? leaderInstitution : null,
+      leaderCompany: leaderRole !== 'Student' ? leaderCompany : null,
+      leaderJobTitle: leaderRole !== 'Student' ? leaderJobTitle : null,
+      members
     };
 
-    const endpoint = formType === 'join-club' ? 'club' : 'event';
+    const endpoint = formType === 'join-club' ? 'club' : formType === 'event' ? 'event' : 'hackathon';
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/apply/${endpoint}`, {
@@ -356,14 +437,14 @@ export const ApplyPage: React.FC = () => {
             </p>
           </section>
 
-          <div className="apply-options-grid">
+          <div className="apply-options-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '2rem' }}>
             <div className="apply-option-card card hover-lift" onClick={() => handleFormSelect('join-club')}>
               <div className="apply-icon-wrapper club-icon">
                 <Sparkles size={28} />
               </div>
               <h3>Join the R&D Club</h3>
               <p>
-                Apply for official membership to get lab RFID keys, hardware budgets, and travel grants.
+                Apply for official membership.
               </p>
               <button className="btn btn-primary btn-sm">Start Application</button>
             </div>
@@ -374,9 +455,20 @@ export const ApplyPage: React.FC = () => {
               </div>
               <h3>Apply for an Event</h3>
               <p>
-                Register for upcoming PyTorch bootcamps, TinyML hackathons, or compiler colloquiums.
+                Register for workshops, bootcamps, and technical events.
               </p>
               <button className="btn btn-primary btn-sm">Register for Event</button>
+            </div>
+
+            <div className="apply-option-card card hover-lift" onClick={() => handleFormSelect('hackathon')}>
+              <div className="apply-icon-wrapper event-icon" style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6' }}>
+                <Code size={28} />
+              </div>
+              <h3>Apply for a Hackathon</h3>
+              <p>
+                Register your team and submit your hackathon project.
+              </p>
+              <button className="btn btn-primary btn-sm">Register for Hackathon</button>
             </div>
           </div>
         </div>
@@ -431,7 +523,7 @@ export const ApplyPage: React.FC = () => {
             <div className="form-container-card card">
               <div className="form-header-row">
                 <div>
-                  <h2>{formType === 'join-club' ? 'Membership Application' : 'Event Registration'}</h2>
+                  <h2>{formType === 'join-club' ? 'Membership Application' : formType === 'event' ? 'Event Registration' : 'Hackathon Registration'}</h2>
                   <p style={{ color: 'var(--text-secondary)', fontSize: '0.8125rem', marginTop: '0.25rem' }}>
                     Fields marked with <span className="req">*</span> are required.
                   </p>
@@ -457,104 +549,108 @@ export const ApplyPage: React.FC = () => {
               ) : (
                 <form onSubmit={handleSubmit} className="apply-detailed-form">
                   {/* Academic & Contact Section */}
-                  <div className="form-section-title">Academic & Contact Info</div>
-                  
-                  <div className="form-group">
-                    <label htmlFor="fullName">Full Name <span className="req">*</span></label>
-                    <div className="input-with-icon">
-                      <User size={16} />
-                      <input
-                        type="text"
-                        id="fullName"
-                        required
-                        placeholder="e.g. John Doe"
-                        value={fullName}
-                        onChange={(e) => setFullName(e.target.value)}
-                      />
-                    </div>
-                  </div>
+                  {formType !== 'hackathon' && (
+                    <>
+                      <div className="form-section-title">Academic & Contact Info</div>
+                      
+                      <div className="form-group">
+                        <label htmlFor="fullName">Full Name <span className="req">*</span></label>
+                        <div className="input-with-icon">
+                          <User size={16} />
+                          <input
+                            type="text"
+                            id="fullName"
+                            required
+                            placeholder="e.g. John Doe"
+                            value={fullName}
+                            onChange={(e) => setFullName(e.target.value)}
+                          />
+                        </div>
+                      </div>
 
-                  <div className="form-group">
-                    <label htmlFor="pinNumber">PIN Number <span className="req">*</span></label>
-                    <div className="input-with-icon">
-                      <GraduationCap size={16} />
-                      <input
-                        type="text"
-                        id="pinNumber"
-                        required
-                        placeholder="e.g. 2100030140"
-                        value={pinNumber}
-                        onChange={(e) => setPinNumber(e.target.value)}
-                      />
-                    </div>
-                  </div>
+                      <div className="form-group">
+                        <label htmlFor="pinNumber">PIN Number <span className="req">*</span></label>
+                        <div className="input-with-icon">
+                          <GraduationCap size={16} />
+                          <input
+                            type="text"
+                            id="pinNumber"
+                            required
+                            placeholder="e.g. 2100030140"
+                            value={pinNumber}
+                            onChange={(e) => setPinNumber(e.target.value)}
+                          />
+                        </div>
+                      </div>
 
-                  <div className="form-group">
-                    <label htmlFor="email">Email Address <span className="req">*</span></label>
-                    <div className="input-with-icon">
-                      <Mail size={16} />
-                      <input
-                        type="email"
-                        id="email"
-                        required
-                        placeholder="user@university.edu"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                      />
-                    </div>
-                  </div>
+                      <div className="form-group">
+                        <label htmlFor="email">Email Address <span className="req">*</span></label>
+                        <div className="input-with-icon">
+                          <Mail size={16} />
+                          <input
+                            type="email"
+                            id="email"
+                            required
+                            placeholder="user@university.edu"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                          />
+                        </div>
+                      </div>
 
-                  <div className="form-group">
-                    <label htmlFor="mobile">Mobile Number <span className="req">*</span></label>
-                    <div className="input-with-icon">
-                      <Phone size={16} />
-                      <input
-                        type="tel"
-                        id="mobile"
-                        required
-                        placeholder="e.g. +91 98765 43210"
-                        value={mobile}
-                        onChange={(e) => setMobile(e.target.value)}
-                      />
-                    </div>
-                  </div>
+                      <div className="form-group">
+                        <label htmlFor="mobile">Mobile Number <span className="req">*</span></label>
+                        <div className="input-with-icon">
+                          <Phone size={16} />
+                          <input
+                            type="tel"
+                            id="mobile"
+                            required
+                            placeholder="e.g. +91 98765 43210"
+                            value={mobile}
+                            onChange={(e) => setMobile(e.target.value)}
+                          />
+                        </div>
+                      </div>
 
-                  <div className="form-group">
-                    <label htmlFor="branch">Branch / Department <span className="req">*</span></label>
-                    <CustomSelect
-                      id="branch"
-                      required
-                      value={branch}
-                      onChange={setBranch}
-                      options={branchesList}
-                      placeholder="Select Branch / Department"
-                      icon={<GraduationCap size={16} />}
-                    />
-                  </div>
+                      <div className="form-group">
+                        <label htmlFor="branch">Branch / Department <span className="req">*</span></label>
+                        <CustomSelect
+                          id="branch"
+                          required
+                          value={branch}
+                          onChange={setBranch}
+                          options={branchesList}
+                          placeholder="Select Branch / Department"
+                          icon={<GraduationCap size={16} />}
+                        />
+                      </div>
 
-                  <div className="form-group">
-                    <label htmlFor="yearOfStudy">Year of Study <span className="req">*</span></label>
-                    <CustomSelect
-                      id="yearOfStudy"
-                      required
-                      value={yearOfStudy}
-                      onChange={setYearOfStudy}
-                      options={['1st Year', '2nd Year', '3rd Year', '4th Year']}
-                      placeholder="Select Year"
-                      icon={<Calendar size={16} />}
-                    />
-                  </div>
+                      <div className="form-group">
+                        <label htmlFor="yearOfStudy">Year of Study <span className="req">*</span></label>
+                        <CustomSelect
+                          id="yearOfStudy"
+                          required
+                          value={yearOfStudy}
+                          onChange={setYearOfStudy}
+                          options={['1st Year', '2nd Year', '3rd Year', '4th Year']}
+                          placeholder="Select Year"
+                          icon={<Calendar size={16} />}
+                        />
+                      </div>
 
-                  <div className="form-group">
-                    <label htmlFor="section">Section <span className="opt">(Optional)</span></label>
-                    <input
-                      type="text"
-                      id="section"
-                      placeholder="e.g. Sec A"
-                      value={section}
-                      onChange={(e) => setSection(e.target.value)}
-                    />
-                  </div>
+                      <div className="form-group">
+                        <label htmlFor="section">Section <span className="opt">(Optional)</span></label>
+                        <input
+                          type="text"
+                          id="section"
+                          placeholder="e.g. Sec A"
+                          value={section}
+                          onChange={(e) => setSection(e.target.value)}
+                        />
+                      </div>
+                    </>
+                  )}
 
                   {/* Event Details */}
                   {formType === 'event' && (
@@ -631,6 +727,392 @@ export const ApplyPage: React.FC = () => {
                           placeholder="Summarize your motivation and what projects you'd like to work on..."
                           value={reasonToJoin}
                           onChange={(e) => setReasonToJoin(e.target.value)}
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  {/* Hackathon Details */}
+                  {formType === 'hackathon' && (
+                    <>
+                      {/* Team & Project Info */}
+                      <div className="form-section-title">Team Info</div>
+                      
+                      <div className="form-group">
+                        <label htmlFor="teamName">Team Name <span className="req">*</span></label>
+                        <div className="input-with-icon">
+                          <Users size={16} />
+                          <input
+                            type="text"
+                            id="teamName"
+                            required
+                            placeholder="e.g. Code Pioneers"
+                            value={teamName}
+                            onChange={(e) => setTeamName(e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Team Leader Details */}
+                      <div className="form-section-title" style={{ marginTop: '1.5rem' }}>Team Leader Details</div>
+                      
+                      <div className="form-group">
+                        <label htmlFor="leaderName">Full Name <span className="req">*</span></label>
+                        <div className="input-with-icon">
+                          <User size={16} />
+                          <input
+                            type="text"
+                            id="leaderName"
+                            required
+                            placeholder="e.g. John Doe"
+                            value={fullName}
+                            onChange={(e) => setFullName(e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="form-grid-2">
+                        <div className="form-group">
+                          <label htmlFor="leaderEmail">Email Address <span className="req">*</span></label>
+                          <div className="input-with-icon">
+                            <Mail size={16} />
+                            <input
+                              type="email"
+                              id="leaderEmail"
+                              required
+                              placeholder="leader@domain.com"
+                              value={email}
+                              onChange={(e) => setEmail(e.target.value)}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="form-group">
+                          <label htmlFor="leaderPhone">Phone Number <span className="req">*</span></label>
+                          <div className="input-with-icon">
+                            <Phone size={16} />
+                            <input
+                              type="tel"
+                              id="leaderPhone"
+                              required
+                              placeholder="e.g. +91 98765 43210"
+                              value={mobile}
+                              onChange={(e) => setMobile(e.target.value)}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="form-group">
+                        <label htmlFor="leaderRole">Designation / Role <span className="req">*</span></label>
+                        <CustomSelect
+                          id="leaderRole"
+                          required
+                          value={leaderRole}
+                          onChange={(val) => setLeaderRole(val as any)}
+                          options={['Student', 'Professional', 'Other']}
+                          placeholder="Select Role"
+                          icon={<User size={16} />}
+                        />
+                      </div>
+
+                      {leaderRole === 'Student' ? (
+                        <div className="academic-fields animate-fade-in">
+                          <div className="form-grid-2">
+                            <div className="form-group">
+                              <label htmlFor="leaderYear">Year of Study <span className="req">*</span></label>
+                              <CustomSelect
+                                id="leaderYear"
+                                required
+                                value={leaderYear}
+                                onChange={setLeaderYear}
+                                options={['1st Year', '2nd Year', '3rd Year', '4th Year']}
+                                placeholder="Select Year"
+                                icon={<Calendar size={16} />}
+                              />
+                            </div>
+
+                            <div className="form-group">
+                              <label htmlFor="leaderBranch">Branch / Department <span className="req">*</span></label>
+                              <CustomSelect
+                                id="leaderBranch"
+                                required
+                                value={leaderBranch}
+                                onChange={setLeaderBranch}
+                                options={branchesList}
+                                placeholder="Select Branch"
+                                icon={<GraduationCap size={16} />}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="form-group">
+                            <label htmlFor="leaderInstitution">College / University / School Name <span className="req">*</span></label>
+                            <div className="input-with-icon">
+                              <GraduationCap size={16} />
+                              <input
+                                type="text"
+                                id="leaderInstitution"
+                                required
+                                placeholder="e.g. Trinity College"
+                                value={leaderInstitution}
+                                onChange={(e) => setLeaderInstitution(e.target.value)}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="professional-fields animate-fade-in">
+                          <div className="form-grid-2">
+                            <div className="form-group">
+                              <label htmlFor="leaderCompany">Company / Organization <span className="req">*</span></label>
+                              <div className="input-with-icon">
+                                <Server size={16} />
+                                <input
+                                  type="text"
+                                  id="leaderCompany"
+                                  required
+                                  placeholder="e.g. Google"
+                                  value={leaderCompany}
+                                  onChange={(e) => setLeaderCompany(e.target.value)}
+                                />
+                              </div>
+                            </div>
+
+                            <div className="form-group">
+                              <label htmlFor="leaderJobTitle">Job Title / Designation <span className="req">*</span></label>
+                              <div className="input-with-icon">
+                                <User size={16} />
+                                <input
+                                  type="text"
+                                  id="leaderJobTitle"
+                                  required
+                                  placeholder="e.g. Software Engineer"
+                                  value={leaderJobTitle}
+                                  onChange={(e) => setLeaderJobTitle(e.target.value)}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Team Members Section */}
+                      <div className="form-section-title" style={{ marginTop: '2rem' }}>Team Members</div>
+                      
+                      {/* Member 1: Team Leader Summary Card */}
+                      <div className="team-leader-summary-card">
+                        <div className="leader-summary-title">
+                          <Users size={18} /> Member 1: Team Leader (You)
+                        </div>
+                        <div className="leader-summary-details">
+                          <div><strong>Name:</strong> {fullName || <span style={{ color: 'var(--text-muted)' }}>Not entered yet</span>}</div>
+                          <div><strong>Email:</strong> {email || <span style={{ color: 'var(--text-muted)' }}>Not entered yet</span>}</div>
+                          <div><strong>Phone:</strong> {mobile || <span style={{ color: 'var(--text-muted)' }}>Not entered yet</span>}</div>
+                          <div><strong>Role:</strong> {leaderRole} {leaderRole === 'Student' ? (leaderBranch ? `(${leaderBranch})` : '') : (leaderCompany ? `(${leaderCompany})` : '')}</div>
+                        </div>
+                      </div>
+
+                      {/* Additional Dynamic Members */}
+                      {members.map((member, index) => (
+                        <div key={member.id} className="member-form-card animate-fade-in">
+                          <div className="member-card-header">
+                            <span className="member-card-title">
+                              <User size={16} /> Member {index + 2} Details
+                            </span>
+                            <button
+                              type="button"
+                              className="remove-member-btn"
+                              onClick={() => handleRemoveMember(member.id)}
+                            >
+                              <Trash2 size={12} /> Remove
+                            </button>
+                          </div>
+
+                          <div className="form-group">
+                            <label>Full Name <span className="req">*</span></label>
+                            <div className="input-with-icon">
+                              <User size={16} />
+                              <input
+                                type="text"
+                                required
+                                placeholder="e.g. Jane Doe"
+                                value={member.fullName}
+                                onChange={(e) => handleMemberChange(member.id, 'fullName', e.target.value)}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="form-grid-2">
+                            <div className="form-group">
+                              <label>Email Address <span className="req">*</span></label>
+                              <div className="input-with-icon">
+                                <Mail size={16} />
+                                <input
+                                  type="email"
+                                  required
+                                  placeholder="jane@domain.com"
+                                  value={member.email}
+                                  onChange={(e) => handleMemberChange(member.id, 'email', e.target.value)}
+                                />
+                              </div>
+                            </div>
+
+                            <div className="form-group">
+                              <label>Phone Number <span className="req">*</span></label>
+                              <div className="input-with-icon">
+                                <Phone size={16} />
+                                <input
+                                  type="tel"
+                                  required
+                                  placeholder="e.g. +91 98765 43210"
+                                  value={member.phone}
+                                  onChange={(e) => handleMemberChange(member.id, 'phone', e.target.value)}
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="form-group">
+                            <label>Designation / Role <span className="req">*</span></label>
+                            <CustomSelect
+                              id={`role-${member.id}`}
+                              required
+                              value={member.role}
+                              onChange={(val) => handleMemberChange(member.id, 'role', val)}
+                              options={['Student', 'Professional', 'Other']}
+                              placeholder="Select Role"
+                              icon={<User size={16} />}
+                            />
+                          </div>
+
+                          {member.role === 'Student' ? (
+                            <div className="academic-fields animate-fade-in">
+                              <div className="form-grid-2">
+                                <div className="form-group">
+                                  <label>Year of Study <span className="req">*</span></label>
+                                  <CustomSelect
+                                    id={`year-${member.id}`}
+                                    required
+                                    value={member.year}
+                                    onChange={(val) => handleMemberChange(member.id, 'year', val)}
+                                    options={['1st Year', '2nd Year', '3rd Year', '4th Year']}
+                                    placeholder="Select Year"
+                                    icon={<Calendar size={16} />}
+                                  />
+                                </div>
+
+                                <div className="form-group">
+                                  <label>Branch / Department <span className="req">*</span></label>
+                                  <CustomSelect
+                                    id={`branch-${member.id}`}
+                                    required
+                                    value={member.branch}
+                                    onChange={(val) => handleMemberChange(member.id, 'branch', val)}
+                                    options={branchesList}
+                                    placeholder="Select Branch"
+                                    icon={<GraduationCap size={16} />}
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="form-group">
+                                <label>College / University / School Name <span className="req">*</span></label>
+                                <div className="input-with-icon">
+                                  <GraduationCap size={16} />
+                                  <input
+                                    type="text"
+                                    required
+                                    placeholder="e.g. Trinity College"
+                                    value={member.institution}
+                                    onChange={(e) => handleMemberChange(member.id, 'institution', e.target.value)}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="professional-fields animate-fade-in">
+                              <div className="form-grid-2">
+                                <div className="form-group">
+                                  <label>Company / Organization <span className="req">*</span></label>
+                                  <div className="input-with-icon">
+                                    <Server size={16} />
+                                    <input
+                                      type="text"
+                                      required
+                                      placeholder="e.g. Google"
+                                      value={member.company}
+                                      onChange={(e) => handleMemberChange(member.id, 'company', e.target.value)}
+                                    />
+                                  </div>
+                                </div>
+
+                                <div className="form-group">
+                                  <label>Job Title / Designation <span className="req">*</span></label>
+                                  <div className="input-with-icon">
+                                    <User size={16} />
+                                    <input
+                                      type="text"
+                                      required
+                                      placeholder="e.g. Software Engineer"
+                                      value={member.jobTitle}
+                                      onChange={(e) => handleMemberChange(member.id, 'jobTitle', e.target.value)}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+
+                      <button
+                        type="button"
+                        className="add-member-btn"
+                        onClick={handleAddMember}
+                      >
+                        <Plus size={16} /> + Add Member
+                      </button>
+
+                      {/* Hackathon Project Details */}
+                      <div className="form-section-title" style={{ marginTop: '1.5rem' }}>Hackathon Project Details</div>
+                      
+                      <div className="form-group">
+                        <label htmlFor="projectTitle">Project Title <span className="req">*</span></label>
+                        <div className="input-with-icon">
+                          <Code size={16} />
+                          <input
+                            type="text"
+                            id="projectTitle"
+                            required
+                            placeholder="e.g. AI-based Attendance System"
+                            value={projectTitle}
+                            onChange={(e) => setProjectTitle(e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="form-group">
+                        <label htmlFor="projectDescription">Project Description <span className="req">*</span></label>
+                        <textarea
+                          id="projectDescription"
+                          required
+                          rows={4}
+                          placeholder="Provide a high-level explanation of your project and what it does..."
+                          value={projectDescription}
+                          onChange={(e) => setProjectDescription(e.target.value)}
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label htmlFor="problemStatement">Problem Statement <span className="req">*</span></label>
+                        <textarea
+                          id="problemStatement"
+                          required
+                          rows={3}
+                          placeholder="What specific problem does your project solve?"
+                          value={problemStatement}
+                          onChange={(e) => setProblemStatement(e.target.value)}
                         />
                       </div>
                     </>

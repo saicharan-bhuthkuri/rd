@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Users, ArrowLeft, LogOut, Sparkles, Calendar, ClipboardList, Layers, Menu, X } from 'lucide-react';
+import { Users, ArrowLeft, LogOut, Sparkles, Calendar, ClipboardList, Layers, Menu, X, Code } from 'lucide-react';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -77,6 +77,11 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
             <span>Event Registration</span>
           </Link>
 
+          <Link to="/admin/hackathons" className={`admin-nav-item ${isActive('/admin/hackathons')}`}>
+            <Code size={18} />
+            <span>Hackathon Registration</span>
+          </Link>
+
           <Link to="/admin/events/manage" className={`admin-nav-item ${isActive('/admin/events/manage')}`}>
             <Calendar size={18} />
             <span>Manage Events</span>
@@ -136,6 +141,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
                   ? 'Club Membership Applications'
                   : location.pathname === '/admin/events'
                   ? 'Event Registration Applications'
+                  : location.pathname === '/admin/hackathons'
+                  ? 'Hackathon Team Registrations'
                   : location.pathname === '/admin/events/manage'
                   ? 'Manage Technical Events'
                   : location.pathname === '/admin/events/create'
