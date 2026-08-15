@@ -31,7 +31,12 @@ async function clearDatabase() {
     await db.execute("DELETE FROM club_applications;");
     await db.execute("DELETE FROM sqlite_sequence WHERE name = 'club_applications';");
 
-    // 3. Clear activity logs if any, to keep it completely fresh
+    // 3. Clear hackathon registrations & reset auto-increment
+    console.log("Clearing hackathon_registrations table...");
+    await db.execute("DELETE FROM hackathon_registrations;");
+    await db.execute("DELETE FROM sqlite_sequence WHERE name = 'hackathon_registrations';");
+
+    // 4. Clear activity logs if any, to keep it completely fresh
     console.log("Clearing activity_logs table...");
     await db.execute("DELETE FROM activity_logs;");
     await db.execute("DELETE FROM sqlite_sequence WHERE name = 'activity_logs';");
