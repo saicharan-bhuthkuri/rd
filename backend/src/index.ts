@@ -1793,6 +1793,17 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
         if (fs.existsSync(tempPptx)) fs.unlinkSync(tempPptx);
         if (fs.existsSync(pdfFilename)) fs.unlinkSync(pdfFilename);
       }
+    });
+
+    notifySyncClients("REFRESH_APPLICATIONS");
+    sendLog(`Successfully sent ${successCount} certificates.`, 95);
+    sendLog("Process completed successfully.", 100, true);
+    res.end();
+  } catch (err: any) {
+    console.error("Bulk certificates error:", err);
+    res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+    res.end();
+  }
 });
 
 // 15.5. Bulk Send Certificates to Approved Hackathon Registrants
@@ -2092,17 +2103,6 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
     res.end();
   } catch (err: any) {
     console.error("Bulk hackathon certificates error:", err);
-    res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
-    res.end();
-  }
-});
-
-    notifySyncClients("REFRESH_APPLICATIONS");
-    sendLog(`Successfully sent ${successCount} certificates.`, 95);
-    sendLog("Process completed successfully.", 100, true);
-    res.end();
-  } catch (err: any) {
-    console.error("Bulk certificates error:", err);
     res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
     res.end();
   }
