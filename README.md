@@ -72,32 +72,46 @@ graph TD
 ## 📁 File Structure
 
 ```bash
-├── .firebase/                  # Firebase Hosting cache files
 ├── backend/                    # Node.js + Express backend service
 │   ├── src/
 │   │   ├── index.ts            # Main entry point: REST API routes, DB migrations, and dispatch engines
-│   │   ├── types.ts            # Common TS interface declarations
+│   │   └── types.ts            # Common TS interface declarations
 │   ├── .env                    # Local environment variables
 │   ├── Dockerfile              # Docker build file containing headless LibreOffice setup
+│   ├── clear_db.js             # Utility to clear and reset the Turso DB tables
+│   ├── update_db_templates.js  # Utility to sync PowerPoint templates into the DB
 │   ├── package.json            # Node dependencies and build scripts
 │   └── tsconfig.json           # TypeScript configuration
 ├── frontend/                   # Vite + React frontend application
 │   ├── src/
-│   │   ├── components/         # Shared presentation elements (Navbar, Contact, etc.)
+│   │   ├── components/         # Shared presentation elements (Navbar, AdminLayout, Contact, etc.)
 │   │   ├── pages/
-│   │   │   ├── AdminDashboardPage.tsx  # Central dashboard layout for club and event lists
-│   │   │   ├── AdminLoginPage.tsx      # Admin authentication page
-│   │   │   ├── ApplyPage.tsx           # Public club recruitment application form
-│   │   │   ├── ResearchPage.tsx        # Public event registration / student form
-│   │   │   ├── VerifyCertificatePage.tsx # Public certificate verification portal
-│   │   │   └── index.css               # Global stylesheet containing variables and responsive grids
-│   │   ├── App.tsx             # Application router
+│   │   │   ├── AboutPage.tsx           # Public R&D Cell background information
+│   │   │   ├── AdminBranchesPage.tsx   # Admin interface to manage academic branches
+│   │   │   ├── AdminCreateEventPage.tsx # Admin interface to create new events/hackathons
+│   │   │   ├── AdminCreateUserPage.tsx  # Admin interface to create new administrators
+│   │   │   ├── AdminDashboardPage.tsx   # Central dashboard layout for managing applications
+│   │   │   ├── AdminLoginPage.tsx       # Admin authentication interface
+│   │   │   ├── AdminManageEventsPage.tsx# Admin interface to edit and delete events
+│   │   │   ├── AdminUsersPage.tsx       # Admin list and role manager
+│   │   │   ├── ApplyPage.tsx            # Public recruitment and hackathon application form
+│   │   │   ├── BenefitsPage.tsx         # Public portal detailing benefits of joining
+│   │   │   ├── ContactPage.tsx          # Public contact form
+│   │   │   ├── EventsPage.tsx           # Public list of upcoming events & hackathons
+│   │   │   ├── FAQPage.tsx              # Frequently asked questions list
+│   │   │   ├── ResearchPage.tsx         # Public academic research outline
+│   │   │   ├── TeamPage.tsx             # Public page displaying Core Team members
+│   │   │   ├── VerifyCertificatePage.tsx# Public certificate verification portal
+│   │   │   └── index.css                # Global stylesheet containing variables and responsive grids
+│   │   ├── App.tsx             # React application router
 │   │   └── main.tsx            # React bootstrap entry point
 │   ├── vite.config.ts          # Vite build config
 │   └── package.json            # Node dependencies
-├── CERTIFICATE_TEMPLATE.pptx   # Master slide for participation certificates
-├── CERTIFICATE_TEMPLATE - APPRECIATION.pptx # Master slide for appreciation certificates
+├── CERTIFICATE_TEMPLATE.pptx   # Local slide template for participation certificates
+├── CERTIFICATE_TEMPLATE - APPRECIATION.pptx # Local slide template for appreciation certificates
+├── OFFER LETTER (1).pptx       # Local slide template for offer letters
 ├── firebase.json               # Firebase deployment setup
+├── DEPLOYMENT.md               # Step-by-step production deployment instructions
 └── README.md                   # Project documentation
 ```
 
