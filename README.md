@@ -316,32 +316,271 @@ The system is split into distinct functional modules:
 
 ## 5. Application Architecture
 
-```text
-User  ---> [ VITE REACT CLIENT ]  ---> [ AUTH MIDDLEWARE ] ---> [ EXPRESS SERVER ] ---> [ TURSO DB ]
-              | (Render PDF Frame)                                  | (XML Pizzip Replace)
-              v                                                     v
-       [ VERIFY PORTAL ] <--------------------------------- [ Headless LibreOffice ]
-              |                                                     | (Gmail Proxy POST)
-              +---------------------------------------------------->v
-                                                           [ GOOGLE APPS SCRIPT PROXY ]
+The Bulk Certificate Dispatch & Application Management System utilizes a modern, decoupled, multi-tiered cloud architecture designed for high throughput, edge-optimized data access, and sandboxed document compilation.
+
+### System Architecture Flow Diagram
+
+```mermaid
+graph TD
+    User([Public User / Admin]) -->|Interacts| Frontend[Vite React TS Client]
+    Frontend -->|HTTPS REST API / SSE| Backend[Node Express TS API Server]
+    Backend -->|SQL Execution| Database[(Turso Edge SQLite)]
+    Backend -->|Modify XML | Pizzip[PizZip XML Editor]
+    Backend -->|Exec CLI Batch| LibreOffice[LibreOffice PDF Converter]
+    Backend -->|HTTP POST JSON| GASProxy[Google Apps Script Proxy]
+    GASProxy -->|Gmail API Auth| Gmail[Gmail SMTP/HTTP Dispatch]
 ```
 
-### Client-Server Communication
-Clients talk to the Express backend via:
-1. **REST APIs (HTTPS)**: Sending application forms, creating events, logging in.
-2. **Server-Sent Events (SSE)**: Express keeps an open connection via `GET /api/sync-stream`. Whenever any administrator updates database records, the backend streams a message to all connected clients, refreshing their states.
+---
 
-### Data Verification Flow
-1. Visitor inputs reference code in `/verify`.
-2. The frontend triggers `GET /api/verify-certificate/[encodedId]`.
-3. Server queries `event_registrations` matching `certificate_id` and checks if `certificate_sent = 1`.
-4. If found, returns JSON metadata to render details (Student Name, Event Name, Issue Date).
-5. Frontend requests `GET /api/verify-certificate/[encodedId]/pdf` inside an `<iframe src="...">`.
-6. Express downloads template data from table `templates`, updates XML content using `pizzip`, calls LibreOffice to convert PPTX to PDF, and streams the output directly to the frame.
+### Core Architectural Subsystems
 
-### Email Delivery Proxy Flow
-```text
-Express Server  --->  Read PDF file  --->  Base64 Encode  --->  POST JSON payload  --->  Google Script  --->  Gmail API  ---> Recipient
+#### 1. Frontend Client ([`Vite + React + TypeScript`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend))
+* **Role & Host**: The user interface is built as a Single Page Application (SPA) using React 19 and compiled with Vite. It is hosted on **Firebase Hosting** for high-availability CDN-level static asset delivery.
+* **Routing**: Managed via **React Router DOM v7**, separating public pages (such as registration and verification) from protected admin features using client-side route guards and tokens.
+* **State & Syncing**: To ensure real-time collaboration across multiple administrator panels, the client establishes a persistent connection to the backend's `/api/sync-stream` endpoint using the browser's native `EventSource` (SSE) API in [`App.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/App.tsx#L106-L129). Upon receiving sync events, it revalidates internal states and refreshes tables.
+
+#### 2. Backend Server ([`Node.js + Express + TypeScript`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend))
+* **Role & Host**: Functions as the core backend orchestrator, packaged within a **Docker Container** and deployed on **Render Web Services**. It hosts the REST endpoints, implements JWT-based authentication guards, and operates the file-generation worker threads.
+* **Concurrency Control**: Implements standard concurrency-limiting utility [`runWithConcurrency`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts#L1327-L1359) to pace and queue CPU-heavy PowerPoint edits and PDF conversions, avoiding system locks or container OOM errors.
+
+#### 3. Database Layer ([`Turso Edge Database`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts#L39-L53))
+* **Role & Architecture**: Leverages Turso DB, a serverless edge SQLite driver powered by `libsql`. Queries are executed directly as raw parameterized SQL strings via the `@libsql/client` SDK.
+* **Dynamic Template Cache**: Synced PowerPoint templates are converted to Base64 and stored directly inside the `templates` database table, enabling zero-downtime hot reloading of certificate layouts without changing Docker assets.
+
+#### 4. Template Manipulation Engine ([`PizZip XML Editor`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts#L12))
+* **Role & Mechanism**: To substitute certificate text placeholders on the fly without heavy PowerPoint COM objects or full decompression, the system utilizes `PizZip` in memory.
+* **XML Injection**: Parses the `.pptx` zip structure, reads target slide XML code (`ppt/slides/slide1.xml`), and performs raw string replacement for custom tags (`{NAME}`, `{ROLE}`, `{EVENT}`, `{DATE}`, `{CERT_ID}`). It updates specific XML nodes, keeping structural fonts and sizing styling contexts intact while disabling PPTX text autofit to avoid text compression.
+
+#### 5. Headless PDF Converter Subsystem ([`Headless LibreOffice`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts#L1291-L1324))
+* **Role & Deployment**: Converts PPTX layouts into portable documents (PDF).
+* **Batch Execution**: Instantiating separate headless `soffice` sub-processes for every document results in significant CPU overhead. The system bundles multiple conversion files into a single execution context via [`convertPptxToPdfBatch`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts#L1291-L1324).
+* **Race Condition Isolation**: Uses unique user installation folder paths (`-env:UserInstallation=file://...`) for each parallel batch call, isolating LibreOffice runtime locks.
+* **Fallback Handler**: On local development Windows environments, the server falls back to sequential Windows ActiveX COM commands, ensuring zero local dependencies for developers.
+
+#### 6. Email Dispatch Subsystem ([`Google Apps Script Proxy`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts#L1247-L1289))
+* **Role & Technique**: Resolves Render outbound SMTP port blocking on the free tier.
+* **HTTPS Proxy Relay**: Converts compiled PDF buffers into Base64 strings and ships them inside a JSON payload over HTTPS (port 443) using an HTTP POST to a secure, custom **Google Apps Script Web App**.
+* **Gmail SMTP Delivery**: The Google Script proxy, authenticated with Google API credentials, constructs and sends email packages containing PDF attachments directly via the candidate-facing Gmail profile.
+* **Fallback**: Retains standard `nodemailer` SMTP client configurations for offline or local test runs.
+
+---
+
+### System Use Case Boundaries
+
+The use cases outline system access across candidate applicants, club administrators, and super-administrators.
+
+```mermaid
+graph LR
+    subgraph Actors
+        U["Public Candidate / Student"]
+        A["Club Administrator"]
+        SA["Super Administrator / Developer"]
+    end
+
+    subgraph "System Boundary: R&D Cell Dashboard"
+        UC1("Submit Recruitment Applications")
+        UC2("Register for Technical Events")
+        UC3("Register Hackathon Teams")
+        UC4("Verify Credentials via ID / QR Code")
+        
+        UC5("Inspect / Search Registration Roster")
+        UC6("Modify Candidate Status (Lock Dropdowns)")
+        UC7("Trigger Parallel Bulk PDF Dispatch")
+        UC8("Manage Official Branches")
+        
+        UC9("Create Admin Accounts")
+        UC10("Create & Delete Event Calendars")
+    end
+
+    U --> UC1
+    U --> UC2
+    U --> UC3
+    U --> UC4
+
+    A --> UC5
+    A --> UC6
+    A --> UC7
+    A --> UC8
+
+    SA --> UC9
+    SA --> UC10
+    SA --> UC5
+```
+
+---
+
+### Data Flow Diagrams (DFD)
+
+#### DFD Level 0: Context Diagram
+Maps structural inputs and outputs crossing system boundaries.
+
+```mermaid
+graph TD
+    User(["Public Candidate / Student"])
+    Admin(["Club Administrator"])
+    System["Trinity R&D Cell System"]
+    Turso[("Turso Edge Database")]
+    GAS["Google Apps Script HTTP Proxy"]
+    Gmail["Gmail Mailing API"]
+
+    User -->|Submit Application Form JSON| System
+    System -->|Verification Data & Dynamic PDF Stream| User
+
+    Admin -->|Login Credentials & Bulk Dispatch Actions| System
+    System -->|Real-time Application Tables & Sync Logs| Admin
+
+    System -->|Prepared SQL Read / Write| Turso
+    Turso -->|Candidate Schemas & Base64 PPTX| System
+
+    System -->|HTTP POST Base64 Payload| GAS
+    GAS -->|Gmail Auth Dispatch API| Gmail
+    Gmail -->|Delivered Email & Attachment| Recipient(["Recipient Inbox"])
+```
+
+#### DFD Level 1: Subsystem Process Diagram
+Delineates how data moves through internal processes, queues, and datastores.
+
+```mermaid
+graph TD
+    subgraph Entities
+        E1(["Public Visitor"])
+        E2(["Administrator"])
+        E3(["Candidate Inbox"])
+    end
+
+    subgraph "Data Storage"
+        D1[("Turso Edge Database")]
+    end
+
+    subgraph "Process Layers"
+        P1("1.0 Application Processing")
+        P2("2.0 JWT Authentication")
+        P3("3.0 In-Memory Document Compiler")
+        P4("4.0 Bulk Dispatch Queuer")
+        P5("5.0 Public Verifier Engine")
+    end
+
+    E1 -->|Application Signups| P1
+    P1 -->|Insert Application Record| D1
+    P1 -->|Emit SSE Notification| E2
+
+    E2 -->|Admin Login Request| P2
+    P2 -->|Query Admin Password Hash| D1
+    D1 -->|Hash Comparison Profile| P2
+    P2 -->|Signed Token Payload| E2
+
+    E2 -->|Bulk Trigger Request| P4
+    P4 -->|Verify Dispatch Status & Get Template| D1
+    D1 -->|Base64 Template File| P4
+    P4 -->|Raw Buffer Array| P3
+    P3 -->|Substitute XML Tokens (PizZip)| P3
+    P3 -->|Docker Headless Conversion (LibreOffice)| P3
+    P3 -->|Compiled PDF Stream| P4
+    P4 -->|POST Base64 JSON| GAS["Google Apps Script WebApp"]
+    GAS -->|Gmail API Relay| E3
+    P4 -->|Update sent_status = 1 & Log Activity| D1
+
+    E1 -->|Reference Code Lookup| P5
+    P5 -->|Query Credential ID| D1
+    D1 -->|Candidate Metadata| P5
+    P5 -->|JSON Parameters & Dynamic PDF Stream| E1
+```
+
+---
+
+### Sequence Diagrams
+
+The sequence diagrams trace actors and core execution steps for key application pathways.
+
+#### Sequence Diagram A: Authentication & Real-Time Sync Connection
+Traces the admin login handshake and the establishment of the persistent SSE channel.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Admin as Club Administrator
+    participant FE as React Client
+    participant BE as Express API Server
+    participant DB as Turso DB
+    
+    Admin->>FE: Input username & password
+    FE->>BE: POST /api/admin/login
+    BE->>DB: Query user hash where username = ?
+    DB-->>BE: Hashed password + user profile details
+    BE->>BE: Compare hashes (bcryptjs.compare)
+    BE-->>FE: Return signed JWT Token (JWT Secret)
+    FE->>FE: Store JWT token in localStorage
+    FE->>BE: Open SSE Connection (GET /api/sync-stream)
+    BE-->>FE: 200 OK (Connection keeps socket open)
+    Note over FE,BE: Persistent SSE channel established for sync broadcasts
+```
+
+#### Sequence Diagram B: Bulk Certificate Compilation & Dispatch Flow
+Traces details of dynamic template mapping, XML injection, batch conversion, and proxy delivery.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Admin as Club Administrator
+    participant FE as React Client
+    participant BE as Express API Server
+    participant DB as Turso DB
+    participant PZ as PizZip Engine
+    participant LO as Headless LibreOffice
+    participant GAS as Google Apps Script
+    
+    Admin->>FE: Click "Send Certificates"
+    FE->>BE: POST /api/admin/bulk-send/certificates (with JWT)
+    BE->>BE: Validate Admin JWT Signature
+    BE->>DB: Query pending candidates & resolve mapped PPTX templates
+    DB-->>BE: Candidate details (Name, Date) & Template data (Base64)
+    
+    loop For each candidate registration in concurrency chunks
+        BE->>PZ: Load template buffer
+        PZ->>PZ: Decompress ppt/slides/slide1.xml
+        PZ->>PZ: Replace tags ({NAME}, {EVENT}, {ROLE}, {CERT_ID})
+        PZ->>PZ: Disable Text AutoFit & Re-zip PowerPoint archive
+        PZ-->>BE: Modified PPTX file buffer
+        BE->>LO: Queue PPTX buffer path (convertPptxToPdfBatch)
+        Note over LO: Executed in parallel with sandboxed -env installation profile
+        LO-->>BE: Generated PDF file path
+        BE->>BE: Read PDF & encode to Base64
+        BE->>GAS: HTTP POST Payload (Base64 PDF, recipient email, subject)
+        Note over GAS: Executes Google Apps Script OAuth call to Gmail API
+        GAS-->>BE: 200 OK Response (Delivered)
+        BE->>DB: Update registration row (certificate_sent = 1)
+        BE->>BE: Write transaction to activity_logs table
+        BE->>BE: Broadcast SSE "REFRESH_APPLICATIONS" signal
+    end
+    BE-->>FE: Return dispatch operation log array
+    FE->>Admin: Update badges to green "Sented" & disable select actions
+```
+
+#### Sequence Diagram C: Public Credential Verification & Dynamic Rendering
+Traces reference verification lookup and the compilation and streaming of the certificate PDF.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Visitor as Verification Requestor
+    participant FE as React Client
+    participant BE as Express API Server
+    participant DB as Turso DB
+    
+    Visitor->>FE: Access /verify/:id or scan QR Code
+    FE->>BE: GET /api/verify-certificate/:encodedId
+    BE->>DB: Query event_registrations where certificate_id = :id
+    DB-->>BE: Return registration status, event details, and student name
+    BE-->>FE: Return JSON status metadata (valid = true)
+    FE->>Visitor: Render Verification Panel details
+    FE->>BE: Request iframe src: GET /api/verify-certificate/:encodedId/pdf
+    BE->>DB: Fetch Base64 template matching registration template code
+    DB-->>BE: Base64 PowerPoint binary
+    BE->>BE: Run PizZip token substitution (Student Name, Event Name, Certificate ID)
+    BE->>BE: Execute headless conversion to PDF dynamically
+    BE-->>FE: Stream binary PDF stream (application/pdf)
+    FE->>Visitor: Render embedded certificate PDF in 16:9 widescreen frame
 ```
 
 ---
