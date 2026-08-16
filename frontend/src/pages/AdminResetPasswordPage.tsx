@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { API_BASE_URL } from '../config';
 import { KeyRound, Loader2, ArrowLeft, CheckCircle2, Eye, EyeOff } from 'lucide-react';
@@ -15,6 +15,30 @@ export const AdminResetPasswordPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isTokenExpired, setIsTokenExpired] = useState(false);
+
+  useEffect(() => {
+    if (!token) {
+      setError('Reset token is missing from the URL. Please request a new link.');
+      setIsTokenExpired(true);
+      return;
+    }
+
+    try {
+      const payloadBase64 = token.split('.')[1];
+      if (!payloadBase64) {
+        throw new Error('Invalid token format.');
+      }
+      const decodedPayload = JSON.parse(atob(payloadBase64.replace(/-/g, '+').replace(/_/g, '/')));
+      if (decodedPayload.exp && decodedPayload.exp * 1000 < Date.now()) {
+        setError('Reset token has expired. Please request a new link.');
+        setIsTokenExpired(true);
+      }
+    } catch (e) {
+      setError('Invalid or corrupt reset token.');
+      setIsTokenExpired(true);
+    }
+  }, [token]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,7 +122,7 @@ export const AdminResetPasswordPage: React.FC = () => {
           </div>
         )}
 
-        {!success && (
+        {!success && !isTokenExpired && (
           <form onSubmit={handleSubmit}>
             <div className="form-group">
               <label htmlFor="new-password">New Password</label>
@@ -178,6 +202,18 @@ export const AdminResetPasswordPage: React.FC = () => {
               )}
             </button>
           </form>
+        )}
+
+        {isTokenExpired && (
+          <div style={{ marginTop: '1rem', marginBottom: '1.5rem' }}>
+            <button
+              onClick={() => navigate('/admin/forgot-password')}
+              className="btn btn-primary"
+              style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+            >
+              Request New Recovery Link
+            </button>
+          </div>
         )}
 
         {!success && (
