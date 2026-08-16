@@ -1119,10 +1119,39 @@ graph TD
   * **Chrome Developer Tools (v127)**: Used for network profiling, monitoring Server-Sent Events (SSE) packets, and auditing local storage tokens.
   * **TypeScript Compiler (`tsc`) & ESLint (v10.8)**: Used for type-safety assurance and code linting checks.
 
----
-
 ### A. Unit Testing Results (Isolated Logic)
 Unit tests verify internal helper utilities and configuration checks in absolute isolation.
+
+#### Unit Testing Process & Data Flow Diagram
+
+```mermaid
+graph TD
+    subgraph "Unit Test Inputs"
+        I1["Template Name: CERTIFICATE_TEMPLATE.pptx"]
+        I2["Casing Targets: won second place / coordinator"]
+        I3["ISO Timestamp: 2026-08-16T17:48:40"]
+    end
+
+    subgraph "Isolated Helper Utilities (Logic Layer)"
+        UT1["findTemplateFile()"]
+        UT2["normalizeStatusCasing()"]
+        UT3["formatDate()"]
+    end
+
+    subgraph "Verification & Expected Outputs"
+        O1["Resolved Absolute Path / Null if missing"]
+        O2["Normalized Casing: Won Second Place / Coordinator"]
+        O3["Formatted String: August 16, 2026"]
+    end
+
+    I1 --> UT1 --> O1
+    I2 --> UT2 --> O2
+    I3 --> UT3 --> O3
+
+    style UT1 fill:#2b6cb0,stroke:#3182ce,stroke-width:2px,color:#fff
+    style UT2 fill:#2b6cb0,stroke:#3182ce,stroke-width:2px,color:#fff
+    style UT3 fill:#2b6cb0,stroke:#3182ce,stroke-width:2px,color:#fff
+```
 
 | Test Case ID | Test Component / Function | Test Input & Conditions | Expected Result | Actual Result Obtained | Status | Bugs Found & Fixes Applied |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -1135,6 +1164,44 @@ Unit tests verify internal helper utilities and configuration checks in absolute
 
 ### B. Black-Box Testing Results (API & GUI Boundaries)
 Black-Box tests validate functional endpoints and boundary limits from the client's perspective.
+
+#### Black-Box Testing Endpoint Verification Flow Diagram
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Client as Client Browser / Postman
+    participant Router as Express API Router
+    participant Auth as Auth Controller
+    participant DB as Turso DB SQLite Cloud
+
+    Note over Client, DB: BB-001/BB-002: Applicant Registrations
+    Client->>Router: POST /api/apply/club (JSON applicant payload)
+    Router->>DB: Write applicant details to DB
+    DB-->>Router: Confirm insertion
+    Router-->>Client: 201 Created (Success: true)
+
+    Note over Client, DB: BB-003/BB-004: Admin Authentication Gateway
+    Client->>Router: POST /api/admin/login (Credentials payload)
+    Router->>Auth: Validate password hash
+    Auth-->>Router: Verification status
+    alt Valid Credentials
+        Router-->>Client: 200 OK (JWT Token + User profile)
+    else Invalid Credentials
+        Router-->>Client: 401 Unauthorized (Error JSON)
+    end
+
+    Note over Client, DB: BB-005/BB-006: Public Certificate Lookup
+    Client->>Router: GET /api/verify-certificate/[id]
+    Router->>DB: Query certificate details
+    alt Certificate Exists & Issued
+        DB-->>Router: Record data
+        Router-->>Client: 200 OK (Candidate metadata JSON)
+    else Missing / Unissued Certificate
+        DB-->>Router: Null record
+        Router-->>Client: 404 Not Found (Error: Certificate not found)
+    end
+```
 
 | Test Case ID | Test Path / View | Test Input & Conditions | Expected Result | Actual Result Obtained | Status | Bugs Found & Fixes Applied |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -1150,6 +1217,33 @@ Black-Box tests validate functional endpoints and boundary limits from the clien
 ### C. White-Box Testing Results (Internal Code Paths)
 White-Box tests ensure internal statement execution, branches, exception catching, and file cleanup routines.
 
+#### White-Box Internal Operations & Execution Flow Diagram
+
+```mermaid
+graph TD
+    subgraph "WB-001 / WB-004: Template Substitutions & Ephemeral Cache"
+        PP1["PPTX Template Buffer"] --> XML1["PizZip XML Parser"]
+        XML1 -->|Substituted dynamic tags| XML2["Slide XML Nodes"]
+        XML2 -->|Missing tags ignored| XML3["Save Ephemeral Slides to /tmp"]
+        XML3 --> PDF1["Headless LibreOffice Process"]
+        PDF1 -->|Execution Exception caught| Catch1["Wipe Ephemeral Files in 'finally' block"]
+        PDF1 -->|Success| Out1["Wipe Ephemeral Files in 'finally' block"]
+    end
+
+    subgraph "WB-002: LibreOffice Concurrency Profile Isolation"
+        LO1["PDF convert request"] --> Prof1["Assign randomized directory: soffice-profile-batch-*"]
+        Prof1 --> LO2["soffice headless conversion"]
+        LO2 -->|Prevents read/write locks| Out2["Successful batch PDF compilation"]
+    end
+
+    subgraph "WB-003: Task Queue Concurrency Controls"
+        Q1["15 Parallel tasks queued"] --> Lim1["runWithConcurrency (Limit = 10)"]
+        Lim1 -->|Process first 10 immediately| R1["Active Thread Pool"]
+        Lim1 -->|Queue remainder| R2["Pending Queue Array"]
+        R1 -->|Resolves| Next1["Advance remaining 5 tasks sequentially"]
+    end
+```
+
 | Test Case ID | Code Target / Function | Test Input & Conditions | Expected Result | Actual Result Obtained | Status | Bugs Found & Fixes Applied |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **WB-001** | `replacePlaceholdersInPptx` | Feed template data where replacement keys (e.g. `{ROLE}`) are missing | Skip missing tags without throwing exceptions or corrupting ZIP structure | Non-existent tags ignored; valid updated PPTX buffer generated | **PASS** | None |
@@ -1161,6 +1255,35 @@ White-Box tests ensure internal statement execution, branches, exception catchin
 
 ### D. Gray-Box & Integration Testing Results (Components & State)
 Integration tests verify end-to-end network calls, database mutation logs, and real-time broadcasts.
+
+#### Gray-Box Multi-Subsystem Integration Diagram
+
+```mermaid
+graph TD
+    subgraph "GB-001: Server-Sent Events (SSE) Sync Stream"
+        Admin["Admin Actions / DB Writes"] -->|Trigger| SSE1["Express /api/sync-stream"]
+        SSE1 -->|SSE Broadcast Event| SSE2["CustomEvent 'app-sync'"]
+        SSE2 -->|Window Event Dispatch| Client["Reload Dashboard states automatically"]
+    end
+
+    subgraph "GB-002: Google Apps Script HTTPS Email Proxy"
+        AdminUI["Admin UI Certificate Dispatch"] -->|Trigger| Backend["Backend PPTX to PDF Converter"]
+        Backend -->|Base64 attachment JSON| WebProxy["Apps Script Relay Gateway (Port 443)"]
+        WebProxy -->|OAuth HTTPS Relay| GoogleAPI["Gmail API Outbound Dispatch"]
+        GoogleAPI -->|Inbox Delivery| Inbox["Target email inbox receives PDF"]
+    end
+
+    subgraph "GB-003: Dynamic PDF Iframe Viewer"
+        Iframe["Iframe request: /api/verify-certificate/[id]/pdf"] --> Stream["Backend compiles buffer inline"]
+        Stream -->|Stream response stream| Render["Render PDF inline in 16:9 Panel"]
+    end
+
+    subgraph "GB-004: Turso Edge DB Schema Setup"
+        Launch["Docker startup initialization"] --> Schema["Turso Edge Database table check"]
+        Schema -->|No tables| BuildSchema["Execute SQLite Schema queries"]
+        BuildSchema --> Seeding["Insert default seeded user accounts"]
+    end
+```
 
 | Test Case ID | Interface / Boundary | Test Input & Conditions | Expected Result | Actual Result Obtained | Status | Bugs Found & Fixes Applied |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
