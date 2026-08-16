@@ -85,6 +85,7 @@ The system features dynamic template compilation by directly parsing PowerPoint 
 | **Figure 18** | Technology Readiness & Implementation Maturity | Readiness level proofs (TRL 6 / IR 6) and future migration goals. | [35. TRL & IR Assessment](#35-technology-readiness-level-trl--implementation-readiness-ir-assessment) | [View Figure](#35-technology-readiness-level-trl--implementation-readiness-ir-assessment) |
 | **Figure 19** | Admin Authentication & CSRF Protection Flow | Sequence diagram showing cookie-based auth and header-based CSRF checks. | [5. Application Architecture](#5-application-architecture) | [View Figure](#5-application-architecture) |
 | **Figure 20** | Password Recovery & Reset Flow | Sequence diagram of signed JWT email recovery link and update query. | [5. Application Architecture](#5-application-architecture) | [View Figure](#5-application-architecture) |
+| **Figure 21** | Security Enforcement Architecture | Flowchart showing incoming request filters (CORS, Rate Limiters, Cookie Auth, and CSRF checks). | [20. Security](#20-security) | [View Figure](#20-security) |
 
 ---
 
@@ -131,11 +132,16 @@ The Research & Development (R&D) Cell at Trinity College requires a robust infra
 ```mermaid
 graph TD
     User([Public User / Admin]) -->|Interacts| Frontend[Vite React TS Client]
-    Frontend -->|HTTPS REST API / SSE| Backend[Node Express TS API Server]
-    Backend -->|SQL Execution| Database[(Turso Edge SQLite)]
-    Backend -->|Modify XML | Pizzip[PizZip XML Editor]
-    Backend -->|Exec CLI Batch| LibreOffice[LibreOffice PDF Converter]
-    Backend -->|HTTP POST JSON| GASProxy[Google Apps Script Proxy]
+    Frontend -->|HTTPS REST / Cookies / X-CSRF-Token| Backend[Node Express TS API Server]
+    subgraph Backend Server Security Pipeline
+        Backend --> CORS[CORS filter]
+        CORS --> Limiter[Rate Limiter]
+        Limiter --> AuthGate[Auth & CSRF validator]
+    end
+    AuthGate -->|SQL Execution| Database[(Turso Edge SQLite)]
+    AuthGate -->|Modify XML | Pizzip[PizZip XML Editor]
+    AuthGate -->|Exec CLI Batch| LibreOffice[LibreOffice PDF Converter]
+    AuthGate -->|HTTP POST JSON| GASProxy[Google Apps Script Proxy]
     GASProxy -->|Gmail API Auth| Gmail[Gmail SMTP/HTTP Dispatch]
 ```
 
@@ -390,11 +396,16 @@ The Bulk Certificate Dispatch & Application Management System utilizes a modern,
 ```mermaid
 graph TD
     User([Public User / Admin]) -->|Interacts| Frontend[Vite React TS Client]
-    Frontend -->|HTTPS REST API / SSE| Backend[Node Express TS API Server]
-    Backend -->|SQL Execution| Database[(Turso Edge SQLite)]
-    Backend -->|Modify XML | Pizzip[PizZip XML Editor]
-    Backend -->|Exec CLI Batch| LibreOffice[LibreOffice PDF Converter]
-    Backend -->|HTTP POST JSON| GASProxy[Google Apps Script Proxy]
+    Frontend -->|HTTPS REST / Cookies / X-CSRF-Token| Backend[Node Express TS API Server]
+    subgraph Backend Server Security Pipeline
+        Backend --> CORS[CORS filter]
+        CORS --> Limiter[Rate Limiter]
+        Limiter --> AuthGate[Auth & CSRF validator]
+    end
+    AuthGate -->|SQL Execution| Database[(Turso Edge SQLite)]
+    AuthGate -->|Modify XML | Pizzip[PizZip XML Editor]
+    AuthGate -->|Exec CLI Batch| LibreOffice[LibreOffice PDF Converter]
+    AuthGate -->|HTTP POST JSON| GASProxy[Google Apps Script Proxy]
     GASProxy -->|Gmail API Auth| Gmail[Gmail SMTP/HTTP Dispatch]
 ```
 
@@ -404,13 +415,13 @@ graph TD
 graph TD
     subgraph Enrollment Workflow
         Candidate([Student / Applicant]) -->|Submit Form| AppPortal[Apply Page / React Client]
-        AppPortal -->|POST /api/apply/club| ExpressAPI[Express API Backend]
+        AppPortal -->|POST /api/apply/club <br/>Rate Limited| ExpressAPI[Express API Backend]
         ExpressAPI -->|SQL insert| TursoDB[(Turso Edge SQLite)]
     end
 
     subgraph Administration & Approval Workflow
-        Admin([Club Administrator]) -->|Log into portal| AdminUI[Admin Dashboard]
-        AdminUI -->|View rosters & update status| ExpressAPI
+        Admin([Club Administrator]) -->|Log into portal <br/>Rate Limited| AdminUI[Admin Dashboard]
+        AdminUI -->|View rosters & update status <br/>Cookie + CSRF verification| ExpressAPI
         ExpressAPI -->|SQL UPDATE| TursoDB
     end
 
@@ -422,6 +433,15 @@ graph TD
         LibreOffice -->|Base64 binary buffers| GASProxy[Apps Script HTTPS Proxy Gateway]
         GASProxy -->|Mail dispatch| GmailAPI[Gmail SMTP API]
         GmailAPI -->|Inbox receipt| Candidate
+    end
+
+    subgraph Password Recovery Workflow
+        AdminRec([Administrator]) -->|Request link <br/>Rate Limited| RecUI[Forgot Password UI]
+        RecUI -->|POST /api/admin/forgot-password| ExpressAPI
+        ExpressAPI -->|Dispatch link email| GASProxy
+        AdminRec -->|Reset password with token <br/>Rate Limited| ResetUI[Reset Password UI]
+        ResetUI -->|POST /api/admin/reset-password| ExpressAPI
+        ExpressAPI -->|SQL UPDATE| TursoDB
     end
 ```
 
@@ -541,6 +561,8 @@ graph LR
         
         UC9("Create Admin Accounts")
         UC10("Create & Delete Event Calendars")
+        UC11("Request Password Reset Link")
+        UC12("Reset Password with Token")
     end
 
     U --> UC1
@@ -552,6 +574,8 @@ graph LR
     A --> UC6
     A --> UC7
     A --> UC8
+    A --> UC11
+    A --> UC12
 
     SA --> UC9
     SA --> UC10
@@ -577,8 +601,8 @@ graph TD
     User -->|Submit Application Form JSON| System
     System -->|Verification Data & Dynamic PDF Stream| User
 
-    Admin -->|Login Credentials & Bulk Dispatch Actions| System
-    System -->|Real-time Application Tables & Sync Logs| Admin
+    Admin -->|Login Credentials, Reset Link Requests, Mutate Actions + CSRF Token Header| System
+    System -->|HTTP-only Session Cookie, Dynamic Tables, Reset Email Link| Admin
 
     System -->|Prepared SQL Read / Write| Turso
     Turso -->|Candidate Schemas & Base64 PPTX| System
@@ -615,10 +639,12 @@ graph TD
     P1 -->|Insert Application Record| D1
     P1 -->|Emit SSE Notification| E2
 
-    E2 -->|Admin Login Request| P2
-    P2 -->|Query Admin Password Hash| D1
-    D1 -->|Hash Comparison Profile| P2
-    P2 -->|Signed Token Payload| E2
+    E2 -->|Admin Login / Recovery Request| P2
+    P2 -->|Query Admin Password Hash & Email| D1
+    D1 -->|Hash & Email Profiles| P2
+    P2 -->|Set HTTP-only Auth Cookie & Send CSRF Token JSON| E2
+    P2 -->|Dispatch signed Reset Password link email| E2
+    P2 -->|Validate Reset Token & Save New Hash| D1
 
     E2 -->|Bulk Trigger Request| P4
     P4 -->|Verify Dispatch Status & Get Template| D1
@@ -659,9 +685,10 @@ sequenceDiagram
     BE->>DB: Query user hash where username = ?
     DB-->>BE: Hashed password + user profile details
     BE->>BE: Compare hashes (bcryptjs.compare)
-    BE-->>FE: Return signed JWT Token (JWT Secret)
-    FE->>FE: Store JWT token in localStorage
-    FE->>BE: Open SSE Connection (GET /api/sync-stream)
+    BE->>BE: Generate admin_token & csrfToken
+    BE-->>FE: Set-Cookie: admin_token (HttpOnly, SameSite=Lax)<br/>Response body: { csrfToken, user }
+    FE->>FE: Store csrfToken in localStorage
+    FE->>BE: Open SSE Connection withCredentials (GET /api/sync-stream)
     BE-->>FE: 200 OK (Connection keeps socket open)
     Note over FE,BE: Persistent SSE channel established for sync broadcasts
 ```
@@ -2061,6 +2088,26 @@ graph LR
 * **Automated Account Recovery**: Added a secure forgot-password and reset-password flow using short-lived signed JWT reset links sent via email.
 * **Environment-Configured Credentials**: Seeding default developer and superadmin passwords from environment variables in `.env` rather than hardcoding them in the startup source code.
 * **Restricted Debug Endpoints**: Font debug endpoints require token authentication and are completely disabled in production mode.
+
+### Security Enforcement Architecture Flowchart (Figure 21)
+
+```mermaid
+graph TD
+    Client([React SPA Client]) -->|HTTPS Request| Gateway[Internet / Render Gateway]
+    Gateway -->|CORS Check| CORS{Allowed Origin?}
+    CORS -->|No| BlockCORS[403 Forbidden / CORS Error]
+    CORS -->|Yes| Limiter{Rate Limiter Threshold Exceeded?}
+    Limiter -->|Yes| BlockRate[429 Too Many Requests]
+    Limiter -->|No| AuthCheck{Requires Admin Auth?}
+    AuthCheck -->|No| PublicRoute[Execute Public API Route]
+    AuthCheck -->|Yes| CookieCheck{Valid admin_token Cookie?}
+    CookieCheck -->|No| BlockAuth[401 Unauthorized]
+    CookieCheck -->|Yes| MethodCheck{Mutating Method?<br/>POST/PUT/DELETE}
+    MethodCheck -->|No| ReadRoute[Execute Admin Read Route]
+    MethodCheck -->|Yes| CSRFCheck{Valid X-CSRF-Token Header?}
+    CSRFCheck -->|No| BlockCSRF[403 Forbidden]
+    CSRFCheck -->|Yes| MutateRoute[Execute Admin Write/Update Route]
+```
 
 ---
 
