@@ -2819,404 +2819,93 @@ Before the system can be promoted to **IR 7 (System Ready for Transition to Oper
 
 ## 36. Visual Diagrams Directory
 
-This directory provides a consolidated index of all project-specific visual representations embedded across the documentation. All diagrams are built using Mermaid blocks to remain fully editable, render natively on GitHub, and stay synchronized with the codebase.
+This directory provides a consolidated index of all project-specific visual representations embedded across the documentation. It serves as a textual index linking to each visual and its corresponding section where it is placed directly below the relevant explanations.
 
 ---
 
 ### A. Architectural & Data Flow Diagrams
 
-#### 1. System Architecture Diagram
-* **Location Reference**: [Section 5: Application Architecture](#5-application-architecture)
-* **Description**: Shows the client-server boundaries, database queries, and third-party integrations (Turso DB, Apps Script Proxy, LibreOffice PDF conversions, PizZip PPTX XML parsing).
+1. **System Architecture Diagram**
+   * **Location Reference**: [Section 5: Application Architecture](#5-application-architecture)
+   * **Description**: Shows the client-server boundaries, database queries, and third-party integrations (Turso DB, Apps Script Proxy, LibreOffice PDF conversions, PizZip PPTX XML parsing).
+   * **Link**: [View System Architecture Diagram](#5-application-architecture)
 
-```mermaid
-graph TD
-    User([Public User / Admin]) -->|Interacts| Frontend[Vite React TS Client]
-    Frontend -->|HTTPS REST API / SSE| Backend[Node Express TS API Server]
-    Backend -->|SQL Execution| Database[(Turso Edge LibSQL)]
-    Backend -->|Modify XML | Pizzip[PizZip XML Editor]
-    Backend -->|Exec CLI Batch| LibreOffice[LibreOffice PDF Converter]
-    Backend -->|HTTP POST JSON| GASProxy[Google Apps Script Proxy]
-    GASProxy -->|Gmail API Auth| Gmail[Gmail SMTP/HTTP Dispatch]
-```
+2. **End-to-End Application Workflow Diagram**
+   * **Location Reference**: [Section 5: Application Architecture (Sequence Diagrams)](#5-application-architecture)
+   * **Description**: Visualizes the workflow process for candidate application submission, status approval, and bulk certificate dispatch.
+   * **Link**: [View Workflow Diagram](#5-application-architecture)
 
----
+3. **Data Flow Diagram (DFD) - Level 0 & Level 1**
+   * **Location Reference**: [Section 5: Application Architecture](#5-application-architecture)
+   * **Description**: Visualizes Level-0 context boundaries and Level-1 process decompositions of data movement.
+   * **Link**: [View Data Flow Diagram](#5-application-architecture)
 
-#### 2. End-to-End Application Workflow Diagram
-* **Location Reference**: [Section 5: Application Architecture (Sequence Diagrams)](#5-application-architecture)
-* **Description**: Visualizes the workflow process for candidate application submission, status approval, and bulk certificate dispatch.
+4. **System Use Case Diagram**
+   * **Location Reference**: [Section 5: Application Architecture](#5-application-architecture)
+   * **Description**: Maps out actors (Public Candidates, Club Administrators, Developers) and their use case interactions.
+   * **Link**: [View Use Case Diagram](#5-application-architecture)
 
-```mermaid
-graph TD
-    subgraph Enrollment Workflow
-        Candidate([Student / Applicant]) -->|Submit Form| AppPortal[Apply Page / React Client]
-        AppPortal -->|POST /api/apply/club| ExpressAPI[Express API Backend]
-        ExpressAPI -->|SQL insert| TursoDB[(Turso Edge SQLite)]
-    end
+5. **Sequence Diagrams**
+   * **Location Reference**: [Section 5: Application Architecture](#5-application-architecture)
+   * **Description**: Detailed workflows for applicant registration, credential lookups, and bulk email deliveries.
+   * **Link**: [View Sequence Diagrams](#5-application-architecture)
 
-    subgraph Administration & Approval Workflow
-        Admin([Club Administrator]) -->|Log into portal| AdminUI[Admin Dashboard]
-        AdminUI -->|View rosters & update status| ExpressAPI
-        ExpressAPI -->|SQL UPDATE| TursoDB
-    end
+6. **Database ER Diagram**
+   * **Location Reference**: [Section 10: Database Documentation](#10-database-documentation)
+   * **Description**: Illustrates table schemas, primary keys, foreign keys, and relationships.
+   * **Link**: [View Database ER Diagram](#10-database-documentation)
 
-    subgraph Bulk Document Generation & Dispatch Pipeline
-        AdminUI -->|Trigger bulk dispatches| ExpressAPI
-        ExpressAPI -->|Read PPTX XML & replace placeholders| PizZip[PizZip Template compiler]
-        PizZip -->|Output customized slides| LocalTmp[/tmp ephemerals]
-        LocalTmp -->|Batch convert to PDF| LibreOffice[LibreOffice headless CLI]
-        LibreOffice -->|Base64 binary buffers| GASProxy[Apps Script HTTPS Proxy Gateway]
-        GASProxy -->|Mail dispatch| GmailAPI[Gmail SMTP API]
-        GmailAPI -->|Inbox receipt| Candidate
-    end
-```
+7. **Frontend–Backend–Database Relationship Diagram**
+   * **Location Reference**: [Section 25: Database/API/Frontend Relationship](#25-databaseapifrontend-relationship)
+   * **Description**: Visually maps communications between the browser user interface, Node service controller routers, and Turso Edge LibSQL.
+   * **Link**: [View Relationship Diagram](#25-databaseapifrontend-relationship)
 
----
+8. **Production/Deployment Architecture Diagram**
+   * **Location Reference**: [Section 14: Production Architecture](#14-production-architecture)
+   * **Description**: Shows the production deployment nodes (Firebase static CDN, Render Docker containers, Turso edge sqlite nodes, and Apps Script HTTP proxy gateways).
+   * **Link**: [View Deployment Architecture Diagram](#14-production-architecture)
 
-#### 3. Data Flow Diagram (DFD) - Level 0 & Level 1
-* **Location Reference**: [Section 5: Application Architecture](#5-application-architecture)
-* **Description**: Visualizes Level-0 context boundaries and Level-1 process decompositions of data movement.
-
-```mermaid
-graph TD
-    subgraph Data Flow Context DFD (Level 0)
-        UserActor([Public Student / Admin]) -->|Forms / Credentials| Platform{{Trinity R&D Cell System Boundary}}
-        Platform -->|Dynamic PDFs / Roster JSON| UserActor
-        Platform <-->|Proxy payloads| AppsScriptProxy[Google Apps Script Relay]
-        Platform <-->|SQL Statements| TursoDB[(Turso SQLite Cloud)]
-    end
-```
-
----
-
-#### 4. System Use Case Diagram
-* **Location Reference**: [Section 5: Application Architecture](#5-application-architecture)
-* **Description**: Maps out actors (Public Candidates, Club Administrators, Developers) and their use case interactions.
-
-```mermaid
-graph TD
-    subgraph "Trinity R&D Cell Use Case System Boundary"
-        UC1[Submit Membership Enrollment Application]
-        UC2[Register Event / Hackathon Team]
-        UC3[Verify Certificate Code & View PDF]
-        UC4[View/Modify Application Rosters]
-        UC5[Trigger Bulk Certificate/Offer Letter Dispatches]
-        UC6[Manage Events / Engineering Branches]
-        UC7[Synchronize Base templates into Database]
-        UC8[Configure Environment Credentials]
-    end
-
-    PublicActor([Public Candidate / Guest]) --> UC1
-    PublicActor --> UC2
-    PublicActor --> UC3
-
-    AdminActor([Club Administrator / Super Admin]) --> UC4
-    AdminActor --> UC5
-    AdminActor --> UC6
-
-    DevActor([Developer / System Engineer]) --> UC7
-    DevActor --> UC8
-    DevActor --> UC4
-```
-
----
-
-#### 5. Sequence Diagrams
-* **Location Reference**: [Section 5: Application Architecture](#5-application-architecture)
-* **Description**: Detailed workflows for applicant registration, credential lookups, and bulk email deliveries.
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Admin as Admin Portal Client
-    participant API as Express API Server
-    participant DB as Turso SQLite Cloud
-    participant Proxy as Apps Script HTTPS Proxy
-    participant Gmail as Gmail SMTP API
-
-    Note over Admin, Gmail: Core Application Process: Bulk Certificate Dispatch
-    Admin->>API: POST /api/admin/bulk-send/certificates (Event title)
-    API->>DB: Query approved event registrations
-    DB-->>API: List of 15 candidate records
-    API->>API: Parse base64 PPTX templates & replace XML slide placeholders
-    API->>API: Execute LibreOffice headless CLI converting 15 PPTX files to PDF
-    loop Dispatch loop (Concurrency Limit: 10)
-        API->>Proxy: POST JSON (Base64 PDF attachment + email body)
-        Proxy->>Gmail: Direct OAuth email dispatch call
-        Gmail-->>Proxy: Send confirmation
-        Proxy-->>API: 200 OK Response
-        API->>DB: UPDATE event_registrations SET certificate_sent = 1
-        API-->>Admin: SSE progress Sync packet
-    end
-```
-
----
-
-#### 6. Database ER Diagram
-* **Location Reference**: [Section 10: Database Documentation](#10-database-documentation)
-* **Description**: Illustrates table schemas, primary keys, foreign keys, and relationships.
-
-```mermaid
-erDiagram
-    admins {
-        integer id PK
-        text username
-        text password_hash
-        text role
-        text created_at
-    }
-    events {
-        integer id PK
-        text title
-        text description
-        text date
-        text created_at
-    }
-    club_applications {
-        integer id PK
-        text full_name
-        text email
-        text phone
-        text branch
-        text year_of_study
-        text status
-        integer offer_sent
-        text created_at
-    }
-    event_registrations {
-        integer id PK
-        integer event_id FK
-        text team_name
-        text full_name
-        text email
-        text phone
-        text branch
-        text status
-        text certificate_id
-        integer certificate_sent
-        text created_at
-    }
-    templates {
-        integer id PK
-        text name
-        text data_base64
-        text created_at
-    }
-    activity_logs {
-        integer id PK
-        text action
-        text details
-        text created_at
-    }
-    event_registrations }o--|| events : "registers for"
-```
-
----
-
-#### 7. Frontend–Backend–Database Relationship Diagram
-* **Location Reference**: [Section 25: Database/API/Frontend Relationship](#25-databaseapifrontend-relationship)
-* **Description**: Visually maps communications between the browser user interface, Node service controller routers, and Turso Edge LibSQL.
-
-```mermaid
-graph LR
-    subgraph Client Layer (Vite React TS)
-        UI[User Interface Page Components] -->|State Management| State[React Hooks: useState/useEffect]
-        State -->|HTTP Requests / SSE| API_Client[Fetch Client / EventSource]
-    end
-
-    subgraph Service Layer (Node Express TS)
-        API_Client -->|REST REST API Routing| Express[Express App Router]
-        Express -->|Request validation & JWT Auth| Middleware[Middleware Controllers]
-        Middleware -->|Business operations: PPTX/PDF| Controllers[Service Handlers]
-    end
-
-    subgraph Storage Layer (Turso LibSQL Edge)
-        Controllers -->|SQL Execution / Transactions| TursoClient[Turso Database Client]
-        TursoClient -->|Synchronous Edge replication| TursoDB[(Turso Edge SQL DB)]
-    end
-
-    style UI fill:#61dafb,stroke:#00d8ff,stroke-width:2px,color:#000
-    style Express fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
-    style TursoDB fill:#00a3a6,stroke:#008080,stroke-width:2px,color:#fff
-```
-
----
-
-#### 8. Production/Deployment Architecture Diagram
-* **Location Reference**: [Section 14: Production Architecture](#14-production-architecture)
-* **Description**: Shows the production deployment nodes (Firebase static CDN, Render Docker containers, Turso edge sqlite nodes, and Apps Script HTTP proxy gateways).
-
-```mermaid
-graph TD
-    User([Public User / Admin Client]) -->|HTTPS: Port 443| Firebase[Firebase Hosting CDN]
-    User -->|HTTPS REST API / SSE Sync| Render[Render Web Service Docker Container]
-    Render -->|LibSQL Protocol: Port 443| Turso[(Turso Edge Cloud SQLite)]
-    Render -->|HTTPS POST JSON| GoogleProxy[Google Apps Script Proxy]
-    GoogleProxy -->|Gmail API OAuth Secure Relay| Gmail[Gmail Dispatch Engine]
-
-    subgraph Host Boundaries
-        Firebase
-        Render
-        Turso
-        GoogleProxy
-    end
-```
-
----
-
-#### 9. External Service Dependency Diagram
-* **Location Reference**: [Section 33: External Service Dependency Map](#33-external-service-dependency-map)
-* **Description**: Details all external third-party integrations and dependencies.
-
-```mermaid
-graph TD
-    subgraph Trinity Bulk Certificate Platform
-        App[Node.js Express API Server]
-    end
-
-    subgraph External Dependencies
-        Turso["Turso Edge SQLite (Cloud DB)"]
-        AppsScript["Google Apps Script Proxy (Web App)"]
-        GmailAPI["Gmail API (SMTP Relay Gateway)"]
-        Firebase["Firebase Hosting (Static Asset CDN)"]
-        UptimeRobot["UptimeRobot (Pings /api/health)"]
-    end
-
-    App -->|LibSQL Query Exec| Turso
-    App -->|HTTPS JSON Relay| AppsScript
-    AppsScript -->|Secure Dispatch| GmailAPI
-    App -.->|Served static pages| Firebase
-    UptimeRobot -->|Periodic ping keeps awake| App
-```
+9. **External Service Dependency Diagram**
+   * **Location Reference**: [Section 33: External Service Dependency Map](#33-external-service-dependency-map)
+   * **Description**: Details all external third-party integrations and dependencies.
+   * **Link**: [View Service Dependency Diagram](#33-external-service-dependency-map)
 
 ---
 
 ### B. Testing & Verification Lifecycle Diagrams
 
-#### 10. Unit Testing Diagram
-* **Location Reference**: [Section 16.A: Unit Testing Results](#16-testing)
-* **Description**: Process flow of isolated logic helpers verification.
+10. **Unit Testing Diagram**
+    * **Location Reference**: [Section 16.A: Unit Testing Results](#16-testing)
+    * **Description**: Process flow of isolated logic helpers verification.
+    * **Link**: [View Unit Testing Diagram](#16-testing)
 
-```mermaid
-graph TD
-    subgraph "Unit Test Inputs"
-        I1["Template Name: CERTIFICATE_TEMPLATE.pptx"]
-        I2["Casing Targets: won second place / coordinator"]
-        I3["ISO Timestamp: 2026-08-16T17:48:40"]
-    end
+11. **Black-Box Testing Diagram**
+    * **Location Reference**: [Section 16.B: Black-Box Testing Results](#16-testing)
+    * **Description**: Sequence diagram showing public API boundary integrations.
+    * **Link**: [View Black-Box Testing Diagram](#16-testing)
 
-    subgraph "Isolated Helper Utilities (Logic Layer)"
-        UT1["findTemplateFile()"]
-        UT2["normalizeStatusCasing()"]
-        UT3["formatDate()"]
-    end
+12. **White-Box Testing Diagram**
+    * **Location Reference**: [Section 16.C: White-Box Testing Results](#16-testing)
+    * **Description**: Diagram showing internal branch coverage and exception handling paths.
+    * **Link**: [View White-Box Testing Diagram](#16-testing)
 
-    subgraph "Verification & Expected Outputs"
-        O1["Resolved Absolute Path / Null if missing"]
-        O2["Normalized Casing: Won Second Place / Coordinator"]
-        O3["Formatted String: August 16, 2026"]
-    end
+13. **Gray-Box/Green-Box Testing Diagram**
+    * **Location Reference**: [Section 16.D: Gray-Box & Integration Testing Results](#16-testing)
+    * **Description**: Visualizes multi-subsystem integrations, Server SSE stream listeners, and Google Apps Script integrations.
+    * **Link**: [View Gray-Box Testing Diagram](#16-testing)
 
-    I1 --> UT1 --> O1
-    I2 --> UT2 --> O2
-    I3 --> UT3 --> O3
-```
+14. **Testing & Bug-Fix Flow Diagram**
+    * **Location Reference**: [Section 16.F: Detailed Testing & Bug-Fix Report](#16-testing)
+    * **Description**: Visual workflow mapping bug diagnosis, fixing, and retesting loops.
+    * **Link**: [View Bug-Fix Flow Diagram](#16-testing)
 
----
+15. **CI/CD Pipeline Diagram**
+    * **Location Reference**: [Section 18: CI/CD](#18-cicd)
+    * **Description**: CI/CD automation workflow diagram showing type checks, linters, bundling compilers, and hosting deployments.
+    * **Link**: [View CI/CD Pipeline Diagram](#18-cicd)
 
-#### 11. Black-Box Testing Diagram
-* **Location Reference**: [Section 16.B: Black-Box Testing Results](#16-testing)
-* **Description**: Sequence diagram showing public API boundary integrations.
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Client as Client Browser / Postman
-    participant Router as Express API Router
-    participant DB as Turso DB SQLite Cloud
-
-    Client->>Router: GET /api/verify-certificate/[id]
-    Router->>DB: Query certificate details
-    alt Certificate Exists & Issued
-        DB-->>Router: Record data
-        Router-->>Client: 200 OK (Candidate metadata JSON)
-    else Missing / Unissued Certificate
-        DB-->>Router: Null record
-        Router-->>Client: 404 Not Found (Error: Certificate not found)
-    end
-```
-
----
-
-#### 12. White-Box Testing Diagram
-* **Location Reference**: [Section 16.C: White-Box Testing Results](#16-testing)
-* **Description**: Diagram showing internal branch coverage and exception handling paths.
-
-```mermaid
-graph TD
-    PP1["PPTX Template Buffer"] --> XML1["PizZip XML Parser"]
-    XML1 -->|Substituted dynamic tags| XML2["Slide XML Nodes"]
-    XML2 -->|Missing tags ignored| XML3["Save Ephemeral Slides to /tmp"]
-    XML3 --> PDF1["Headless LibreOffice Process"]
-    PDF1 -->|Execution Exception caught| Catch1["Wipe Ephemeral Files in 'finally' block"]
-    PDF1 -->|Success| Out1["Wipe Ephemeral Files in 'finally' block"]
-```
-
----
-
-#### 13. Gray-Box/Green-Box Testing Diagram
-* **Location Reference**: [Section 16.D: Gray-Box & Integration Testing Results](#16-testing)
-* **Description**: Visualizes multi-subsystem integrations, Server SSE stream listeners, and Google Apps Script integrations.
-
-```mermaid
-graph TD
-    Admin["Admin Actions / DB Writes"] -->|Trigger| SSE1["Express /api/sync-stream"]
-    SSE1 -->|SSE Broadcast Event| SSE2["CustomEvent 'app-sync'"]
-    SSE2 -->|Window Event Dispatch| Client["Reload Dashboard states automatically"]
-```
-
----
-
-#### 14. Testing & Bug-Fix Flow Diagram
-* **Location Reference**: [Section 16.F: Detailed Testing & Bug-Fix Report](#16-testing)
-* **Description**: Visual workflow mapping bug diagnosis, fixing, and retesting loops.
-
-```mermaid
-graph TD
-    subgraph "Defect 3: Temporal Dead Zone (TDZ) Crash"
-        E3["Original Error: ReferenceError in Verify Page"] --> D3["Debug: const functions are not hoisted in JS"]
-        D3 --> F3["Fix: Move handleVerify definition before useEffect"]
-        F3 --> R3["Retest: Direct route navigation query checks"]
-        R3 --> S3{"Status?"}
-        S3 -->|Clean load and PDF streaming| P3["PASS (Verified)"]
-    end
-```
-
----
-
-#### 15. CI/CD Pipeline Diagram
-* **Location Reference**: [Section 18: CI/CD](#18-cicd)
-* **Description**: CI/CD automation workflow diagram showing type checks, linters, bundling compilers, and hosting deployments.
-
-```mermaid
-graph LR
-    Push[Code Push to origin/master] --> BuildCheck[tsc -b TypeScript verification]
-    BuildCheck -->|Success| LintCheck[npm run lint validation]
-    LintCheck -->|Success| BuildAssets[Vite build production assets]
-    BuildAssets -->|Success| PushRemote[Github Push complete]
-```
-
----
-
-#### 16. TRL & Implementation Readiness Diagram
-* **Location Reference**: [Section 35: Technology Readiness Level (TRL) & Implementation Readiness (IR) Assessment](#35-technology-readiness-level-trl--implementation-readiness-ir-assessment)
-* **Description**: Progression flowchart mapping current validation proofs to operational transition parameters.
-
-```mermaid
-graph TD
-    TRL6["TRL 6: Prototype Demonstrated in Representative Environment"]
-    IR6["IR 6: Integration & Verification Complete (Operational Pilot Ready)"]
-    TRL6 & IR6 --> Validation["Validation checkpoints verified"]
-    Validation --> Progression["Progression path to Transition Readiness"]
-```
+16. **TRL & Implementation Readiness Diagram**
+    * **Location Reference**: [Section 35: Technology Readiness Level (TRL) & Implementation Readiness (IR) Assessment](#35-technology-readiness-level-trl--implementation-readiness-ir-assessment)
+    * **Description**: Progression flowchart mapping current validation proofs to operational transition parameters.
+    * **Link**: [View TRL & IR Maturity Diagram](#35-technology-readiness-level-trl--implementation-readiness-ir-assessment)
 
