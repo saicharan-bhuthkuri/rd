@@ -708,8 +708,8 @@ sequenceDiagram
     participant GAS as Google Apps Script
     
     Admin->>FE: Click "Send Certificates"
-    FE->>BE: POST /api/admin/bulk-send/certificates (with JWT)
-    BE->>BE: Validate Admin JWT Signature
+    FE->>BE: POST /api/admin/bulk-send/certificates (with cookie & X-CSRF-Token)
+    BE->>BE: Validate Admin JWT cookie & verify CSRF header
     BE->>DB: Query pending candidates & resolve mapped PPTX templates
     DB-->>BE: Candidate details (Name, Date) & Template data (Base64)
     
@@ -1422,7 +1422,7 @@ sequenceDiagram
     Router->>Auth: Validate password hash
     Auth-->>Router: Verification status
     alt Valid Credentials
-        Router-->>Client: 200 OK (JWT Token + User profile)
+        Router-->>Client: 200 OK (Set-Cookie: admin_token + CSRF Token + User Profile)
     else Invalid Credentials
         Router-->>Client: 401 Unauthorized (Error JSON)
     end
@@ -1443,7 +1443,7 @@ sequenceDiagram
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **BB-001** | POST `/api/apply/club` | Valid JSON applicant payload | Save applicant and return `201 Created` with success flag | Status `201` with `{"success":true,"message":"Application submitted"}` | **PASS** | None |
 | **BB-002** | POST `/api/apply/event` | Invalid email format input: `"student_at_tcek_dot_com"` | Block request, return `400 Bad Request` with error details | Status `400` returned with validation failure JSON | **PASS** | **Bug BB-01**: Empty/malformed email strings bypassed checks on early server builds. **Fix**: Integrated strict validation regex inside route controls. Retests passed successfully. |
-| **BB-003** | POST `/api/admin/login` | Correct administrator username & password hash credentials | Return `200 OK` with signed JWT token and user profile | Status `200` with signed token string and admin profile payload | **PASS** | None |
+| **BB-003** | POST `/api/admin/login` | Correct administrator credentials | Return `200 OK` with HttpOnly JWT Cookie, CSRF Token and user profile | Status `200` with cookie payload, CSRF token body and profile | **PASS** | None |
 | **BB-004** | POST `/api/admin/login` | Incorrect password or non-existent username | Return `401 Unauthorized` | Status `401` with `Invalid username or password` payload | **PASS** | None |
 | **BB-005** | GET `/api/verify-certificate/INVALID` | Non-existent reference code | Return `404 Not Found` with warning | Status `404` with `Certificate not found or not yet issued` | **PASS** | None |
 | **BB-006** | GET `/api/verify-certificate/TCEK/RD/2026/0001` | Valid reference ID (issued certificate) | Return `200 OK` with candidate name, event name, status, and issue date | Status `200` with matching candidate metadata details | **PASS** | None |
@@ -2202,19 +2202,19 @@ Below are the mapped routes defined within [`frontend/src/App.tsx`](file:///c:/U
 ```mermaid
 graph LR
     subgraph "Client Layer (Vite React TS)"
-        UI[User Interface Page Components] -->|State Management| State[React Hooks: useState/useEffect]
-        State -->|HTTP Requests / SSE| API_Client[Fetch Client / EventSource]
+        UI[User Interface Page Components] -->|"State Management"| State[React Hooks: useState/useEffect]
+        State -->|"HTTP Requests / SSE"| API_Client[Fetch Client / EventSource]
     end
 
     subgraph "Service Layer (Node Express TS)"
-        API_Client -->|REST REST API Routing| Express[Express App Router]
-        Express -->|Request validation & JWT Auth| Middleware[Middleware Controllers]
-        Middleware -->|Business operations: PPTX/PDF| Controllers[Service Handlers]
+        API_Client -->|"REST REST API Routing"| Express[Express App Router]
+        Express -->|"Request validation & JWT Auth"| Middleware[Middleware Controllers]
+        Middleware -->|"Business operations: PPTX/PDF"| Controllers[Service Handlers]
     end
 
     subgraph "Storage Layer (Turso LibSQL Edge)"
-        Controllers -->|SQL Execution / Transactions| TursoClient[Turso Database Client]
-        TursoClient -->|Synchronous Edge replication| TursoDB[(Turso Edge SQL DB)]
+        Controllers -->|"SQL Execution / Transactions"| TursoClient[Turso Database Client]
+        TursoClient -->|"Synchronous Edge replication"| TursoDB[(Turso Edge SQL DB)]
     end
 
     style UI fill:#61dafb,stroke:#00d8ff,stroke-width:2px,color:#000
@@ -2391,11 +2391,11 @@ graph TD
         UptimeRobot["UptimeRobot (Pings /api/health)"]
     end
 
-    App -->|LibSQL Query Exec| Turso
-    App -->|HTTPS JSON Relay| AppsScript
-    AppsScript -->|Secure Dispatch| GmailAPI
-    App -.->|Served static pages| Firebase
-    UptimeRobot -->|Periodic ping keeps awake| App
+    App -->|"LibSQL Query Exec"| Turso
+    App -->|"HTTPS JSON Relay"| AppsScript
+    AppsScript -->|"Secure Dispatch"| GmailAPI
+    App -.->|"Served static pages"| Firebase
+    UptimeRobot -->|"Periodic ping keeps awake"| App
 ```
 
 ---
