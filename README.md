@@ -583,24 +583,93 @@ The system integrates with the following providers:
 
 ## 13. Complete Deployment Documentation
 
-### A. Backend hosting (Render Docker Containers)
-Render uses the preconfigured `Dockerfile` to build a Linux environment containing LibreOffice, custom fonts, and Node.js.
+### A. Backend Hosting (Render Docker Containers)
+The backend API server requires a Linux container to execute headless LibreOffice and manage dynamic PPTX-to-PDF certificate compilation. Render uses a custom **Docker-based deployment** to build and run the backend.
 
-#### Render Deployment Steps:
-1. Push the code to a Git repository.
-2. Open Render and click **New > Web Service**.
-3. Choose the Git repository.
-4. **Configuration Settings**:
-   * **Environment**: `Docker`
-   * **Root Directory**: `backend`
-5. **Add Environment Variables**:
-   * `PORT`: `5000`
-   * `TURSO_URL`, `TURSO_TOKEN`, `JWT_SECRET`
-   * `SENDER_EMAIL`, `SENDER_PASSWORD`
-   * `GMAIL_HTTP_PROXY_URL`
-6. Click **Create Web Service**. Render builds the image and deploys with HTTPS support.
+* **Service Type**: Web Service (Docker-based).
+* **Repository & Branch**: Master/main branch of the connected GitHub/GitLab repository.
+* **Docker Image**: Builds on `node:20-bullseye-slim` (defined in the [`backend/Dockerfile`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/Dockerfile)).
+* **Build Command**: Custom commands are handled by the Docker file, which executes `npm install` and `npm run build` (compiles TypeScript to JS under the `/app/dist` folder) automatically inside the container.
+* **Start Command**: `npm start` (runs `node dist/index.js`).
+* **Root Directory**: `backend` (configured in the Render settings page).
+* **Port Configuration**: Exposes internal container port `5000` (Render dynamically maps incoming HTTPS requests on public port 443 to the container's port).
+* **Health Check Endpoint**: `/api/health` (publicly accessible, no authentication required, returns standard JSON status metadata).
+* **Auto-Deployment**: Render automatically pulls, rebuilds the Docker container, and performs a zero-downtime rolling restart whenever a commit is pushed to the tracked Git branch.
+* **Restart Behavior**: If the container crashes or encounters memory faults, Render automatically spins up a fresh container instance.
+* **Custom Domain & DNS Configuration**:
+  1. Add a custom domain in Render's settings tab.
+  2. Point a CNAME record from your DNS registrar (e.g. Cloudflare) to the Render sub-domain (e.g. `rd-backend.onrender.com`), or set up an A record targeting Render's public IPs for root apex domains.
+  3. Render handles SSL/TLS certificate issuing and automatic renewal via Let's Encrypt.
+* **Common Deployment Failures**:
+  * *Build Timeouts*: Pulling Node modules, installing LibreOffice (`apt-get install -y libreoffice`), and downloading custom fonts can take several minutes. Ensure the service build timeout allows for these installations.
+  * *OutOfMemory (OOM) Errors*: Headless LibreOffice requires considerable RAM during batch operations. The codebase implements `runWithConcurrency` (throttled to a maximum limit of `10`) to limit concurrent executions and prevent container OOM restarts.
+  * *Cold Start Delays*: Render's free tier spins down the web service after 15 minutes of inactivity. The first request after a sleep period will take up to 50 seconds to complete while the Docker container boots up.
 
-### B. Frontend hosting (Firebase Hosting)
+---
+
+### B. Google Apps Script Email Proxy
+Render's free tier blocks outgoing SMTP ports (25, 465, 587) to prevent spam, which prevents standard Nodemailer configurations from sending certificate emails. To resolve this, the system is designed to bypass SMTP blocks entirely by sending Base64-encoded PDF attachments via standard HTTPS POST request over port 443 to a custom Google Apps Script Web App.
+
+* **Purpose**: Bypasses SMTP outgoing port locks.
+* **Operation Flow**: Express Server $\rightarrow$ HTTP POST payload $\rightarrow$ Google Apps Script Proxy $\rightarrow$ Gmail Service API $\rightarrow$ Recipient inbox.
+* **Apps Script Source Code**:
+  Create a new project at [script.google.com](https://script.google.com/) and paste the following implementation:
+  ```javascript
+  function doPost(e) {
+    try {
+      var data = JSON.parse(e.postData.contents);
+      
+      // Map base64 strings back to file blobs
+      var attachments = (data.attachments || []).map(function(att) {
+        return Utilities.newBlob(
+          Utilities.base64Decode(att.base64), 
+          att.mimeType || 'application/pdf', 
+          att.filename || 'attachment.pdf'
+        );
+      });
+      
+      // Dispatch via Google's native MailApp
+      MailApp.sendEmail({
+        to: data.to,
+        subject: data.subject,
+        body: data.text,
+        attachments: attachments
+      });
+      
+      return ContentService.createTextOutput(JSON.stringify({ success: true }))
+        .setMimeType(ContentService.MimeType.JSON);
+    } catch (err) {
+      return ContentService.createTextOutput(JSON.stringify({ success: false, error: err.message }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+  ```
+* **Deployment Steps**:
+  1. Click **Deploy > New Deployment**.
+  2. Select type: **Web App**.
+  3. Configure parameters:
+     * **Execute as**: *Me (your_gmail_address@gmail.com)*
+     * **Who has access**: *Anyone* (This allows the Render backend server to post requests).
+  4. Click **Deploy** and authorize permissions.
+  5. Copy the generated **Web App URL** and configure it as `GMAIL_HTTP_PROXY_URL` in the Render environment variables.
+* **Authentication**: Credentials are managed natively by Google Apps Script within your Google account workspace. No secret API keys or OAuth client secrets are stored on Render, minimizing security risks.
+
+---
+
+### C. UptimeRobot Monitoring
+To prevent Render instances from going into sleep mode (avoiding the 50-second cold start lag) and to receive instant down-state notifications, UptimeRobot should be configured to ping the backend server.
+
+* **Target Monitored Endpoint**: `https://your-backend-name.onrender.com/api/health`
+* **Monitor Type**: HTTPS health check.
+* **Expected Response HTTP Status**: `200 OK` (checks if the server responds with a valid `{"status":"online"}` payload).
+* **Monitoring Interval**: Configured to run every **5 minutes** (this prevents the Render container from spinning down due to inactivity).
+* **Downtime Definiton**: Downtime is recorded if the endpoint returns a non-2xx status code (e.g. 500 Database Error, 503 Service Unavailable) or if requests timeout after **30 seconds**.
+* **Alert Configurations**: Set up notifications to send emails or triggers when a down status is confirmed.
+* **Troubleshooting False Alerts**: Render free tier cold-starts take about 50 seconds to complete. If the server is in a sleep state when UptimeRobot checks it, the first check will exceed the standard 30-second timeout and trigger a false down notification. If this occurs, increase the response timeout limit inside UptimeRobot to 60 seconds.
+
+---
+
+### D. Frontend hosting (Firebase Hosting)
 Frontend React assets are built and deployed directly to Firebase Hosting.
 
 #### Firebase Deployment Steps:
