@@ -193,7 +193,7 @@ The system is split into distinct functional modules:
 * **Auth Requirements**: Enforced across all administrative paths.
 
 #### 8. Automated Administrator Account Recovery
-* **What it does**: Self-service forgot-password workflow. Admins enter their registered email, which generates a short-lived (15 minutes) secure reset token sent via the system email handler. Clicking the link takes the user to a reset page to update their credentials.
+* **What it does**: Self-service forgot-password workflow. Admins enter their registered email, which generates a short-lived (15 minutes) secure reset token sent via the system email handler. Clicking the link takes the user to a reset page where the React frontend automatically parses and validates the token on mount. If expired, it blocks form entry and displays a warning with a shortcut to request a new link.
 * **Implementation Location**: [`AdminForgotPasswordPage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/pages/AdminForgotPasswordPage.tsx), [`AdminResetPasswordPage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/pages/AdminResetPasswordPage.tsx), and [`backend/src/index.ts`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts)
 * **Backend API**: `POST /api/admin/forgot-password`, `POST /api/admin/reset-password`
 * **Database Tables**: `admin_users`
