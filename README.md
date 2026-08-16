@@ -382,6 +382,33 @@ graph TD
     GASProxy -->|Gmail API Auth| Gmail[Gmail SMTP/HTTP Dispatch]
 ```
 
+#### End-to-End Application Workflow Diagram
+
+```mermaid
+graph TD
+    subgraph Enrollment Workflow
+        Candidate([Student / Applicant]) -->|Submit Form| AppPortal[Apply Page / React Client]
+        AppPortal -->|POST /api/apply/club| ExpressAPI[Express API Backend]
+        ExpressAPI -->|SQL insert| TursoDB[(Turso Edge SQLite)]
+    end
+
+    subgraph Administration & Approval Workflow
+        Admin([Club Administrator]) -->|Log into portal| AdminUI[Admin Dashboard]
+        AdminUI -->|View rosters & update status| ExpressAPI
+        ExpressAPI -->|SQL UPDATE| TursoDB
+    end
+
+    subgraph Bulk Document Generation & Dispatch Pipeline
+        AdminUI -->|Trigger bulk dispatches| ExpressAPI
+        ExpressAPI -->|Read PPTX XML & replace placeholders| PizZip[PizZip Template compiler]
+        PizZip -->|Output customized slides| LocalTmp[/tmp ephemerals]
+        LocalTmp -->|Batch convert to PDF| LibreOffice[LibreOffice headless CLI]
+        LibreOffice -->|Base64 binary buffers| GASProxy[Apps Script HTTPS Proxy Gateway]
+        GASProxy -->|Mail dispatch| GmailAPI[Gmail SMTP API]
+        GmailAPI -->|Inbox receipt| Candidate
+    end
+```
+
 ---
 
 ### Core Architectural Subsystems
@@ -2823,88 +2850,114 @@ This directory provides a consolidated index of all project-specific visual repr
 
 ---
 
-### A. Architectural & Data Flow Diagrams
+### A. PART I: PROJECT OVERVIEW & ARCHITECTURE
 
-1. **System Architecture Diagram**
+1. **System Architecture Diagram (Figure 1)**
    * **Location Reference**: [Section 5: Application Architecture](#5-application-architecture)
    * **Description**: Shows the client-server boundaries, database queries, and third-party integrations (Turso DB, Apps Script Proxy, LibreOffice PDF conversions, PizZip PPTX XML parsing).
    * **Link**: [View System Architecture Diagram](#5-application-architecture)
 
-2. **End-to-End Application Workflow Diagram**
-   * **Location Reference**: [Section 5: Application Architecture (Sequence Diagrams)](#5-application-architecture)
+2. **End-to-End Application Workflow Diagram (Figure 2)**
+   * **Location Reference**: [Section 5: Application Architecture](#5-application-architecture)
    * **Description**: Visualizes the workflow process for candidate application submission, status approval, and bulk certificate dispatch.
    * **Link**: [View Workflow Diagram](#5-application-architecture)
 
-3. **Data Flow Diagram (DFD) - Level 0 & Level 1**
+3. **Level-0 Context DFD (Figure 3)**
    * **Location Reference**: [Section 5: Application Architecture](#5-application-architecture)
-   * **Description**: Visualizes Level-0 context boundaries and Level-1 process decompositions of data movement.
+   * **Description**: Visualizes Level-0 context boundaries of data movement across system entry points.
    * **Link**: [View Data Flow Diagram](#5-application-architecture)
 
-4. **System Use Case Diagram**
+4. **System Use Case Diagram (Figure 4)**
    * **Location Reference**: [Section 5: Application Architecture](#5-application-architecture)
-   * **Description**: Maps out actors (Public Candidates, Club Administrators, Developers) and their use case interactions.
+   * **Description**: Maps out actors (Public Candidates, Club Administrators, Developers) and their system boundary use case interactions.
    * **Link**: [View Use Case Diagram](#5-application-architecture)
 
-5. **Sequence Diagrams**
+5. **Bulk Certificate Dispatch Sequence Diagram (Figure 5)**
    * **Location Reference**: [Section 5: Application Architecture](#5-application-architecture)
    * **Description**: Detailed workflows for applicant registration, credential lookups, and bulk email deliveries.
    * **Link**: [View Sequence Diagrams](#5-application-architecture)
 
-6. **Database ER Diagram**
+---
+
+### B. PART II: SYSTEM CORE COMPONENT DOCUMENTATION
+
+6. **Database ER Diagram (Figure 6)**
    * **Location Reference**: [Section 10: Database Documentation](#10-database-documentation)
    * **Description**: Illustrates table schemas, primary keys, foreign keys, and relationships.
    * **Link**: [View Database ER Diagram](#10-database-documentation)
 
-7. **Frontend–Backend–Database Relationship Diagram**
+7. **Frontend–Backend–Database Relationship Diagram (Figure 16)**
    * **Location Reference**: [Section 25: Database/API/Frontend Relationship](#25-databaseapifrontend-relationship)
    * **Description**: Visually maps communications between the browser user interface, Node service controller routers, and Turso Edge LibSQL.
    * **Link**: [View Relationship Diagram](#25-databaseapifrontend-relationship)
 
-8. **Production/Deployment Architecture Diagram**
+---
+
+### C. PART III: PLATFORM CONFIGURATION & DEVELOPMENT ENVIRONMENT
+
+8. **Production/Deployment Architecture Diagram (Figure 7)**
    * **Location Reference**: [Section 14: Production Architecture](#14-production-architecture)
    * **Description**: Shows the production deployment nodes (Firebase static CDN, Render Docker containers, Turso edge sqlite nodes, and Apps Script HTTP proxy gateways).
    * **Link**: [View Deployment Architecture Diagram](#14-production-architecture)
 
-9. **External Service Dependency Diagram**
+9. **External Service Dependency Diagram (Figure 17)**
    * **Location Reference**: [Section 33: External Service Dependency Map](#33-external-service-dependency-map)
    * **Description**: Details all external third-party integrations and dependencies.
    * **Link**: [View Service Dependency Diagram](#33-external-service-dependency-map)
 
 ---
 
-### B. Testing & Verification Lifecycle Diagrams
+### D. PART IV: QUALITY ASSURANCE & SYSTEM TESTING
 
-10. **Unit Testing Diagram**
+10. **Testing Architecture & Verification Flow Diagram (Figure 8)**
+    * **Location Reference**: [Section 16: Testing](#16-testing)
+    * **Description**: Visualizes compilation checks, linter runs, local integration test runners, and production deployment hooks.
+    * **Link**: [View Testing Flow Diagram](#16-testing)
+
+11. **Unit Testing Diagram (Figure 9)**
     * **Location Reference**: [Section 16.A: Unit Testing Results](#16-testing)
     * **Description**: Process flow of isolated logic helpers verification.
     * **Link**: [View Unit Testing Diagram](#16-testing)
 
-11. **Black-Box Testing Diagram**
+12. **Black-Box Testing Diagram (Figure 10)**
     * **Location Reference**: [Section 16.B: Black-Box Testing Results](#16-testing)
     * **Description**: Sequence diagram showing public API boundary integrations.
     * **Link**: [View Black-Box Testing Diagram](#16-testing)
 
-12. **White-Box Testing Diagram**
+13. **White-Box Testing Diagram (Figure 11)**
     * **Location Reference**: [Section 16.C: White-Box Testing Results](#16-testing)
     * **Description**: Diagram showing internal branch coverage and exception handling paths.
     * **Link**: [View White-Box Testing Diagram](#16-testing)
 
-13. **Gray-Box/Green-Box Testing Diagram**
+14. **Gray-Box/Green-Box Testing Diagram (Figure 12)**
     * **Location Reference**: [Section 16.D: Gray-Box & Integration Testing Results](#16-testing)
-    * **Description**: Visualizes multi-subsystem integrations, Server SSE stream listeners, and Google Apps Script integrations.
+    * **Description**: Visualizes SSE sync channels and Google Apps Script proxy relays.
     * **Link**: [View Gray-Box Testing Diagram](#16-testing)
 
-14. **Testing & Bug-Fix Flow Diagram**
+15. **SMTP Mail Block Debugging Flow Diagram (Figure 13)**
     * **Location Reference**: [Section 16.F: Detailed Testing & Bug-Fix Report](#16-testing)
-    * **Description**: Visual workflow mapping bug diagnosis, fixing, and retesting loops.
-    * **Link**: [View Bug-Fix Flow Diagram](#16-testing)
+    * **Description**: Visual workflow mapping port block timeouts debugging to Apps Script HTTPS proxy relays.
+    * **Link**: [View SMTP Debugging Diagram](#16-testing)
 
-15. **CI/CD Pipeline Diagram**
+16. **Hook setState Loop Debugging Flow Diagram (Figure 14)**
+    * **Location Reference**: [Section 16.F: Detailed Testing & Bug-Fix Report](#16-testing)
+    * **Description**: Visual workflow mapping React render cycle loops debugging to setTimeout macro-task schedules.
+    * **Link**: [View Hook Loop Debugging Diagram](#16-testing)
+
+---
+
+### E. PART V: BUILD & CI/CD CONFIGURATION
+
+17. **CI/CD Pipeline Diagram (Figure 15)**
     * **Location Reference**: [Section 18: CI/CD](#18-cicd)
     * **Description**: CI/CD automation workflow diagram showing type checks, linters, bundling compilers, and hosting deployments.
     * **Link**: [View CI/CD Pipeline Diagram](#18-cicd)
 
-16. **TRL & Implementation Readiness Diagram**
+---
+
+### F. PART VII: SYSTEM READINESS & VISUAL DIRECTORY
+
+18. **TRL & Implementation Readiness Diagram (Figure 18)**
     * **Location Reference**: [Section 35: Technology Readiness Level (TRL) & Implementation Readiness (IR) Assessment](#35-technology-readiness-level-trl--implementation-readiness-ir-assessment)
     * **Description**: Progression flowchart mapping current validation proofs to operational transition parameters.
     * **Link**: [View TRL & IR Maturity Diagram](#35-technology-readiness-level-trl--implementation-readiness-ir-assessment)
