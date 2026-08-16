@@ -717,6 +717,38 @@ app.get('/api/status', async (req, res) => {
   }
 });
 
+// Health Check Endpoint (publicly accessible, no auth, monitored by UptimeRobot)
+app.get('/api/health', (req, res) => {
+  try {
+    let groqModels: any = undefined;
+    try {
+      if (typeof (globalThis as any).GROQ_MODELS !== 'undefined') {
+        groqModels = (globalThis as any).GROQ_MODELS;
+      } else if (typeof (global as any).GROQ_MODELS !== 'undefined') {
+        groqModels = (global as any).GROQ_MODELS;
+      } else if (process.env.GROQ_MODELS) {
+        try {
+          groqModels = JSON.parse(process.env.GROQ_MODELS);
+        } catch {
+          groqModels = process.env.GROQ_MODELS;
+        }
+      }
+    } catch {
+      // safe fallback
+    }
+
+    return res.status(200).json({
+      status: "online",
+      provider: "Groq",
+      models: groqModels !== undefined ? groqModels : null
+    });
+  } catch (error) {
+    return res.status(503).json({
+      status: "offline"
+    });
+  }
+});
+
 // 5. Admin Login
 app.post('/api/admin/login', async (req, res) => {
   const { username, password } = req.body;
