@@ -8,24 +8,36 @@ The system features dynamic template compilation by directly parsing PowerPoint 
 
 ## Table of Contents
 * [Table of Figures, Diagrams, and Charts](#table-of-figures-diagrams-and-charts)
+
+### [PART I: PROJECT OVERVIEW & ARCHITECTURE](#part-i-project-overview--architecture)
 1. [Project Overview](#1-project-overview)
 2. [Key Features](#2-key-features)
 3. [Complete Technology Stack](#3-complete-technology-stack)
 4. [Complete Folder and File Structure](#4-complete-folder-and-file-structure)
 5. [Application Architecture](#5-application-architecture)
+
+### [PART II: SYSTEM CORE COMPONENT DOCUMENTATION](#part-ii-system-core-component-documentation)
 6. [Frontend Documentation](#6-frontend-documentation)
 7. [Backend Documentation](#7-backend-documentation)
 8. [API Documentation](#8-api-documentation)
 9. [Authentication & Authorization](#9-authentication--authorization)
 10. [Database Documentation](#10-database-documentation)
+
+### [PART III: PLATFORM CONFIGURATION & DEVELOPMENT ENVIRONMENT](#part-iii-platform-configuration--development-environment)
 11. [Environment Variables](#11-environment-variables)
 12. [Third-Party Services & Integrations](#12-third-party-services--integrations)
 13. [Complete Deployment Documentation](#13-complete-deployment-documentation)
 14. [Production Architecture](#14-production-architecture)
 15. [Development Workflow](#15-development-workflow)
+
+### [PART IV: QUALITY ASSURANCE & SYSTEM TESTING](#part-iv-quality-assurance--system-testing)
 16. [Testing](#16-testing)
+
+### [PART V: BUILD & CI/CD CONFIGURATION](#part-v-build--cicd-configuration)
 17. [Build & Production](#17-build--production)
 18. [CI/CD](#18-cicd)
+
+### [PART VI: SYSTEM MAINTENANCE, SECURITY & DIAGNOSTICS](#part-vi-system-maintenance-security--diagnostics)
 19. [Error Handling & Troubleshooting](#19-error-handling--troubleshooting)
 20. [Security](#20-security)
 21. [Dependencies](#21-dependencies)
@@ -42,6 +54,8 @@ The system features dynamic template compilation by directly parsing PowerPoint 
 32. [Production Quick Reference](#32-production-quick-reference)
 33. [External Service Dependency Map](#33-external-service-dependency-map)
 34. [Core Algorithms Pseudocode](#34-core-algorithms-pseudocode)
+
+### [PART VII: SYSTEM READINESS & VISUAL DIRECTORY](#part-vii-system-readiness--visual-directory)
 35. [Technology Readiness Level (TRL) & Implementation Readiness (IR) Assessment](#35-technology-readiness-level-trl--implementation-readiness-ir-assessment)
 36. [Visual Diagrams Directory](#36-visual-diagrams-directory)
 
@@ -71,6 +85,8 @@ The system features dynamic template compilation by directly parsing PowerPoint 
 | **Figure 18** | Technology Readiness & Implementation Maturity | Readiness level proofs (TRL 6 / IR 6) and future migration goals. | [35. TRL & IR Assessment](#35-technology-readiness-level-trl--implementation-readiness-ir-assessment) | [View Figure](#35-technology-readiness-level-trl--implementation-readiness-ir-assessment) |
 
 ---
+
+# PART I: PROJECT OVERVIEW & ARCHITECTURE
 
 ## 1. Project Overview
 
@@ -620,6 +636,8 @@ sequenceDiagram
 
 ---
 
+# PART II: SYSTEM CORE COMPONENT DOCUMENTATION
+
 ## 6. Frontend Documentation
 
 ### Entry Point
@@ -953,6 +971,8 @@ erDiagram
 
 ---
 
+# PART III: PLATFORM CONFIGURATION & DEVELOPMENT ENVIRONMENT
+
 ## 11. Environment Variables
 
 Below are the environment variables defined within [`backend/src/index.ts`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts):
@@ -1162,6 +1182,8 @@ GMAIL_HTTP_PROXY_URL=your_google_script_deployment_url
 * Open your browser to `http://localhost:5173/`.
 
 ---
+
+# PART IV: QUALITY ASSURANCE & SYSTEM TESTING
 
 ## 16. Testing
 
@@ -1850,6 +1872,8 @@ graph TD
 
 ---
 
+# PART V: BUILD & CI/CD CONFIGURATION
+
 ## 17. Build & Production
 
 * **Production Builds**: Compiling the React application bundle inside the static `dist/` directory:
@@ -1895,6 +1919,8 @@ graph LR
 * **Failure Behavior**: If the build script fails locally, the CLI deployment terminates before files are uploaded, preventing corrupt builds from going live.
 
 ---
+
+# PART VI: SYSTEM MAINTENANCE, SECURITY & DIAGNOSTICS
 
 ## 19. Error Handling & Troubleshooting
 
@@ -2682,6 +2708,8 @@ FUNCTION initializeClientSync():
 ```
 
 ---
+
+# PART VII: SYSTEM READINESS & VISUAL DIRECTORY
 
 ## 35. Technology Readiness Level (TRL) & Implementation Readiness (IR) Assessment
 
