@@ -40,6 +40,8 @@ app.use(cookieParser());
 // Enable CORS with credentials support and dynamic origins
 const allowedOrigins = [
   'http://localhost:5173',
+  'https://tcek-rd.web.app',
+  'https://tcek-rd.firebaseapp.com',
   process.env.FRONTEND_URL
 ].filter(Boolean) as string[];
 
