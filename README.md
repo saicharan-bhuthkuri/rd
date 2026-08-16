@@ -428,7 +428,7 @@ graph TD
     subgraph "Bulk Document Generation & Dispatch Pipeline"
         AdminUI -->|"Trigger bulk dispatches"| ExpressAPI
         ExpressAPI -->|"Read PPTX XML & replace placeholders"| PizZip[PizZip Template compiler]
-        PizZip -->|"Output customized slides"| LocalTmp[/tmp ephemerals]
+        PizZip -->|"Output customized slides"| LocalTmp["/tmp ephemerals"]
         LocalTmp -->|"Batch convert to PDF"| LibreOffice[LibreOffice headless CLI]
         LibreOffice -->|"Base64 binary buffers"| GASProxy[Apps Script HTTPS Proxy Gateway]
         GASProxy -->|"Mail dispatch"| GmailAPI[Gmail SMTP API]
