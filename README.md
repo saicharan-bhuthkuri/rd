@@ -83,6 +83,8 @@ The system features dynamic template compilation by directly parsing PowerPoint 
 | **Figure 16** | Frontend–Backend–Database Relationship | Layered interaction of user UI states, controller API calls, and Turso DB. | [25. Database/API/Frontend Relationship](#25-databaseapifrontend-relationship) | [View Figure](#25-databaseapifrontend-relationship) |
 | **Figure 17** | External Service Dependency Diagram | Maps external platform API boundaries and UptimeRobot heartbeat checks. | [33. External Service Dependency Map](#33-external-service-dependency-map) | [View Figure](#33-external-service-dependency-map) |
 | **Figure 18** | Technology Readiness & Implementation Maturity | Readiness level proofs (TRL 6 / IR 6) and future migration goals. | [35. TRL & IR Assessment](#35-technology-readiness-level-trl--implementation-readiness-ir-assessment) | [View Figure](#35-technology-readiness-level-trl--implementation-readiness-ir-assessment) |
+| **Figure 19** | Admin Authentication & CSRF Protection Flow | Sequence diagram showing cookie-based auth and header-based CSRF checks. | [5. Application Architecture](#5-application-architecture) | [View Figure](#5-application-architecture) |
+| **Figure 20** | Password Recovery & Reset Flow | Sequence diagram of signed JWT email recovery link and update query. | [5. Application Architecture](#5-application-architecture) | [View Figure](#5-application-architecture) |
 
 ---
 
@@ -177,7 +179,22 @@ The system is split into distinct functional modules:
 
 #### 6. Live Synchronizer (SSE Stream)
 * **What it does**: Binds clients to an HTTP Server-Sent Events pool. When registrations, events, or branches are updated, it emits sync events (`REFRESH_APPLICATIONS`, `REFRESH_EVENTS`, `REFRESH_BRANCHES`) causing active admin screens to reload data instantly.
-* **Implementation Location**: [`backend/src/index.ts:L489-512`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts#L489-512) and [`App.tsx:L106-129`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/App.tsx#L106-129)
+* **Implementation Location**: [`backend/src/index.ts`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts) and [`App.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/App.tsx)
+
+#### 7. Cookie-based Session Authentication & CSRF Protection
+* **What it does**: Stores JWT session tokens in secure HTTP-only cookies (`admin_token`) to mitigate XSS attacks. Mutating API actions (POST, PUT, DELETE) are validated against a double-submit CSRF token (`csrfToken`) passed in the `X-CSRF-Token` header.
+* **Implementation Location**: [`backend/src/index.ts`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts) and [`App.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/App.tsx)
+* **Auth Requirements**: Enforced across all administrative paths.
+
+#### 8. Automated Administrator Account Recovery
+* **What it does**: Self-service forgot-password workflow. Admins enter their registered email, which generates a short-lived (15 minutes) secure reset token sent via the system email handler. Clicking the link takes the user to a reset page to update their credentials.
+* **Implementation Location**: [`AdminForgotPasswordPage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/pages/AdminForgotPasswordPage.tsx), [`AdminResetPasswordPage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/pages/AdminResetPasswordPage.tsx), and [`backend/src/index.ts`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts)
+* **Backend API**: `POST /api/admin/forgot-password`, `POST /api/admin/reset-password`
+* **Database Tables**: `admin_users`
+
+#### 9. Hide/Unhide Password Toggle
+* **What it does**: Adds a show/hide password visibility toggle directly inside the admin login credentials form to enhance usability and prevent entry mistakes.
+* **Implementation Location**: [`AdminLoginPage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/pages/AdminLoginPage.tsx)
 
 ### B. Partially Implemented Features
 * **Nodemailer SMTP Fallback**: Configured to send email via standard SMTP on host port 587 using the `transporter` client, but is generally blocked on cloud environments like Render. Render deployments must use `GMAIL_HTTP_PROXY_URL`.
@@ -185,7 +202,6 @@ The system is split into distinct functional modules:
 
 ### C. Planned/Future Features
 * **Interactive Log Viewer**: A dashboard screen listing rows from the `activity_logs` table.
-* **Password Reset Workflows**: Self-service recovery token verification via email (currently admin modifications must be done via direct SQL).
 
 ---
 
@@ -407,6 +423,62 @@ graph TD
         GASProxy -->|Mail dispatch| GmailAPI[Gmail SMTP API]
         GmailAPI -->|Inbox receipt| Candidate
     end
+```
+
+#### Admin Authentication & CSRF Protection Workflow (Figure 19)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Admin as Club Administrator
+    participant Browser as React SPA (Client)
+    participant Server as Express API (Server)
+    participant DB as Turso SQLite Database
+
+    Note over Admin, Browser: Authentication Flow
+    Admin->>Browser: Enters credentials & submits
+    Browser->>Server: POST /api/admin/login
+    Server->>DB: Query user record & verify hash
+    DB-->>Server: User record matches
+    Server->>Server: Sign admin_token (Auth JWT)<br/>Sign csrfToken (CSRF JWT)
+    Server-->>Browser: Set-Cookie: admin_token (HttpOnly, SameSite=Lax)<br/>Response Body: { success: true, csrfToken, user }
+    Browser->>Browser: Store csrfToken & user details in LocalStorage
+
+    Note over Admin, Browser: Mutating API Action (POST/PUT/DELETE)
+    Admin->>Browser: Submits form / updates application status
+    Browser->>Server: POST /api/admin/applications/status<br/>Cookie: admin_token<br/>Header X-CSRF-Token: csrfToken
+    Server->>Server: 1. Verify admin_token from cookies<br/>2. Verify X-CSRF-Token matches user identity
+    Server->>DB: Run update query
+    DB-->>Server: Query completed
+    Server-->>Browser: 200 OK (Status Updated)
+```
+
+#### Password Recovery & Reset Workflow (Figure 20)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Admin as Club Administrator
+    participant Browser as React SPA (Client)
+    participant Server as Express API (Server)
+    participant DB as Turso SQLite Database
+    participant Email as SMTP / Apps Script Email Service
+
+    Admin->>Browser: Clicks "Forgot Password" & enters email
+    Browser->>Server: POST /api/admin/forgot-password { email }
+    Server->>DB: Query admin by email
+    DB-->>Server: Admin user found
+    Server->>Server: Sign short-lived (15m) reset token
+    Server->>Email: Send email with reset link (?token=resetToken)
+    Email-->>Admin: Receives reset email
+    Admin->>Browser: Clicks link & enters new password
+    Browser->>Server: POST /api/admin/reset-password { token, newPassword }
+    Server->>Server: Verify token signature & expiry
+    Server->>Server: Hash new password
+    Server->>DB: Update password in admin_users
+    DB-->>Server: Password updated
+    Server-->>Browser: 200 OK (Password reset success)
+    Browser->>Admin: Redirects to Login screen
 ```
 
 ---
