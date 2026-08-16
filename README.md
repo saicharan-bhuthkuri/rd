@@ -1240,11 +1240,11 @@ Frontend React assets are built and deployed directly to Firebase Hosting.
 
 ```mermaid
 graph TD
-    User([Public User / Admin Client]) -->|HTTPS: Port 443| Firebase[Firebase Hosting CDN]
-    User -->|HTTPS REST API / SSE Sync| Render[Render Web Service Docker Container]
-    Render -->|LibSQL Protocol: Port 443| Turso[(Turso Edge Cloud SQLite)]
-    Render -->|HTTPS POST JSON| GoogleProxy[Google Apps Script Proxy]
-    GoogleProxy -->|Gmail API OAuth Secure Relay| Gmail[Gmail Dispatch Engine]
+    User([Public User / Admin Client]) -->|"HTTPS: Port 443"| Firebase[Firebase Hosting CDN]
+    User -->|"HTTPS REST API / SSE Sync"| Render[Render Web Service Docker Container]
+    Render -->|"LibSQL Protocol: Port 443"| Turso[(Turso Edge Cloud SQLite)]
+    Render -->|"HTTPS POST JSON"| GoogleProxy[Google Apps Script Proxy]
+    GoogleProxy -->|"Gmail API OAuth Secure Relay"| Gmail[Gmail Dispatch Engine]
 
     subgraph "Host Boundaries"
         Firebase
@@ -1321,28 +1321,28 @@ The system's integrity, performance, and document compiler rendering have been v
 graph TD
     subgraph "Phase 1: Static Quality Assurance"
         A["Developer Code Push / Pull Request"] --> B["TypeScript Type Checks (tsc -b)"]
-        B -->|Success| C["ESLint Static Code Audit (eslint .)"]
-        B -->|TypeScript Error| Z1["Review Typings & Fix Code"]
-        C -->|Success: Exit Code 0| D["Vite Production Bundle Compiler"]
-        C -->|Static Linter Warnings| Z2["Apply ESLint Rules / Deferrals"]
+        B -->|"Success"| C["ESLint Static Code Audit (eslint .)"]
+        B -->|"TypeScript Error"| Z1["Review Typings & Fix Code"]
+        C -->|"Success: Exit Code 0"| D["Vite Production Bundle Compiler"]
+        C -->|"Static Linter Warnings"| Z2["Apply ESLint Rules / Deferrals"]
         Z1 --> B
         Z2 --> C
     end
 
     subgraph "Phase 2: Local Integration Suite"
-        D -->|Vite Compiles Client dist/| E["Spawn Integration Test Runner (test_suite.js)"]
-        E -->|Binds Node Server to test port 5001| F["Run Native Assertion Tests (fetch calls)"]
-        F -->|Verify events, branches, login blocks, lookups| G{"All 5/5 assertions pass?"}
-        G -->|No| H1["Review Console Logs & Seeding Outputs"]
+        D -->|"Vite Compiles Client dist/"| E["Spawn Integration Test Runner (test_suite.js)"]
+        E -->|"Binds Node Server to test port 5001"| F["Run Native Assertion Tests (fetch calls)"]
+        F -->|"Verify events, branches, login blocks, lookups"| G{"All 5/5 assertions pass?"}
+        G -->|"No"| H1["Review Console Logs & Seeding Outputs"]
         H1 --> E
     end
 
     subgraph "Phase 3: Production CD Pipeline"
-        G -->|Yes: Exit Code 0| H2["Git Push Master (Trigger Render Build)"]
+        G -->|"Yes: Exit Code 0"| H2["Git Push Master (Trigger Render Build)"]
         H2 --> I["Render Debian Docker container builds (LibreOffice CLI setup)"]
         I --> J["Firebase hosting deploys client static bundle"]
         J --> K["Live Sandbox Environment operational"]
-        K -->|Bulk dispatch requests| L["Relay attachments via Google Apps Script Proxy over Port 443"]
+        K -->|"Bulk dispatch requests"| L["Relay attachments via Google Apps Script Proxy over Port 443"]
     end
 ```
 
@@ -1459,24 +1459,24 @@ White-Box tests ensure internal statement execution, branches, exception catchin
 graph TD
     subgraph "WB-001 / WB-004: Template Substitutions & Ephemeral Cache"
         PP1["PPTX Template Buffer"] --> XML1["PizZip XML Parser"]
-        XML1 -->|Substituted dynamic tags| XML2["Slide XML Nodes"]
-        XML2 -->|Missing tags ignored| XML3["Save Ephemeral Slides to /tmp"]
+        XML1 -->|"Substituted dynamic tags"| XML2["Slide XML Nodes"]
+        XML2 -->|"Missing tags ignored"| XML3["Save Ephemeral Slides to /tmp"]
         XML3 --> PDF1["Headless LibreOffice Process"]
-        PDF1 -->|Execution Exception caught| Catch1["Wipe Ephemeral Files in 'finally' block"]
-        PDF1 -->|Success| Out1["Wipe Ephemeral Files in 'finally' block"]
+        PDF1 -->|"Execution Exception caught"| Catch1["Wipe Ephemeral Files in 'finally' block"]
+        PDF1 -->|"Success"| Out1["Wipe Ephemeral Files in 'finally' block"]
     end
 
     subgraph "WB-002: LibreOffice Concurrency Profile Isolation"
         LO1["PDF convert request"] --> Prof1["Assign randomized directory: soffice-profile-batch-*"]
         Prof1 --> LO2["soffice headless conversion"]
-        LO2 -->|Prevents read/write locks| Out2["Successful batch PDF compilation"]
+        LO2 -->|"Prevents read/write locks"| Out2["Successful batch PDF compilation"]
     end
 
     subgraph "WB-003: Task Queue Concurrency Controls"
         Q1["15 Parallel tasks queued"] --> Lim1["runWithConcurrency (Limit = 10)"]
-        Lim1 -->|Process first 10 immediately| R1["Active Thread Pool"]
-        Lim1 -->|Queue remainder| R2["Pending Queue Array"]
-        R1 -->|Resolves| Next1["Advance remaining 5 tasks sequentially"]
+        Lim1 -->|"Process first 10 immediately"| R1["Active Thread Pool"]
+        Lim1 -->|"Queue remainder"| R2["Pending Queue Array"]
+        R1 -->|"Resolves"| Next1["Advance remaining 5 tasks sequentially"]
     end
 ```
 
@@ -1497,26 +1497,26 @@ Integration tests verify end-to-end network calls, database mutation logs, and r
 ```mermaid
 graph TD
     subgraph "GB-001: Server-Sent Events (SSE) Sync Stream"
-        Admin["Admin Actions / DB Writes"] -->|Trigger| SSE1["Express /api/sync-stream"]
-        SSE1 -->|SSE Broadcast Event| SSE2["CustomEvent 'app-sync'"]
-        SSE2 -->|Window Event Dispatch| Client["Reload Dashboard states automatically"]
+        Admin["Admin Actions / DB Writes"] -->|"Trigger"| SSE1["Express /api/sync-stream"]
+        SSE1 -->|"SSE Broadcast Event"| SSE2["CustomEvent 'app-sync'"]
+        SSE2 -->|"Window Event Dispatch"| Client["Reload Dashboard states automatically"]
     end
 
     subgraph "GB-002: Google Apps Script HTTPS Email Proxy"
-        AdminUI["Admin UI Certificate Dispatch"] -->|Trigger| Backend["Backend PPTX to PDF Converter"]
-        Backend -->|Base64 attachment JSON| WebProxy["Apps Script Relay Gateway (Port 443)"]
-        WebProxy -->|OAuth HTTPS Relay| GoogleAPI["Gmail API Outbound Dispatch"]
-        GoogleAPI -->|Inbox Delivery| Inbox["Target email inbox receives PDF"]
+        AdminUI["Admin UI Certificate Dispatch"] -->|"Trigger"| Backend["Backend PPTX to PDF Converter"]
+        Backend -->|"Base64 attachment JSON"| WebProxy["Apps Script Relay Gateway (Port 443)"]
+        WebProxy -->|"OAuth HTTPS Relay"| GoogleAPI["Gmail API Outbound Dispatch"]
+        GoogleAPI -->|"Inbox Delivery"| Inbox["Target email inbox receives PDF"]
     end
 
     subgraph "GB-003: Dynamic PDF Iframe Viewer"
         Iframe["Iframe request: /api/verify-certificate/[id]/pdf"] --> Stream["Backend compiles buffer inline"]
-        Stream -->|Stream response stream| Render["Render PDF inline in 16:9 Panel"]
+        Stream -->|"Stream response stream"| Render["Render PDF inline in 16:9 Panel"]
     end
 
     subgraph "GB-004: Turso Edge DB Schema Setup"
         Launch["Docker startup initialization"] --> Schema["Turso Edge Database table check"]
-        Schema -->|No tables| BuildSchema["Execute SQLite Schema queries"]
+        Schema -->|"No tables"| BuildSchema["Execute SQLite Schema queries"]
         BuildSchema --> Seeding["Insert default seeded user accounts"]
     end
 ```
@@ -1764,7 +1764,7 @@ graph TD
         D1 --> F1["Fix: Deploy Google Apps Script Web App Proxy over HTTPS"]
         F1 --> R1["Retest: Run bulk dispatch dashboard checks"]
         R1 --> S1{"Status?"}
-        S1 -->|Delivered in &lt;2s| P1["PASS (Delivered)"]
+        S1 -->|"Delivered in &lt;2s"| P1["PASS (Delivered)"]
     end
 
     subgraph "Defect 2: Turso DB IPv6 Connect Failure"
@@ -1772,7 +1772,7 @@ graph TD
         D2 --> F2["Fix: Set setDefaultResultOrder('ipv4first') globally"]
         F2 --> R2["Retest: Restart backend node container service"]
         R2 --> S2{"Status?"}
-        S2 -->|Turso DB connected successfully| P2["PASS (Seeded)"]
+        S2 -->|"Turso DB connected successfully"| P2["PASS (Seeded)"]
     end
 ```
 
@@ -1783,7 +1783,7 @@ graph TD
         D3 --> F3["Fix: Move handleVerify definition before useEffect"]
         F3 --> R3["Retest: Direct route navigation query checks"]
         R3 --> S3{"Status?"}
-        S3 -->|Clean load and PDF streaming| P3["PASS (Verified)"]
+        S3 -->|"Clean load and PDF streaming"| P3["PASS (Verified)"]
     end
 
     subgraph "Defect 4: Synchronous React Hook setState Loop"
@@ -1791,7 +1791,7 @@ graph TD
         D4 --> F4["Fix: Wrap mount triggers in setTimeout deferrals & align rules"]
         F4 --> R4["Retest: Execute npm run lint & build commands"]
         R4 --> S4{"Status?"}
-        S4 -->|Clean build output, exit code 0| P4["PASS (100% Green)"]
+        S4 -->|"Clean build output, exit code 0"| P4["PASS (100% Green)"]
     end
 ```
 
@@ -2020,13 +2020,13 @@ The project leverages Git-driven continuous integration and automated hosting.
 ```mermaid
 graph LR
     Push[Code Push to origin/master] --> BuildCheck[tsc -b TypeScript verification]
-    BuildCheck -->|Success| LintCheck[npm run lint validation]
-    LintCheck -->|Success| BuildAssets[Vite build production assets]
-    BuildAssets -->|Success| PushRemote[Github Push complete]
-    PushRemote -->|Webhook Trigger| RenderDeploy[Render Docker container rebuild]
-    PushRemote -->|Webhook Trigger| FirebaseDeploy[Firebase hosting deploy dist/]
-    RenderDeploy -->|Live| ActiveAPI[Backend Online: Render]
-    FirebaseDeploy -->|Live| ActiveClient[Client Online: Firebase]
+    BuildCheck -->|"Success"| LintCheck[npm run lint validation]
+    LintCheck -->|"Success"| BuildAssets[Vite build production assets]
+    BuildAssets -->|"Success"| PushRemote[Github Push complete]
+    PushRemote -->|"Webhook Trigger"| RenderDeploy[Render Docker container rebuild]
+    PushRemote -->|"Webhook Trigger"| FirebaseDeploy[Firebase hosting deploy dist/]
+    RenderDeploy -->|"Live"| ActiveAPI[Backend Online: Render]
+    FirebaseDeploy -->|"Live"| ActiveClient[Client Online: Firebase]
 ```
 
 ### A. Backend Deployments (Render Web Service)
