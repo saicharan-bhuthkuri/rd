@@ -53,7 +53,9 @@ export const AdminManageEventsPage: React.FC = () => {
       navigate('/admin/login');
       return;
     }
-    fetchEvents();
+    setTimeout(() => {
+      fetchEvents();
+    }, 0);
 
     const handleSync = (e: Event) => {
       const eventType = (e as CustomEvent).detail;

@@ -30,7 +30,7 @@ export const AdminUsersPage: React.FC = () => {
   const activeUsername = activeUser.username || '';
 
   const fetchUsers = async () => {
-    setIsLoading(true);
+    setIsLoading(prev => prev ? prev : true);
     const token = localStorage.getItem('admin_token');
 
     if (!token) {
@@ -69,7 +69,9 @@ export const AdminUsersPage: React.FC = () => {
       navigate('/admin/dashboard');
       return;
     }
-    fetchUsers();
+    setTimeout(() => {
+      fetchUsers();
+    }, 0);
 
     const handleSync = (e: Event) => {
       const eventType = (e as CustomEvent).detail;

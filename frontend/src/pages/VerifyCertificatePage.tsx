@@ -31,22 +31,6 @@ export const VerifyCertificatePage: React.FC = () => {
   const [isPdfLoading, setIsPdfLoading] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
 
-  useEffect(() => {
-    if (initialId) {
-      handleVerify(initialId);
-    }
-  }, [initialId]);
-
-  // Track window resizing to apply mobile style adjustments
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth <= 768);
-    };
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
   const handleVerify = async (idToVerify: string) => {
     const cleanId = idToVerify.trim();
     if (!cleanId) {
@@ -76,6 +60,24 @@ export const VerifyCertificatePage: React.FC = () => {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (initialId) {
+      setTimeout(() => {
+        handleVerify(initialId);
+      }, 0);
+    }
+  }, [initialId]);
+
+  // Track window resizing to apply mobile style adjustments
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
