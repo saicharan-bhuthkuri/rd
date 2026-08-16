@@ -995,9 +995,9 @@ Styling is managed via [`frontend/src/pages/index.css`](file:///c:/Users/bhuth/O
 
 ### Authentication Flow
 ```text
-Admin  ---> Submit Username & Password  --->  Verify via bcrypt  ---> Sign JWT Token  ---> Save to LocalStorage
-                                                                                                 |
-Admin Request  <---  Attach JWT to headers ("Authorization: Bearer [token]") <-------------------+
+Admin  ---> Submit Credentials  --->  Verify via bcrypt  ---> Set-Cookie: admin_token (HttpOnly) & Return CSRF Token
+                                                                                             |
+Admin Request  <---  Attach CSRF Token to "X-CSRF-Token" Header & Send Cookies <-------------+
 ```
 
 ---
@@ -2914,14 +2914,14 @@ graph TD
 * **Free Tier Infrastructure Latency**: Render free tier web services spin down after 15 minutes of inactivity. Initial client requests require ~50 seconds of boot latency (cold starts).
 * **Headless Process Memory Footprint**: In-container LibreOffice compilation calls are resource-heavy. While limited by a concurrency queue, high-frequency bulk requests can lead to transient CPU spikes on low-tier container instances.
 * **Transient File Cache**: Compiling files requires writing PPTX and PDF buffers to Render's ephemeral container disk. Programmatic delete routines (`fs.unlinkSync`) clean up these directories inside `finally` blocks, but a container crash during execution can leave orphaned temporary files.
-* **Stateless Client Session Storage**: JSON Web Tokens (JWT) are stored in client-side `LocalStorage`, making the session identifier vulnerable to Cross-Site Scripting (XSS) attacks if malicious script injection occurs.
+* **Session Security Hardening**: Auth JWT session tokens are now stored in secure HTTP-only cookies, combined with stateless double-submit CSRF token validation to mitigate both XSS and CSRF vectors.
 
 ##### 4. Roadmap to Reach TRL 7 (System Prototype Demonstration in an Operational Environment)
 To transition the system to TRL 7 (demonstrated in an actual operational environment with true production loads and configurations), the following tasks must be completed:
 1. **Upgrade Hosting Tiers**: Migrate Render container hosting from free tier to a paid instance (Web Service Starter or higher) to disable container sleeping and allocate dedicated CPU cores for headless LibreOffice.
 2. **Setup Asynchronous Job Queue**: Decouple heavy document compilation processes from the main Express HTTP thread using a dedicated worker pool (e.g., using **Redis** and **BullMQ**).
-3. **Enhance Auth Token Security**: Migrate JWT storage from client-side `LocalStorage` to HTTP-only, secure, same-site cookies to isolate session tokens from XSS vectors.
-4. **Implement Rate Limiting**: Configure Express rate-limiting middleware (`express-rate-limit`) to prevent API abuse.
+3. **Enhance Auth Token Security [COMPLETED]**: Migrated JWT storage from client-side `LocalStorage` to HTTP-only, secure, SameSite=Lax cookies to isolate session tokens from XSS vectors.
+4. **Implement Rate Limiting [COMPLETED]**: Configured Express rate-limiting middleware (`express-rate-limit`) to prevent API abuse across all routes and sensitive forms.
 5. **Establish Playwright E2E Integration Suite**: Add automated browser-driven integration tests to automatically run recruitment signups, admin logins, branch changes, and certificate dispatch pipelines.
 
 ---
@@ -2957,7 +2957,7 @@ The following concrete metrics from the active codebase establish the IR 6 statu
 
 ##### 3. Implementation Barriers & Technical Debt (Remaining Tasks to Reach IR 7)
 Before the system can be promoted to **IR 7 (System Ready for Transition to Operations)**, the following barriers must be cleared:
-1. **Session Token Hardening**: Replace client-side token storage inside browser `LocalStorage` with HTTP-only SameSite cookies to protect credentials against XSS exploits.
+1. **Session Token Hardening [COMPLETED]**: Replaced client-side token storage inside browser `LocalStorage` with HTTP-only SameSite=Lax cookies to protect credentials against XSS exploits, integrated with signed CSRF tokens for mutating requests.
 2. **E2E Browser Test Automations**: Implement a basic automated E2E test script (using Playwright or Cypress) to simulate GUI candidate enrollment and admin dashboard validations.
 3. **Outbound API Gateway Error Handling**: Add secondary retry loops and connection check timeouts to the Google Apps Script HTTP proxy connection handler to handle network latencies gracefully.
 
