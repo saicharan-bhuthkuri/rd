@@ -40,6 +40,7 @@ The system features dynamic template compilation by directly parsing PowerPoint 
 31. [Developer Quick Start](#31-developer-quick-start)
 32. [Production Quick Reference](#32-production-quick-reference)
 33. [External Service Dependency Map](#33-external-service-dependency-map)
+34. [Core Algorithms Pseudocode](#34-core-algorithms-pseudocode)
 
 ---
 
@@ -47,6 +48,11 @@ The system features dynamic template compilation by directly parsing PowerPoint 
 
 ### Project Name
 Trinity College R&D Cell - Bulk Certificate Dispatch & Application Management System
+
+### Production URLs
+* **Deployed Web Application (Client)**: [https://tcek-rd.web.app](https://tcek-rd.web.app)
+* **Deployed API Server (Backend)**: [https://rd-backend-kbsm.onrender.com](https://rd-backend-kbsm.onrender.com)
+* **Designer/Developer Portfolio**: [https://saivortex.web.app/](https://saivortex.web.app/)
 
 ### Project Purpose
 The Research & Development (R&D) Cell at Trinity College requires a robust infrastructure to manage student applications for club membership, organize hackathons and technical events, and issue official authenticated credentials. This project digitizes these operations, replacing manual certificates and spreadsheets with an automated pipeline.
@@ -241,6 +247,70 @@ The system is split into distinct functional modules:
     ├── .env.development        # Dev environment mapping
     └── .env.production         # Production api URLs
 ```
+
+### Important Files Breakdown
+
+#### 1. [`backend/src/index.ts`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts)
+* **Purpose**: Application Server Entry Point & Controllers.
+* **Responsibility**: Bootstraps the Express application; establishes Turso SQL connections and configures automated DB migrations; validates admin credentials using JWT tokens; executes dynamic PPTX XML manipulations and parallel headless LibreOffice conversions; manages email dispatch handlers.
+* **Dependencies**: `express`, `cors`, `dotenv`, `bcryptjs`, `jsonwebtoken`, `@libsql/client`, `pizzip`, `nodemailer`.
+* **What Calls It**: Node runtime (`npm start` or `ts-node-dev`).
+* **What It Calls**: Turso DB Cloud, LibreOffice Command Line CLI (`soffice`), Google Apps Script API endpoints.
+* **Important Routines**: `setupDatabase()`, `replacePlaceholdersInPptx()`, `convertPptxToPdf()`, `convertPptxToPdfBatch()`, `runWithConcurrency()`, `postToAppsScript()`.
+* **Required for Production**: Yes.
+
+#### 2. [`frontend/src/App.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/App.tsx)
+* **Purpose**: Client Routing, Layout, & Synchronizer.
+* **Responsibility**: Declares the page router configuration using React Router DOM; wraps pages in layouts; defines token verification guards; manages SSE connections via `EventSource` and publishes custom sync event triggers.
+* **Dependencies**: `react`, `react-router-dom`.
+* **What Calls It**: Client entry point [`main.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/main.tsx).
+* **What It Calls**: Routed views (`HomePage`, `ApplyPage`, `VerifyCertificatePage`, `AdminDashboardPage`, `AdminUsersPage`, etc.).
+* **Required for Production**: Yes.
+
+#### 3. [`frontend/src/pages/AdminDashboardPage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/pages/AdminDashboardPage.tsx)
+* **Purpose**: Admin Roster & Dispatch Console view.
+* **Responsibility**: Renders list tables for applications, events, and hackathon teams; provides search filters, branch selection tabs, and status controls; executes backend API calls for bulk dispatches and renders log streams in a drawer.
+* **Dependencies**: `react`, `react-router-dom`, `lucide-react`.
+* **What Calls It**: Routed inside `App.tsx` (protected admin paths).
+* **What It Calls**: `GET /api/admin/applications`, `POST /api/admin/applications/status`, `POST /api/admin/bulk-send/offers`, `POST /api/admin/bulk-send/certificates`, `POST /api/admin/bulk-send/hackathon-certificates`.
+* **Required for Production**: Yes.
+
+#### 4. [`frontend/src/pages/VerifyCertificatePage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/pages/VerifyCertificatePage.tsx)
+* **Purpose**: Public Certificate Authenticator.
+* **Responsibility**: Validates credential codes, retrieves student registration metadata from the backend API, and draws the generated certificate PDF inside a responsive 16:9 frame.
+* **Dependencies**: `react`, `react-router-dom`, `lucide-react`.
+* **What Calls It**: Routed inside `App.tsx` (public path `/verify`).
+* **What It Calls**: `GET /api/verify-certificate/[id]` (metadata) and `GET /api/verify-certificate/[id]/pdf` (iframe loader).
+* **Required for Production**: Yes.
+
+#### 5. [`frontend/src/pages/ApplyPage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/pages/ApplyPage.tsx)
+* **Purpose**: Public Application Forms portal.
+* **Responsibility**: Renders dynamic signup screens for club recruitment, event attendance, and hackathon teams; handles real-time addition/removal of team member row profiles.
+* **Dependencies**: `react`, `react-router-dom`.
+* **What Calls It**: Routed inside `App.tsx` (public path `/apply`).
+* **What It Calls**: `GET /api/events`, `GET /api/branches`, `POST /api/apply/club`, `POST /api/apply/event`, `POST /api/apply/hackathon`.
+* **Required for Production**: Yes.
+
+#### 6. [`backend/Dockerfile`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/Dockerfile)
+* **Purpose**: Docker Container configuration.
+* **Responsibility**: Orchestrates Debian-based container packaging; installs node runtime dependencies alongside headless LibreOffice and system fonts (Dejavu, Carlito, Cardo, Bebas Neue, Calibri, Arial, Times New Roman).
+* **Dependencies**: `node:20-bullseye-slim` base image.
+* **What Calls It**: Cloud Render deployment runner.
+* **Required for Production**: Yes (for Docker host environments).
+
+#### 7. [`backend/update_db_templates.js`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/update_db_templates.js)
+* **Purpose**: PowerPoint Template Sync script.
+* **Responsibility**: Reads local PowerPoint templates (`CERTIFICATE_TEMPLATE.pptx`, `CERTIFICATE_TEMPLATE - APPRECIATION.pptx`), converts them to Base64, and syncs them into the database.
+* **Dependencies**: `@libsql/client`, `fs`, `dotenv`.
+* **What Calls It**: Developer Terminal command run.
+* **Required for Production**: No (utility script for setup/migration).
+
+#### 8. [`backend/clear_db.js`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/clear_db.js)
+* **Purpose**: Database Reset script.
+* **Responsibility**: Clears all candidate entries, registrations, hackathon teams, and activity logs from the database, resetting auto-increment IDs.
+* **Dependencies**: `@libsql/client`, `dotenv`.
+* **What Calls It**: Developer Terminal command run.
+* **Required for Production**: No (test/development utility only).
 
 ---
 
@@ -796,14 +866,22 @@ GMAIL_HTTP_PROXY_URL=your_google_script_deployment_url
 
 ## 18. CI/CD
 
-Deployments are automated:
-1. **Frontend**: Manual command `firebase deploy --only hosting` deploys built assets from the `frontend/dist` directory.
-2. **Backend**: Render service is connected directly to the master Git branch. Pushing a commit triggers Render to build the Dockerfile and deploy the API server.
-   ```bash
-   git add .
-   git commit -m "Deploy latest changes"
-   git push origin master
-   ```
+The project leverages Git-driven continuous integration and automated hosting.
+
+### A. Backend Deployments (Render Web Service)
+* **Trigger**: Automatic deployments are triggered by code pushes to the `master` or `main` branch of the connected repository.
+* **Branch Tracked**: `master` (or production release branch).
+* **Build Process**: Render automatically reads the root `Dockerfile` inside the `backend` folder. It initializes a Debian base image, installs LibreOffice packages, downloads custom template fonts, compiles node dependencies, and executes `npm run build` (transpiles TypeScript to JS).
+* **Deployment Process**: Render performs a zero-downtime rolling restart, swapping the active container with the newly built Docker image.
+* **Secrets Configuration**: Environment variables (`TURSO_URL`, `TURSO_TOKEN`, `JWT_SECRET`, `GMAIL_HTTP_PROXY_URL`) are configured securely in Render's dashboard and are injected into the container environment.
+* **Failure Behavior**: If the Docker build fails, the build terminates, and Render keeps the last running successful container active, preventing production service disruptions.
+
+### B. Frontend Deployments (Firebase Hosting)
+* **Trigger**: Deployment is manually triggered by running CLI commands on developer machines.
+* **Build & Test Process**: Developers run `npm run build` inside the `frontend` folder, which runs ESLint and the Vite compiler to output optimized assets in `frontend/dist`.
+* **Deployment Process**: Firebase Hosting uploads the built folder contents securely using `firebase deploy --only hosting`.
+* **Secrets Configuration**: Public URL variables (e.g., `VITE_API_URL` targeting the backend Render URL) are injected at build time from the local `.env.production` file.
+* **Failure Behavior**: If the build script fails locally, the CLI deployment terminates before files are uploaded, preventing corrupt builds from going live.
 
 ---
 
@@ -833,11 +911,20 @@ Deployments are automated:
 
 ## 20. Security
 
-* **Password Protection**: Admin passwords are saved in the database as salted hashes using `bcryptjs`.
-* **Session Validation**: Protects backend routes using JWT tokens with a 8-hour expiry window.
-* **Database Security**: Turso DB interactions use parameterized SQL statements to prevent SQL Injection.
-* **Input Sanitization**: Replaces special XML/HTML characters (`&` $\rightarrow$ `&amp;`, `<` $\rightarrow$ `&lt;`) in PPTX replacement placeholders to prevent layout breaks.
-* **Casing Normalization**: Case-insensitive status matches prevent injection of arbitrary status strings into certificate layouts.
+### Implemented Protections
+* **Password Hashing**: Uses `bcryptjs` with a work factor of 10 to securely hash admin passwords, preventing plain-text exposures in database breaches.
+* **Session Validation**: Protects backend routes using JWT tokens with a standard HMAC-SHA256 signature and a default 8-hour expiry limit.
+* **Database Security**: Turso DB interactions use parameterized SQL statements (`db.execute({ sql, args })`) instead of raw string concatenations, protecting the application against SQL injection attacks.
+* **Input Sanitization**: Replaces special XML/HTML characters (`&` $\rightarrow$ `&amp;`, `<` $\rightarrow$ `&lt;`, `>` $\rightarrow$ `&gt;`) in PPTX replacement placeholders to prevent layout breaks and XML injection.
+* **Casing Normalization**: Sanitizes achievement status strings against lowercase participation tags to restrict arbitrary text injections.
+* **CORS Configuration**: Configures CORS middleware on the backend to allow client integrations, restricting endpoints to recognized cross-domain request pathways.
+
+### Identified Security Weaknesses & Missing Protections
+* **Lack of Rate Limiting**: The backend API server has no rate limiting configured (e.g. using `express-rate-limit`). High-frequency requests can cause database resource exhaustion or overload the LibreOffice PDF compiler.
+* **No CSRF Tokens (LocalStorage Token storage)**: Session tokens are stored in the client-side `LocalStorage` (not inside HTTP-only secure cookies). While this architecture prevents typical Cross-Site Request Forgery (CSRF) exploits targeting standard session cookies, it makes the token vulnerable to Cross-Site Scripting (XSS) if malicious scripts gain access to the DOM.
+* **No Automated Account Recovery**: The application lacks password recovery APIs. Admin password modifications must be made via manual database edits using SQL.
+* **Exposed Default Credentials**: Default admin credentials (`charan` and `akhya`) are seeded during setup. Although these should be updated immediately in production, they are stored in the startup logic.
+* **Public Debug Endpoints**: Endpoints like `/api/debug-fonts` and `/api/debug-pdf-fonts` are publicly accessible, exposing internal container font structures. These should be protected or disabled in production.
 
 ---
 
@@ -1080,13 +1167,16 @@ cd ../frontend && npm run dev
 
 ## 32. Production Quick Reference
 
-| System Area | Cloud Service Provider | Purpose | Configuration Details |
-| :--- | :--- | :--- | :--- |
-| **Frontend** | Firebase Hosting | Hosting built static assets. | Deployed to `https://tcek-rd.web.app` (configured in `firebase.json`). |
-| **Backend** | Render | Docker Web Service API hosting. | Docker Bullseye Slim container running Express and LibreOffice. |
-| **Database** | Turso Cloud | libSQL SQLite server. | Multi-region edge deployment. |
-| **Email Proxy** | Google Script Proxy | Bypasses SMTP blocks. | Deployed Google Apps Script forwarding Gmail API payloads. |
-| **DNS Management** | Firebase DNS | Redirects custom domains. | TLS configured via Firebase nameservers. |
+| System Area | Cloud Service Provider | Purpose | Console / Dashboard Link | Configuration Details |
+| :--- | :--- | :--- | :--- | :--- |
+| **Frontend** | Firebase Hosting | Hosting built static assets. | [Firebase Console](https://console.firebase.google.com/) | Deployed to `https://tcek-rd.web.app` (configured in `firebase.json`). |
+| **Backend** | Render | Docker Web Service API hosting. | [Render Dashboard](https://dashboard.render.com/) | Docker Bullseye Slim container running Express and LibreOffice. |
+| **Database** | Turso Cloud | libSQL SQLite server. | [Turso Dashboard](https://turso.tech/) | Multi-region edge database. |
+| **Email Proxy** | Google Script Proxy | Bypasses SMTP blocks. | [Google Apps Script](https://script.google.com/) | Deployed Google Apps Script forwarding Gmail API payloads. |
+| **Uptime Monitoring** | UptimeRobot | Pings API to prevent sleep. | [UptimeRobot Dashboard](https://uptimerobot.com/dashboard) | Configured HTTP check targeting `/api/health`. |
+| **Credentials & OAuth** | Google Cloud Console | Manages Gmail APIs & credentials. | [Google Cloud Console](https://console.cloud.google.com/) | OAuth client setups and API library activation. |
+| **Analytics (Tracking)** | Google Analytics | Tracks user sessions & actions. | [Google Analytics Console](https://analytics.google.com/) | Tracks page visits and button clicks. |
+| **Tag Management** | Google Tag Manager | Inject analytics scripts dynamically. | [Google Tag Manager](https://tagmanager.google.com/) | Standard container configuration. |
 
 ---
 
@@ -1097,5 +1187,464 @@ cd ../frontend && npm run dev
  ├── [ Firebase Host ]  ----> (Serves frontend assets)
  ├── [ Render Host ]    ----> (Executes Express backend logic, builds container, converts files)
  ├── [ Turso Database ] ----> (Stores application databases, configurations, event rosters)
- └── [ Google Script ]  ----> (Bypasses SMTP port blocks to dispatch Gmail notifications)
+ ├── [ Google Script ]  ----> (Bypasses SMTP port blocks to dispatch Gmail notifications)
+ ├── [ UptimeRobot ]    ----> (Pings health API every 5 minutes to prevent backend cold starts)
+ ├── [ Google Cloud ]   ----> (Manages OAuth API access and credentials for mail flows)
+ ├── [ Google Analytics]----> (Tracks public traffic, registrations, and portal queries)
+ └── [ Tag Manager ]    ----> (Injects and fires analytics script containers on load)
+```
+
+---
+
+## 34. Core Algorithms Pseudocode
+
+This section provides a clean algorithmic breakdown of the critical processes implemented within the system.
+
+### A. PPTX XML Placeholder Replacement Algorithm
+* **File Reference**: [`replacePlaceholdersInPptx()`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts#L1134-1222)
+* **Goal**: Modify PowerPoint layout nodes directly inside the slide's compressed XML archive without breaking standard properties or fonts.
+
+```text
+FUNCTION replacePlaceholdersInPptx(templateBuffer, outputPath, replacements):
+    // 1. Open the PPTX PowerPoint binary as a Zip archive
+    zip = OpenZipArchive(templateBuffer)
+    
+    // 2. Iterate through files in the zip directory tree
+    FOR EACH file IN zip.files:
+        // Locate XML slides (slide layout definitions)
+        IF file.path starts with "ppt/slides/slide" AND file.path ends with ".xml":
+            slideXml = file.readAsString()
+            
+            // Adjust word wrapping settings to prevent text boxes from breaking layout
+            FOR EACH shape XML block IN slideXml:
+                IF shape contains "PARTICIPANT NAME":
+                    // Disables automatic scaling of student name boxes
+                    replace "<a:spAutoFit/>" with "<a:noAutofit/>"
+                ELSE IF shape contains certification templates description lines:
+                    // Keep wrapping to let description align dynamically
+                    continue
+                ELSE:
+                    // Force wrap="none" on remaining metadata labels
+                    add wrap="none" to <a:bodyPr> tags
+            
+            // Replace placeholder keys with clean XML-sanitized values
+            FOR EACH (placeholderKey, rawValue) IN replacements:
+                sanitizedValue = escapeXmlSpecialCharacters(rawValue)
+                sanitizedKey = escapeXmlSpecialCharacters(placeholderKey)
+                
+                // Construct a regex to allow nested formatting XML tags inside characters
+                regexPattern = buildFlexibleTagRegex(sanitizedKey)
+                slideXml = slideXml.replace(regexPattern, sanitizedValue)
+            
+            // Map Windows design fonts to system font family names registered on Linux
+            replace "Bebas Neue Bold" with "Bebas Neue"
+            replace "Cardo Bold" with "Cardo"
+            
+            // Write modified slide XML back into zip
+            file.write(slideXml)
+            
+    // 3. Compress the archive back to PowerPoint binary format
+    outputBuffer = zip.generateNodeBuffer()
+    WriteToFile(outputPath, outputBuffer)
+```
+
+---
+
+### B. Bulk Event Certificate Dispatch Pipeline
+* **File Reference**: [`POST /api/admin/bulk-send/certificates`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts#L1590-1839)
+* **Goal**: Customizes, converts, and emails event certificates concurrently while sending SSE logs to the administrator.
+
+```text
+FUNCTION bulkSendCertificates(eventTitle):
+    // 1. Fetch template binaries from database
+    participationTemplate = db.execute("SELECT data_base64 FROM templates WHERE name = 'certificate_participation'")
+    appreciationTemplate = db.execute("SELECT data_base64 FROM templates WHERE name = 'certificate_appreciation'")
+    
+    // 2. Query attendee rows pending dispatch
+    recipients = db.execute("SELECT * FROM event_registrations WHERE event_name = eventTitle AND certificate_sent = 0")
+    
+    IF recipients is empty:
+        emitSSE("No pending records found", progress=100)
+        RETURN
+        
+    tasks = []
+    
+    // 3. Map customization values and call PPTX parser for each recipient
+    FOR EACH student IN recipients:
+        certId = generateUniqueCertId(student.id) // e.g. TCEK/RD/2026/0001
+        
+        replacements = {
+            "{{PARTICIPANT NAME}}": student.full_name,
+            "{{EVENT NAME}}": eventTitle,
+            "{{CERTIFICATE ID}}": certId,
+            "{{CERTIFICATE TYPE}}": student.status // e.g., "Won Second Place"
+        }
+        
+        tempPptxPath = "temp_cert_" + student.id + ".pptx"
+        tempPdfPath = "temp_cert_" + student.id + ".pdf"
+        
+        // Choose participation vs appreciation template based on status value
+        isAppreciation = (student.status != "Participation")
+        selectedTemplate = isAppreciation ? appreciationTemplate : participationTemplate
+        
+        // Replace placeholders and write customized PPTX to disk
+        replacePlaceholdersInPptx(selectedTemplate, tempPptxPath, replacements)
+        
+        tasks.append({
+            studentId: student.id,
+            email: student.email,
+            name: student.full_name,
+            pptx: tempPptxPath,
+            pdf: tempPdfPath
+        })
+        
+    // 4. Batch convert all temporary PPTX files to PDF concurrently (reduces LibreOffice CLI overhead)
+    pptxPaths = tasks.map(t => t.pptx)
+    executeShellCommand("soffice --headless --convert-to pdf --outdir [currentDir] [pptxPaths]")
+    
+    // 5. Send emails with a concurrency limit of 10
+    runWithConcurrencyLimit(tasks, limit=10, function(task):
+        IF GMAIL_HTTP_PROXY_URL is set in environment:
+            // Package payload as JSON and route over port 443 via Google Apps Script Proxy
+            payload = {
+                to: task.email,
+                subject: "Your Event Certificate",
+                text: "Dear " + task.name + "...",
+                attachments: [{
+                    filename: "Certificate_" + task.name + ".pdf",
+                    base64: encodeToBase64(ReadFile(task.pdf)),
+                    mimeType: "application/pdf"
+                }]
+            }
+            response = postHttpRequest(GMAIL_HTTP_PROXY_URL, payload)
+            IF response.success IS false:
+                THROW error
+        ELSE:
+            // Fall back to direct SMTP
+            nodemailer.sendMail(task.email, task.pdf)
+            
+        // Update status flags in database
+        db.execute("UPDATE event_registrations SET certificate_sent = 1, certificate_id = [certId] WHERE id = [task.studentId]")
+        db.execute("INSERT INTO activity_logs (username, action, details) VALUES ('admin', 'Send Cert', [task.name])")
+        
+        // Delete temporary files
+        DeleteFile(task.pptx)
+        DeleteFile(task.pdf)
+        
+        emitSSE("Completed: " + task.name, progress=calculateProgress())
+    )
+    
+    emitSSE("Process completed successfully", progress=100)
+```
+
+---
+
+### C. Bulk Hackathon Certificate Dispatch Pipeline
+* **File Reference**: [`POST /api/admin/bulk-send/hackathon-certificates`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts#L1842-2141)
+* **Goal**: Resolves approved hackathon teams, parses team member arrays, generates credentials, batch-converts slides, and sends notifications.
+
+```text
+FUNCTION bulkSendHackathonCertificates(hackathonName):
+    // 1. Fetch template binaries from database
+    template = db.execute("SELECT data_base64 FROM templates WHERE name = 'certificate_hackathon'")
+    
+    // 2. Fetch approved, unsent team registrations
+    teams = db.execute("SELECT * FROM hackathon_registrations WHERE hackathon_name = hackathonName AND status = 'approved' AND certificate_sent = 0")
+    
+    IF teams is empty:
+        emitSSE("No pending approved teams found", progress=100)
+        RETURN
+        
+    tasks = []
+    teamSentTrackers = {} // Map of teamId -> { totalMembers, sentCount }
+    
+    // 3. Loop through teams, parse JSON member lists, and build dispatch tasks
+    FOR EACH team IN teams:
+        membersArray = JSON.parse(team.members)
+        validMembers = filterValidMembers(membersArray) // Filter blank names/emails
+        
+        teamSentTrackers[team.id] = {
+            total: 1 + validMembers.length, // Leader + members
+            sent: 0
+        }
+        
+        // Add Team Leader task
+        tasks.push({
+            teamId: team.id,
+            teamName: team.team_name,
+            projectTitle: team.project_title,
+            participantName: team.leader_name,
+            recipientEmail: team.leader_email,
+            roleIndex: 1,
+            isLeader: true,
+            certificateType: team.certificate_type
+        })
+        
+        // Add other team members' tasks
+        FOR EACH (member, index) IN validMembers:
+            tasks.push({
+                teamId: team.id,
+                teamName: team.team_name,
+                projectTitle: team.project_title,
+                participantName: member.fullName,
+                recipientEmail: member.email,
+                roleIndex: index + 2, // Members index start at 2
+                isLeader: false,
+                certificateType: team.certificate_type
+            })
+            
+    // 4. Generate customised PPTX files on disk
+    FOR EACH task IN tasks:
+        certId = "TCEK/RD/HACK/2026/" + task.teamId + "-" + task.roleIndex
+        replacements = {
+            "{{PARTICIPANT NAME}}": task.participantName,
+            "{{EVENT NAME}}": hackathonName,
+            "{{CERTIFICATE ID}}": certId,
+            "{{CERTIFICATE TYPE}}": task.certificateType,
+            "{{ROLE}}": task.isLeader ? "Team Leader" : "Team Member",
+            "{{TEAM NAME}}": task.teamName,
+            "{{PROJECT TITLE}}": task.projectTitle
+        }
+        
+        tempPptx = "temp_hack_" + task.teamId + "_" + task.roleIndex + ".pptx"
+        tempPdf = "temp_hack_" + task.teamId + "_" + task.roleIndex + ".pdf"
+        
+        replacePlaceholdersInPptx(template, tempPptx, replacements)
+        task.pptxPath = tempPptx
+        task.pdfPath = tempPdf
+        task.certId = certId
+        
+    // 5. Batch convert all generated files to PDF concurrently via LibreOffice CLI
+    pptxPaths = tasks.map(t => t.pptxPath)
+    executeShellCommand("soffice --headless --convert-to pdf --outdir [currentDir] [pptxPaths]")
+    
+    // 6. Concurrently dispatch emails (concurrency limit: 10)
+    runWithConcurrencyLimit(tasks, limit=10, function(task):
+        payload = {
+            to: task.recipientEmail,
+            subject: "Hackathon Participation Certificate",
+            text: "Dear " + task.participantName + "...",
+            attachments: [{
+                filename: "Certificate_" + task.participantName + ".pdf",
+                base64: encodeBase64(ReadFile(task.pdfPath)),
+                mimeType: "application/pdf"
+            }]
+        }
+        
+        IF GMAIL_HTTP_PROXY_URL is set:
+            postHttpRequest(GMAIL_HTTP_PROXY_URL, payload)
+        ELSE:
+            nodemailer.sendMail(task.recipientEmail, task.pdfPath)
+            
+        // Increment sent count for team
+        teamSentTrackers[task.teamId].sent++
+        
+        // If all members of a team have been sent, mark team certificate_sent as complete in DB
+        IF teamSentTrackers[task.teamId].sent == teamSentTrackers[task.teamId].total:
+            db.execute("UPDATE hackathon_registrations SET certificate_sent = 1 WHERE id = [task.teamId]")
+            
+        // Log individual member audit details
+        db.execute("INSERT INTO activity_logs (action, details) VALUES ('Send Hack Cert', [task.participantName])")
+        
+        // Cleanup temp files
+        DeleteFile(task.pptxPath)
+        DeleteFile(task.pdfPath)
+        
+        emitSSE("Completed: " + task.participantName, progress=calculateProgress())
+    )
+    
+    emitSSE("Process completed successfully", progress=100)
+```
+
+---
+
+### D. Bulk Offer Letter Dispatch Pipeline
+* **File Reference**: [`POST /api/admin/bulk-send/offers`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts#L1375-1586)
+* **Goal**: Generates and dispatches coordinator appointment letters.
+
+```text
+FUNCTION bulkSendOffers():
+    // 1. Fetch offer template binary from database
+    template = db.execute("SELECT data_base64 FROM templates WHERE name = 'offer_letter'")
+    
+    // 2. Fetch approved, unsent coordinators
+    coordinators = db.execute("SELECT * FROM club_applications WHERE status = 'approved' AND offer_sent = 0")
+    
+    IF coordinators is empty:
+        emitSSE("No pending approved coordinators found", progress=100)
+        RETURN
+        
+    tasks = []
+    
+    // 3. Map replacements and generate PPTX file for each coordinator
+    FOR EACH coord IN coordinators:
+        refNo = "R&D/COORD/OFFER/2026-2027/" + padLeft(coord.id, 3, "0")
+        
+        replacements = {
+            "{{R&D/COORD/OFFER/2026-2027/001}}": refNo,
+            "{{Student Name}}": coord.full_name,
+            "{{Year & Branch}}": coord.year_of_study + " & " + coord.branch,
+            "{{Department Name}}": coord.branch,
+            "{{Date}}": getCurrentFormattedDate()
+        }
+        
+        tempPptx = "temp_offer_" + coord.id + ".pptx"
+        tempPdf = "temp_offer_" + coord.id + ".pdf"
+        
+        replacePlaceholdersInPptx(template, tempPptx, replacements)
+        tasks.push({
+            coordId: coord.id,
+            email: coord.email,
+            name: coord.full_name,
+            pptx: tempPptx,
+            pdf: tempPdf
+        })
+        
+    // 4. Batch convert all PPTX to PDF using LibreOffice CLI
+    pptxPaths = tasks.map(t => t.pptx)
+    executeShellCommand("soffice --headless --convert-to pdf --outdir [currentDir] [pptxPaths]")
+    
+    // 5. Send emails concurrently (limit: 10)
+    runWithConcurrencyLimit(tasks, limit=10, function(task):
+        payload = {
+            to: task.email,
+            subject: "Offer of Appointment – Student Coordinator (R&D Cell)",
+            text: "Dear " + task.name + "...",
+            attachments: [{
+                filename: "Offer_Letter_" + task.name + ".pdf",
+                base64: encodeBase64(ReadFile(task.pdf)),
+                mimeType: "application/pdf"
+            }]
+        }
+        
+        IF GMAIL_HTTP_PROXY_URL is set:
+            postHttpRequest(GMAIL_HTTP_PROXY_URL, payload)
+        ELSE:
+            nodemailer.sendMail(task.email, task.pdf)
+            
+        // Update DB
+        db.execute("UPDATE club_applications SET offer_sent = 1 WHERE id = [task.coordId]")
+        db.execute("INSERT INTO activity_logs (action, details) VALUES ('Send Offer', [task.name])")
+        
+        // Clean up temp files
+        DeleteFile(task.pptx)
+        DeleteFile(task.pdf)
+        
+        emitSSE("Completed: " + task.name, progress=calculateProgress())
+    )
+    
+    emitSSE("Process completed successfully", progress=100)
+```
+
+---
+
+### E. Public Certificate Verification & PDF Streaming
+* **File Reference**: [`GET /api/verify-certificate/*`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts#L2317-2466)
+* **Goal**: Receives public verification requests. If requesting metadata, returns JSON. If path ends with `/pdf`, generates and streams the compiled PDF directly to the browser.
+
+```text
+FUNCTION verifyCertificateRoute(req, res):
+    certificateId = parseUrlSuffix(req.path) // e.g. "TCEK/RD/2026/0001" or "TCEK/RD/2026/0001/pdf"
+    
+    isPdfRequest = false
+    IF certificateId ends with "/pdf":
+        isPdfRequest = true
+        certificateId = removePdfSuffix(certificateId)
+        
+    // 1. Resolve participant record from database (handles legacy numeric IDs as fallbacks)
+    record = db.query("SELECT * FROM event_registrations WHERE certificate_id = [certificateId] AND certificate_sent = 1")
+    IF record is null:
+        RETURN status(404).send("Certificate not found or not yet issued.")
+        
+    // 2. Fetch event date from DB
+    eventDate = db.query("SELECT date FROM events WHERE title = [record.event_name]").date
+    
+    IF isPdfRequest IS false:
+        // Return metadata payload to render JSON verification table
+        RETURN response.json({
+            fullName: record.full_name,
+            eventName: record.event_name,
+            status: record.status,
+            certificateId: record.certificate_id,
+            eventDate: eventDate,
+            issuedAt: record.created_at
+        })
+    ELSE:
+        // 3. Compile and stream PDF dynamically
+        isAppreciation = (record.status != "Participation")
+        templateName = isAppreciation ? "certificate_appreciation" : "certificate_participation"
+        template = db.execute("SELECT data_base64 FROM templates WHERE name = [templateName]")
+        
+        tempPptx = "temp_verify_" + record.id + ".pptx"
+        tempPdf = "temp_verify_" + record.id + ".pdf"
+        
+        replacements = {
+            "{{PARTICIPANT NAME}}": record.full_name,
+            "{{EVENT NAME}}": record.event_name,
+            "{{DATE}}": eventDate,
+            "{{CERTIFICATE TYPE}}": record.status,
+            "{{CERTIFICATE ID}}": record.certificate_id
+        }
+        
+        // Edit layout nodes in-memory
+        replacePlaceholdersInPptx(template, tempPptx, replacements)
+        
+        // Convert to PDF using LibreOffice
+        executeShellCommand("soffice --headless --convert-to pdf --outdir [currentDir] [tempPptx]")
+        
+        // Stream PDF binary directly to response stream
+        res.setHeader('Content-Type', 'application/pdf')
+        res.setHeader('Content-Disposition', 'inline; filename="Certificate.pdf"')
+        
+        pdfBuffer = ReadFile(tempPdf)
+        res.send(pdfBuffer)
+        
+        // Clean up temp files
+        DeleteFile(tempPptx)
+        DeleteFile(tempPdf)
+```
+
+---
+
+### F. Real-time Synchronization Engine (Server SSE Stream & Client Listeners)
+* **File Reference**: [`GET /api/sync-stream`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts#L489-512) and [`App.tsx:L106-129`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/App.tsx#L106-129)
+* **Goal**: Maintains persistent Server-Sent Events (SSE) connections with client tabs to broadcast updates and reload states.
+
+```text
+// SERVER SIDE ROUTE
+CLIENT_CONNECTIONS = []
+
+FUNCTION handleSyncStreamRoute(req, res):
+    // Configure SSE headers
+    res.setHeader('Content-Type', 'text/event-stream')
+    res.setHeader('Cache-Control', 'no-cache')
+    res.setHeader('Connection', 'keep-alive')
+    
+    // Add client response object to connection pool
+    CLIENT_CONNECTIONS.append(res)
+    
+    // Remote connection close handler
+    ON req.close():
+        CLIENT_CONNECTIONS.remove(res)
+
+FUNCTION notifySyncClients(eventType):
+    // Broadcast trigger command to all open admin/user tabs
+    payload = JSON.stringify({ type: eventType })
+    FOR EACH clientConnection IN CLIENT_CONNECTIONS:
+        clientConnection.write("data: " + payload + "\n\n")
+
+// CLIENT SIDE LISTENER (App.tsx)
+FUNCTION initializeClientSync():
+    // Open SSE event listener stream on server
+    eventSource = new EventSource("/api/sync-stream")
+    
+    eventSource.onmessage = function(event):
+        data = JSON.parse(event.data)
+        IF data.type IS valid:
+            // Broadcast custom DOM event to update state in active sub-components
+            DOMEvent = new CustomEvent("app-sync", { detail: data.type })
+            window.dispatchEvent(DOMEvent)
+            
+    eventSource.onerror = function():
+        log("Connection lost. Retrying standard SSE reconnection...")
 ```
