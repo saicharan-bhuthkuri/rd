@@ -7,6 +7,7 @@ The system features dynamic template compilation by directly parsing PowerPoint 
 ---
 
 ## Table of Contents
+* [Table of Figures, Diagrams, and Charts](#table-of-figures-diagrams-and-charts)
 1. [Project Overview](#1-project-overview)
 2. [Key Features](#2-key-features)
 3. [Complete Technology Stack](#3-complete-technology-stack)
@@ -43,6 +44,31 @@ The system features dynamic template compilation by directly parsing PowerPoint 
 34. [Core Algorithms Pseudocode](#34-core-algorithms-pseudocode)
 35. [Technology Readiness Level (TRL) & Implementation Readiness (IR) Assessment](#35-technology-readiness-level-trl--implementation-readiness-ir-assessment)
 36. [Visual Diagrams Directory](#36-visual-diagrams-directory)
+
+---
+
+## Table of Figures, Diagrams, and Charts
+
+| Figure # | Title / Caption | Short Description | Section Reference | Link |
+| :--- | :--- | :--- | :--- | :--- |
+| **Figure 1** | System Architecture Diagram | Overview of client-server boundaries, edge database calls, and conversion tools. | [5. Application Architecture](#5-application-architecture) | [View Figure](#5-application-architecture) |
+| **Figure 2** | End-to-End Application Workflow | Visualizes candidate form application, admin approval, and document dispatch. | [5. Application Architecture](#5-application-architecture) | [View Figure](#5-application-architecture) |
+| **Figure 3** | Level-0 Context DFD | Illustrates Level-0 context boundaries and external entity data streams. | [5. Application Architecture](#5-application-architecture) | [View Figure](#5-application-architecture) |
+| **Figure 4** | System Use Case Diagram | Maps student candidates, administrators, and developer actors to system actions. | [5. Application Architecture](#5-application-architecture) | [View Figure](#5-application-architecture) |
+| **Figure 5** | Bulk Certificate Dispatch Sequence | Flow of trigger commands, XML tags replacement, LibreOffice CLI conversion, and email dispatches. | [5. Application Architecture](#5-application-architecture) | [View Figure](#5-application-architecture) |
+| **Figure 6** | Database ER Diagram | Shows database schemas, columns, types, primary/foreign keys, and relationships. | [10. Database Documentation](#10-database-documentation) | [View Figure](#10-database-documentation) |
+| **Figure 7** | Production/Deployment Architecture | Illustrates cloud hosting setups on Firebase Hosting, Render, and Turso Edge DB. | [14. Production Architecture](#14-production-architecture) | [View Figure](#14-production-architecture) |
+| **Figure 8** | Testing Architecture & Verification Flow | Shows TypeScript audits, local integration tests, and production CD hooks. | [16. Testing](#16-testing) | [View Figure](#16-testing) |
+| **Figure 9** | Unit Testing Process & Data Flow | Shows isolated utility helper executions (paths, normalization, date formatter). | [16.A. Unit Testing Results](#16-testing) | [View Figure](#16-testing) |
+| **Figure 10** | Black-Box Testing Endpoint Verification | Sequence flowchart of client requests to API endpoints and DB verification routes. | [16.B. Black-Box Testing Results](#16-testing) | [View Figure](#16-testing) |
+| **Figure 11** | White-Box Internal Operations & Execution | Internal statement executions, template replacement nodes, and file caches unlinks. | [16.C. White-Box Testing Results](#16-testing) | [View Figure](#16-testing) |
+| **Figure 12** | Gray-Box Multi-Subsystem Integration | Visualizes SSE connections synchronization and Google Apps Script relay flows. | [16.D. Gray-Box & Integration Testing Results](#16-testing) | [View Figure](#16-testing) |
+| **Figure 13** | SMTP Mail Block Debugging Flow | Step-by-step resolution mapping for port timeouts to HTTPS Apps Script proxies. | [16.F. Detailed Testing & Bug-Fix Report](#16-testing) | [View Figure](#16-testing) |
+| **Figure 14** | Hook setState Loop Debugging Flow | Resolution mapping for hook rendering warning loops to setTimeout macro-tasks. | [16.F. Detailed Testing & Bug-Fix Report](#16-testing) | [View Figure](#16-testing) |
+| **Figure 15** | CI/CD Build & Deployment Pipeline | Flow of git code commit audits to automated Render and Firebase container runs. | [18. CI/CD](#18-cicd) | [View Figure](#18-cicd) |
+| **Figure 16** | Frontend–Backend–Database Relationship | Layered interaction of user UI states, controller API calls, and Turso DB. | [25. Database/API/Frontend Relationship](#25-databaseapifrontend-relationship) | [View Figure](#25-databaseapifrontend-relationship) |
+| **Figure 17** | External Service Dependency Diagram | Maps external platform API boundaries and UptimeRobot heartbeat checks. | [33. External Service Dependency Map](#33-external-service-dependency-map) | [View Figure](#33-external-service-dependency-map) |
+| **Figure 18** | Technology Readiness & Implementation Maturity | Readiness level proofs (TRL 6 / IR 6) and future migration goals. | [35. TRL & IR Assessment](#35-technology-readiness-level-trl--implementation-readiness-ir-assessment) | [View Figure](#35-technology-readiness-level-trl--implementation-readiness-ir-assessment) |
 
 ---
 
