@@ -1365,6 +1365,46 @@ Static validation was executed locally using TypeScript compilation commands and
 
 This report outlines the lifecycle of each defect discovered during the verification phase of the Trinity R&D Cell bulk certificate platform.
 
+#### Defect Debugging & Resolution Visual Workflows
+
+```mermaid
+graph TD
+    subgraph "Defect 1: SMTP Mail Block"
+        E1["Original Error: ETIMEDOUT on port 465"] --> D1["Debug: Render blocks SMTP ports 25/465/587"]
+        D1 --> F1["Fix: Deploy Google Apps Script Web App Proxy over HTTPS"]
+        F1 --> R1["Retest: Run bulk dispatch dashboard checks"]
+        R1 --> S1{"Status?"}
+        S1 -->|Delivered in &lt;2s| P1["PASS (Delivered)"]
+    end
+
+    subgraph "Defect 2: Turso DB IPv6 Connect Failure"
+        E2["Original Error: ENETUNREACH on IPv6 startup query"] --> D2["Debug: Render network uses IPv4-only stack"]
+        D2 --> F2["Fix: Set setDefaultResultOrder('ipv4first') globally"]
+        F2 --> R2["Retest: Restart backend node container service"]
+        R2 --> S2{"Status?"}
+        S2 -->|Turso DB connected successfully| P2["PASS (Seeded)"]
+    end
+```
+
+```mermaid
+graph TD
+    subgraph "Defect 3: Temporal Dead Zone (TDZ) Crash"
+        E3["Original Error: ReferenceError in Verify Page"] --> D3["Debug: const functions are not hoisted in JS"]
+        D3 --> F3["Fix: Move handleVerify definition before useEffect"]
+        F3 --> R3["Retest: Direct route navigation query checks"]
+        R3 --> S3{"Status?"}
+        S3 -->|Clean load and PDF streaming| P3["PASS (Verified)"]
+    end
+
+    subgraph "Defect 4: Synchronous React Hook setState Loop"
+        E4["Original Error: react-hooks/set-state-in-effect warning"] --> D4["Debug: Synchronous state set forces pre-mount render cycle"]
+        D4 --> F4["Fix: Wrap mount triggers in setTimeout deferrals & align rules"]
+        F4 --> R4["Retest: Execute npm run lint & build commands"]
+        R4 --> S4{"Status?"}
+        S4 -->|Clean build output, exit code 0| P4["PASS (100% Green)"]
+    end
+```
+
 ---
 
 #### 1. Outgoing Mail Network Blockage (SMTP Firewall Block)
