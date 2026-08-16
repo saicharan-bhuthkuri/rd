@@ -131,18 +131,18 @@ The Research & Development (R&D) Cell at Trinity College requires a robust infra
 ### High-Level System Architecture & Workflow
 ```mermaid
 graph TD
-    User([Public User / Admin]) -->|Interacts| Frontend[Vite React TS Client]
-    Frontend -->|HTTPS REST / Cookies / X-CSRF-Token| Backend[Node Express TS API Server]
+    User([Public User / Admin]) -->|"Interacts"| Frontend[Vite React TS Client]
+    Frontend -->|"HTTPS REST / Cookies / X-CSRF-Token"| Backend[Node Express TS API Server]
     subgraph "Backend Server Security Pipeline"
         Backend --> CORS[CORS filter]
         CORS --> Limiter[Rate Limiter]
         Limiter --> AuthGate[Auth & CSRF validator]
     end
-    AuthGate -->|SQL Execution| Database[(Turso Edge SQLite)]
-    AuthGate -->|Modify XML | Pizzip[PizZip XML Editor]
-    AuthGate -->|Exec CLI Batch| LibreOffice[LibreOffice PDF Converter]
-    AuthGate -->|HTTP POST JSON| GASProxy[Google Apps Script Proxy]
-    GASProxy -->|Gmail API Auth| Gmail[Gmail SMTP/HTTP Dispatch]
+    AuthGate -->|"SQL Execution"| Database[(Turso Edge SQLite)]
+    AuthGate -->|"Modify XML"| Pizzip[PizZip XML Editor]
+    AuthGate -->|"Exec CLI Batch"| LibreOffice[LibreOffice PDF Converter]
+    AuthGate -->|"HTTP POST JSON"| GASProxy[Google Apps Script Proxy]
+    GASProxy -->|"Gmail API Auth"| Gmail[Gmail SMTP/HTTP Dispatch]
 ```
 
 ---
@@ -395,18 +395,18 @@ The Bulk Certificate Dispatch & Application Management System utilizes a modern,
 
 ```mermaid
 graph TD
-    User([Public User / Admin]) -->|Interacts| Frontend[Vite React TS Client]
-    Frontend -->|HTTPS REST / Cookies / X-CSRF-Token| Backend[Node Express TS API Server]
+    User([Public User / Admin]) -->|"Interacts"| Frontend[Vite React TS Client]
+    Frontend -->|"HTTPS REST / Cookies / X-CSRF-Token"| Backend[Node Express TS API Server]
     subgraph "Backend Server Security Pipeline"
         Backend --> CORS[CORS filter]
         CORS --> Limiter[Rate Limiter]
         Limiter --> AuthGate[Auth & CSRF validator]
     end
-    AuthGate -->|SQL Execution| Database[(Turso Edge SQLite)]
-    AuthGate -->|Modify XML | Pizzip[PizZip XML Editor]
-    AuthGate -->|Exec CLI Batch| LibreOffice[LibreOffice PDF Converter]
-    AuthGate -->|HTTP POST JSON| GASProxy[Google Apps Script Proxy]
-    GASProxy -->|Gmail API Auth| Gmail[Gmail SMTP/HTTP Dispatch]
+    AuthGate -->|"SQL Execution"| Database[(Turso Edge SQLite)]
+    AuthGate -->|"Modify XML"| Pizzip[PizZip XML Editor]
+    AuthGate -->|"Exec CLI Batch"| LibreOffice[LibreOffice PDF Converter]
+    AuthGate -->|"HTTP POST JSON"| GASProxy[Google Apps Script Proxy]
+    GASProxy -->|"Gmail API Auth"| Gmail[Gmail SMTP/HTTP Dispatch]
 ```
 
 #### End-to-End Application Workflow Diagram
@@ -414,34 +414,34 @@ graph TD
 ```mermaid
 graph TD
     subgraph "Enrollment Workflow"
-        Candidate([Student / Applicant]) -->|Submit Form| AppPortal[Apply Page / React Client]
-        AppPortal -->|POST /api/apply/club <br/>Rate Limited| ExpressAPI[Express API Backend]
-        ExpressAPI -->|SQL insert| TursoDB[(Turso Edge SQLite)]
+        Candidate([Student / Applicant]) -->|"Submit Form"| AppPortal[Apply Page / React Client]
+        AppPortal -->|"POST /api/apply/club <br/>Rate Limited"| ExpressAPI[Express API Backend]
+        ExpressAPI -->|"SQL insert"| TursoDB[(Turso Edge SQLite)]
     end
 
     subgraph "Administration & Approval Workflow"
-        Admin([Club Administrator]) -->|Log into portal <br/>Rate Limited| AdminUI[Admin Dashboard]
-        AdminUI -->|View rosters & update status <br/>Cookie + CSRF verification| ExpressAPI
-        ExpressAPI -->|SQL UPDATE| TursoDB
+        Admin([Club Administrator]) -->|"Log into portal <br/>Rate Limited"| AdminUI[Admin Dashboard]
+        AdminUI -->|"View rosters & update status <br/>Cookie + CSRF verification"| ExpressAPI
+        ExpressAPI -->|"SQL UPDATE"| TursoDB
     end
 
     subgraph "Bulk Document Generation & Dispatch Pipeline"
-        AdminUI -->|Trigger bulk dispatches| ExpressAPI
-        ExpressAPI -->|Read PPTX XML & replace placeholders| PizZip[PizZip Template compiler]
-        PizZip -->|Output customized slides| LocalTmp[/tmp ephemerals]
-        LocalTmp -->|Batch convert to PDF| LibreOffice[LibreOffice headless CLI]
-        LibreOffice -->|Base64 binary buffers| GASProxy[Apps Script HTTPS Proxy Gateway]
-        GASProxy -->|Mail dispatch| GmailAPI[Gmail SMTP API]
-        GmailAPI -->|Inbox receipt| Candidate
+        AdminUI -->|"Trigger bulk dispatches"| ExpressAPI
+        ExpressAPI -->|"Read PPTX XML & replace placeholders"| PizZip[PizZip Template compiler]
+        PizZip -->|"Output customized slides"| LocalTmp[/tmp ephemerals]
+        LocalTmp -->|"Batch convert to PDF"| LibreOffice[LibreOffice headless CLI]
+        LibreOffice -->|"Base64 binary buffers"| GASProxy[Apps Script HTTPS Proxy Gateway]
+        GASProxy -->|"Mail dispatch"| GmailAPI[Gmail SMTP API]
+        GmailAPI -->|"Inbox receipt"| Candidate
     end
 
     subgraph "Password Recovery Workflow"
-        AdminRec([Administrator]) -->|Request link <br/>Rate Limited| RecUI[Forgot Password UI]
-        RecUI -->|POST /api/admin/forgot-password| ExpressAPI
-        ExpressAPI -->|Dispatch link email| GASProxy
-        AdminRec -->|Reset password with token <br/>Rate Limited| ResetUI[Reset Password UI]
-        ResetUI -->|POST /api/admin/reset-password| ExpressAPI
-        ExpressAPI -->|SQL UPDATE| TursoDB
+        AdminRec([Administrator]) -->|"Request link <br/>Rate Limited"| RecUI[Forgot Password UI]
+        RecUI -->|"POST /api/admin/forgot-password"| ExpressAPI
+        ExpressAPI -->|"Dispatch link email"| GASProxy
+        AdminRec -->|"Reset password with token <br/>Rate Limited"| ResetUI[Reset Password UI]
+        ResetUI -->|"POST /api/admin/reset-password"| ExpressAPI
+        ExpressAPI -->|"SQL UPDATE"| TursoDB
     end
 ```
 
@@ -598,18 +598,18 @@ graph TD
     GAS["Google Apps Script HTTP Proxy"]
     Gmail["Gmail Mailing API"]
 
-    User -->|Submit Application Form JSON| System
-    System -->|Verification Data & Dynamic PDF Stream| User
+    User -->|"Submit Application Form JSON"| System
+    System -->|"Verification Data & Dynamic PDF Stream"| User
 
-    Admin -->|Login Credentials, Reset Link Requests, Mutate Actions + CSRF Token Header| System
-    System -->|HTTP-only Session Cookie, Dynamic Tables, Reset Email Link| Admin
+    Admin -->|"Login Credentials, Reset Link Requests, Mutate Actions + CSRF Token Header"| System
+    System -->|"HTTP-only Session Cookie, Dynamic Tables, Reset Email Link"| Admin
 
-    System -->|Prepared SQL Read / Write| Turso
-    Turso -->|Candidate Schemas & Base64 PPTX| System
+    System -->|"Prepared SQL Read / Write"| Turso
+    Turso -->|"Candidate Schemas & Base64 PPTX"| System
 
-    System -->|HTTP POST Base64 Payload| GAS
-    GAS -->|Gmail Auth Dispatch API| Gmail
-    Gmail -->|Delivered Email & Attachment| Recipient(["Recipient Inbox"])
+    System -->|"HTTP POST Base64 Payload"| GAS
+    GAS -->|"Gmail Auth Dispatch API"| Gmail
+    Gmail -->|"Delivered Email & Attachment"| Recipient(["Recipient Inbox"])
 ```
 
 #### DFD Level 1: Subsystem Process Diagram
@@ -635,32 +635,32 @@ graph TD
         P5("5.0 Public Verifier Engine")
     end
 
-    E1 -->|Application Signups| P1
-    P1 -->|Insert Application Record| D1
-    P1 -->|Emit SSE Notification| E2
+    E1 -->|"Application Signups"| P1
+    P1 -->|"Insert Application Record"| D1
+    P1 -->|"Emit SSE Notification"| E2
 
-    E2 -->|Admin Login / Recovery Request| P2
-    P2 -->|Query Admin Password Hash & Email| D1
-    D1 -->|Hash & Email Profiles| P2
-    P2 -->|Set HTTP-only Auth Cookie & Send CSRF Token JSON| E2
-    P2 -->|Dispatch signed Reset Password link email| E2
-    P2 -->|Validate Reset Token & Save New Hash| D1
+    E2 -->|"Admin Login / Recovery Request"| P2
+    P2 -->|"Query Admin Password Hash & Email"| D1
+    D1 -->|"Hash & Email Profiles"| P2
+    P2 -->|"Set HTTP-only Auth Cookie & Send CSRF Token JSON"| E2
+    P2 -->|"Dispatch signed Reset Password link email"| E2
+    P2 -->|"Validate Reset Token & Save New Hash"| D1
 
-    E2 -->|Bulk Trigger Request| P4
-    P4 -->|Verify Dispatch Status & Get Template| D1
-    D1 -->|Base64 Template File| P4
-    P4 -->|Raw Buffer Array| P3
-    P3 -->|Substitute XML Tokens (PizZip)| P3
-    P3 -->|Docker Headless Conversion (LibreOffice)| P3
-    P3 -->|Compiled PDF Stream| P4
-    P4 -->|POST Base64 JSON| GAS["Google Apps Script WebApp"]
-    GAS -->|Gmail API Relay| E3
-    P4 -->|Update sent_status = 1 & Log Activity| D1
+    E2 -->|"Bulk Trigger Request"| P4
+    P4 -->|"Verify Dispatch Status & Get Template"| D1
+    D1 -->|"Base64 Template File"| P4
+    P4 -->|"Raw Buffer Array"| P3
+    P3 -->|"Substitute XML Tokens (PizZip)"| P3
+    P3 -->|"Docker Headless Conversion (LibreOffice)"| P3
+    P3 -->|"Compiled PDF Stream"| P4
+    P4 -->|"POST Base64 JSON"| GAS["Google Apps Script WebApp"]
+    GAS -->|"Gmail API Relay"| E3
+    P4 -->|"Update sent_status = 1 & Log Activity"| D1
 
-    E1 -->|Reference Code Lookup| P5
-    P5 -->|Query Credential ID| D1
-    D1 -->|Candidate Metadata| P5
-    P5 -->|JSON Parameters & Dynamic PDF Stream| E1
+    E1 -->|"Reference Code Lookup"| P5
+    P5 -->|"Query Credential ID"| D1
+    D1 -->|"Candidate Metadata"| P5
+    P5 -->|"JSON Parameters & Dynamic PDF Stream"| E1
 ```
 
 ---
