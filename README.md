@@ -1079,6 +1079,37 @@ GMAIL_HTTP_PROXY_URL=your_google_script_deployment_url
 
 The system's integrity, performance, and document compiler rendering have been verified using a comprehensive testing matrix. Tests were executed across local development environments and target production nodes.
 
+#### Testing Architecture & Verification Flow Diagram
+
+```mermaid
+graph TD
+    subgraph "Phase 1: Static Quality Assurance"
+        A["Developer Code Push / Pull Request"] --> B["TypeScript Type Checks (tsc -b)"]
+        B -->|Success| C["ESLint Static Code Audit (eslint .)"]
+        B -->|TypeScript Error| Z1["Review Typings & Fix Code"]
+        C -->|Success: Exit Code 0| D["Vite Production Bundle Compiler"]
+        C -->|Static Linter Warnings| Z2["Apply ESLint Rules / Deferrals"]
+        Z1 --> B
+        Z2 --> C
+    end
+
+    subgraph "Phase 2: Local Integration Suite"
+        D -->|Vite Compiles Client dist/| E["Spawn Integration Test Runner (test_suite.js)"]
+        E -->|Binds Node Server to test port 5001| F["Run Native Assertion Tests (fetch calls)"]
+        F -->|Verify events, branches, login blocks, lookups| G{"All 5/5 assertions pass?"}
+        G -->|No| H1["Review Console Logs & Seeding Outputs"]
+        H1 --> E
+    end
+
+    subgraph "Phase 3: Production CD Pipeline"
+        G -->|Yes: Exit Code 0| H2["Git Push Master (Trigger Render Build)"]
+        H2 --> I["Render Debian Docker container builds (LibreOffice CLI setup)"]
+        I --> J["Firebase hosting deploys client static bundle"]
+        J --> K["Live Sandbox Environment operational"]
+        K -->|Bulk dispatch requests| L["Relay attachments via Google Apps Script Proxy over Port 443"]
+    end
+```
+
 ### Testing Environments & Tooling
 * **Local Development Environment**: Windows 11 Home, Node.js (v20.12.12), NPM (v10.5.0), local SQLite emulator configurations.
 * **Production Staging Environment**: Debian-based Docker Container (`node:20-bullseye-slim`) hosted on Render (Starter instance), Firebase Hosting CDN, Turso Edge LibSQL Cloud database.
