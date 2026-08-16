@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Users, ArrowLeft, LogOut, Sparkles, Calendar, ClipboardList, Layers, Menu, X, Code } from 'lucide-react';
+import { API_BASE_URL } from '../config';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -16,8 +17,13 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   const role = adminUser.role || '';
   const username = adminUser.username || '';
 
-  const handleLogout = () => {
-    localStorage.removeItem('admin_token');
+  const handleLogout = async () => {
+    try {
+      await fetch(`${API_BASE_URL}/api/admin/logout`, { method: 'POST' });
+    } catch (err) {
+      console.error("Logout request failed:", err);
+    }
+    localStorage.removeItem('csrf_token');
     localStorage.removeItem('admin_user');
     navigate('/admin/login');
   };

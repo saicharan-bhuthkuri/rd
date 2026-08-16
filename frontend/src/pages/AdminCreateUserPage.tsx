@@ -9,6 +9,7 @@ export const AdminCreateUserPage: React.FC = () => {
   const [newUsername, setNewUsername] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newRole, setNewRole] = useState<'superadmin' | 'admin'>('admin');
+  const [newEmail, setNewEmail] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState('');
   const [createSuccess, setCreateSuccess] = useState('');
@@ -42,7 +43,8 @@ export const AdminCreateUserPage: React.FC = () => {
         body: JSON.stringify({
           username: newUsername,
           password: newPassword,
-          role: newRole
+          role: newRole,
+          email: newEmail
         }),
       });
 
@@ -55,6 +57,7 @@ export const AdminCreateUserPage: React.FC = () => {
       setCreateSuccess(`Account for "${newUsername}" created successfully.`);
       setNewUsername('');
       setNewPassword('');
+      setNewEmail('');
       setNewRole('admin');
     } catch (err: any) {
       setCreateError(err.message);
@@ -104,6 +107,19 @@ export const AdminCreateUserPage: React.FC = () => {
               placeholder="e.g. akhya"
               value={newUsername}
               onChange={(e) => setNewUsername(e.target.value)}
+            />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="admin-email">Email Address</label>
+            <input
+              type="email"
+              id="admin-email"
+              required
+              className="form-control"
+              placeholder="e.g. admin@domain.com"
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
             />
           </div>
 

@@ -1983,12 +1983,12 @@ graph LR
 * **Casing Normalization**: Sanitizes achievement status strings against lowercase participation tags to restrict arbitrary text injections.
 * **CORS Configuration**: Configures CORS middleware on the backend to allow client integrations, restricting endpoints to recognized cross-domain request pathways.
 
-### Identified Security Weaknesses & Missing Protections
-* **Lack of Rate Limiting**: The backend API server has no rate limiting configured (e.g. using `express-rate-limit`). High-frequency requests can cause database resource exhaustion or overload the LibreOffice PDF compiler.
-* **No CSRF Tokens (LocalStorage Token storage)**: Session tokens are stored in the client-side `LocalStorage` (not inside HTTP-only secure cookies). While this architecture prevents typical Cross-Site Request Forgery (CSRF) exploits targeting standard session cookies, it makes the token vulnerable to Cross-Site Scripting (XSS) if malicious scripts gain access to the DOM.
-* **No Automated Account Recovery**: The application lacks password recovery APIs. Admin password modifications must be made via manual database edits using SQL.
-* **Exposed Default Credentials**: Default admin credentials (`charan` and `akhya`) are seeded during setup. Although these should be updated immediately in production, they are stored in the startup logic.
-* **Public Debug Endpoints**: Endpoints like `/api/debug-fonts` and `/api/debug-pdf-fonts` are publicly accessible, exposing internal container font structures. These should be protected or disabled in production.
+### Implemented Security Enhancements & Protections
+* **Rate Limiting**: Enforces rate limiting on all API routes using `express-rate-limit`, with strict thresholds on sensitive pathways (e.g., login, forgot password, registration/application submissions, and certificate verification).
+* **HttpOnly Cookies & CSRF Protection**: Session tokens are stored in secure HTTP-only cookies, removing them from client-side `LocalStorage` to prevent XSS-based token theft. To prevent Cross-Site Request Forgery (CSRF), state-changing requests validate an `X-CSRF-Token` header containing a signed CSRF token.
+* **Automated Account Recovery**: Added a secure forgot-password and reset-password flow using short-lived signed JWT reset links sent via email.
+* **Environment-Configured Credentials**: Seeding default developer and superadmin passwords from environment variables in `.env` rather than hardcoding them in the startup source code.
+* **Restricted Debug Endpoints**: Font debug endpoints require token authentication and are completely disabled in production mode.
 
 ---
 

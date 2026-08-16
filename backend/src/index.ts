@@ -11,6 +11,8 @@ import { promisify } from 'util';
 import nodemailer from 'nodemailer';
 import PizZip from 'pizzip';
 import dns from 'dns';
+import cookieParser from 'cookie-parser';
+import rateLimit from 'express-rate-limit';
 
 // Force DNS lookup to prefer IPv4 first. This prevents ENETUNREACH errors on hostings like Render where IPv6 is not routable.
 dns.setDefaultResultOrder('ipv4first');
@@ -32,9 +34,47 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 5000;
 
-// Enable CORS and json parsing
-app.use(cors());
+// Enable cookie parsing
+app.use(cookieParser());
+
+// Enable CORS with credentials support and dynamic origins
+const allowedOrigins = [
+  'http://localhost:5173',
+  process.env.FRONTEND_URL
+].filter(Boolean) as string[];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin) || origin.startsWith('http://localhost:')) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true
+}));
+
 app.use(express.json());
+
+// Configure Rate Limiters
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 150, // Limit each IP to 150 requests per windowMs
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests from this IP, please try again after 15 minutes.' }
+});
+
+const sensitiveLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20, // Limit each IP to 20 requests per windowMs
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests for this resource, please try again after 15 minutes.' }
+});
+
+// Apply global rate limiter
+app.use(globalLimiter);
 
 // Initialize Turso LibSQL client
 const tursoUrl = process.env.TURSO_URL;
@@ -62,16 +102,37 @@ interface AuthenticatedRequest extends express.Request {
 
 const authenticateToken = (req: AuthenticatedRequest, res: express.Response, next: express.NextFunction) => {
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  const token = req.cookies?.admin_token || (authHeader && authHeader.split(' ')[1]);
 
   if (!token) {
     return res.status(401).json({ error: "Access token missing." });
   }
 
-  jwt.verify(token, JWT_SECRET, (err, decoded: any) => {
+  jwt.verify(token, JWT_SECRET, (err: any, decoded: any) => {
     if (err) {
       return res.status(403).json({ error: "Invalid or expired token." });
     }
+
+    // CSRF Protection
+    const method = req.method.toUpperCase();
+    if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
+      const tokenSource = req.cookies?.admin_token ? 'cookie' : 'header';
+      if (tokenSource === 'cookie') {
+        const csrfHeader = req.headers['x-csrf-token'];
+        if (!csrfHeader || typeof csrfHeader !== 'string') {
+          return res.status(403).json({ error: "CSRF token verification failed: header missing." });
+        }
+        try {
+          const csrfDecoded: any = jwt.verify(csrfHeader, JWT_SECRET);
+          if (csrfDecoded.type !== 'csrf' || csrfDecoded.username !== decoded.username) {
+            return res.status(403).json({ error: "CSRF token verification failed: invalid payload." });
+          }
+        } catch (csrfErr) {
+          return res.status(403).json({ error: "CSRF token verification failed: validation failed." });
+        }
+      }
+    }
+
     req.user = decoded;
     next();
   });
@@ -136,6 +197,7 @@ async function setupDatabase() {
         username TEXT UNIQUE NOT NULL,
         password TEXT NOT NULL,
         role TEXT NOT NULL CHECK(role IN ('developer', 'superadmin', 'admin')),
+        email TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
     `);
@@ -282,25 +344,47 @@ async function setupDatabase() {
       // Column already exists, ignore
     }
 
+    try {
+      await db.execute(`ALTER TABLE admin_users ADD COLUMN email TEXT;`);
+      console.log("Database verification: email column verified/added to admin_users.");
+    } catch (e) {
+      // Column already exists, ignore
+    }
+
     // Seed Default accounts
-    // Seeding Developer: charan / Bharat@8336
-    const devPassHash = await bcrypt.hash('Bharat@8336', 10);
+    const DEFAULT_DEV_PASSWORD = process.env.DEFAULT_DEV_PASSWORD || 'Bharat@8336';
+    const DEFAULT_SUPERADMIN_PASSWORD = process.env.DEFAULT_SUPERADMIN_PASSWORD || 'akhya@1962';
+
+    if (DEFAULT_DEV_PASSWORD === 'Bharat@8336' || DEFAULT_SUPERADMIN_PASSWORD === 'akhya@1962') {
+      console.warn("\x1b[33m%s\x1b[0m", "SECURITY WARNING: Seeding default credentials directly. Please configure DEFAULT_DEV_PASSWORD and DEFAULT_SUPERADMIN_PASSWORD in .env.");
+    }
+
+    // Seeding Developer: charan
+    const devPassHash = await bcrypt.hash(DEFAULT_DEV_PASSWORD, 10);
     try {
       await db.execute({
-        sql: `INSERT OR IGNORE INTO admin_users (username, password, role) VALUES (?, ?, ?)`,
-        args: ['charan', devPassHash, 'developer']
+        sql: `INSERT OR IGNORE INTO admin_users (username, password, role, email) VALUES (?, ?, ?, ?)`,
+        args: ['charan', devPassHash, 'developer', 'recruitmentrd6@gmail.com']
+      });
+      await db.execute({
+        sql: `UPDATE admin_users SET email = ? WHERE username = ? AND email IS NULL`,
+        args: ['recruitmentrd6@gmail.com', 'charan']
       });
       console.log("Seeding verification: Developer 'charan' verified/seeded.");
     } catch (e) {
       console.error("Error seeding developer:", e);
     }
 
-    // Seeding Super Admin: akhya / akhya@1962
-    const superadminPassHash = await bcrypt.hash('akhya@1962', 10);
+    // Seeding Super Admin: akhya
+    const superadminPassHash = await bcrypt.hash(DEFAULT_SUPERADMIN_PASSWORD, 10);
     try {
       await db.execute({
-        sql: `INSERT OR IGNORE INTO admin_users (username, password, role) VALUES (?, ?, ?)`,
-        args: ['akhya', superadminPassHash, 'superadmin']
+        sql: `INSERT OR IGNORE INTO admin_users (username, password, role, email) VALUES (?, ?, ?, ?)`,
+        args: ['akhya', superadminPassHash, 'superadmin', 'recruitmentrd6@gmail.com']
+      });
+      await db.execute({
+        sql: `UPDATE admin_users SET email = ? WHERE username = ? AND email IS NULL`,
+        args: ['recruitmentrd6@gmail.com', 'akhya']
       });
       console.log("Seeding verification: Super Admin 'akhya' verified/seeded.");
     } catch (e) {
@@ -512,7 +596,7 @@ app.get('/api/sync-stream', (req, res) => {
 });
 
 // 1. Club Membership Application endpoint
-app.post('/api/apply/club', async (req, res) => {
+app.post('/api/apply/club', sensitiveLimiter, async (req, res) => {
   const {
     fullName,
     pinNumber,
@@ -562,7 +646,7 @@ app.post('/api/apply/club', async (req, res) => {
 });
 
 // 2. Event Registration endpoint
-app.post('/api/apply/event', async (req, res) => {
+app.post('/api/apply/event', sensitiveLimiter, async (req, res) => {
   const {
     fullName,
     pinNumber,
@@ -610,7 +694,7 @@ app.post('/api/apply/event', async (req, res) => {
 });
 
 // 2.5 Hackathon Registration endpoint
-app.post('/api/apply/hackathon', async (req, res) => {
+app.post('/api/apply/hackathon', sensitiveLimiter, async (req, res) => {
   const {
     hackathonName,
     teamName,
@@ -675,7 +759,7 @@ app.post('/api/apply/hackathon', async (req, res) => {
 });
 
 // 3. Contact/Enquiry feedback endpoint
-app.post('/api/contact', async (req, res) => {
+app.post('/api/contact', sensitiveLimiter, async (req, res) => {
   const { name, email, subject, message } = req.body;
 
   if (!name || !email || !subject || !message) {
@@ -750,7 +834,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // 5. Admin Login
-app.post('/api/admin/login', async (req, res) => {
+app.post('/api/admin/login', sensitiveLimiter, async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) {
     return res.status(400).json({ error: "Username and password are required." });
@@ -778,6 +862,20 @@ app.post('/api/admin/login', async (req, res) => {
       { expiresIn: '8h' }
     );
 
+    const csrfToken = jwt.sign(
+      { username: user.username, type: 'csrf' },
+      JWT_SECRET,
+      { expiresIn: '8h' }
+    );
+
+    // Set HTTP-only secure cookie
+    res.cookie('admin_token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 8 * 60 * 60 * 1000 // 8 hours
+    });
+
     // Log Activity
     await db.execute({
       sql: "INSERT INTO activity_logs (username, action, details) VALUES (?, ?, ?)",
@@ -786,7 +884,7 @@ app.post('/api/admin/login', async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      token,
+      csrfToken,
       user: {
         username: user.username,
         role: user.role
@@ -795,6 +893,120 @@ app.post('/api/admin/login', async (req, res) => {
   } catch (err: any) {
     console.error("Login error:", err);
     return res.status(500).json({ error: "Internal server error during login.", details: err.message });
+  }
+});
+
+// Admin Logout
+app.post('/api/admin/logout', (req, res) => {
+  res.clearCookie('admin_token');
+  return res.status(200).json({ success: true, message: "Logged out successfully." });
+});
+
+async function sendSystemEmail(to: string, subject: string, text: string) {
+  if (process.env.GMAIL_HTTP_PROXY_URL) {
+    const payload = { to, subject, text };
+    const proxyRes = await postToAppsScript(process.env.GMAIL_HTTP_PROXY_URL, payload);
+    if (!proxyRes.success) {
+      throw new Error(`Google Apps Script Proxy failed: ${proxyRes.error}`);
+    }
+  } else {
+    await transporter.sendMail({
+      from: SENDER_EMAIL,
+      to,
+      subject,
+      text
+    });
+  }
+}
+
+// Admin Forgot Password
+app.post('/api/admin/forgot-password', sensitiveLimiter, async (req, res) => {
+  const { email } = req.body;
+  if (!email || email.trim() === '') {
+    return res.status(400).json({ error: "Email address is required." });
+  }
+
+  try {
+    const userRes = await db.execute({
+      sql: "SELECT username FROM admin_users WHERE email = ?",
+      args: [email.trim()]
+    });
+
+    if (userRes.rows.length > 0) {
+      const username = userRes.rows[0].username as string;
+      const resetToken = jwt.sign(
+        { username, purpose: 'reset-password' },
+        JWT_SECRET,
+        { expiresIn: '15m' }
+      );
+
+      const origin = req.headers.origin || 'http://localhost:5173';
+      const resetLink = `${origin}/admin/reset-password?token=${resetToken}`;
+
+      const subject = "R&D Club Admin Password Reset Request";
+      const text = `Hello,\n\nYou are receiving this email because a password reset request was submitted for your R&D Club administrator account (${username}).\n\nPlease click on the following link, or paste it into your browser to complete the process. This link is valid for 15 minutes:\n\n${resetLink}\n\nIf you did not request a password reset, you can safely ignore this email.\n\nBest regards,\nR&D Club Admin System`;
+
+      await sendSystemEmail(email.trim(), subject, text);
+
+      // Log Activity
+      await db.execute({
+        sql: "INSERT INTO activity_logs (username, action, details) VALUES (?, ?, ?)",
+        args: [username, "Forgot Password", `Password reset email sent to ${email}`]
+      });
+    }
+
+    // Always return 200/success to avoid username enumeration
+    return res.status(200).json({
+      success: true,
+      message: "If a matching account exists, a password reset link has been sent."
+    });
+  } catch (err: any) {
+    console.error("Forgot password error:", err);
+    return res.status(500).json({ error: "Internal server error during password reset request.", details: err.message });
+  }
+});
+
+// Admin Reset Password
+app.post('/api/admin/reset-password', sensitiveLimiter, async (req, res) => {
+  const { token, newPassword } = req.body;
+  if (!token || !newPassword) {
+    return res.status(400).json({ error: "Token and new password are required." });
+  }
+
+  try {
+    const decoded: any = jwt.verify(token, JWT_SECRET);
+    if (decoded.purpose !== 'reset-password') {
+      return res.status(400).json({ error: "Invalid token purpose." });
+    }
+
+    const username = decoded.username;
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+
+    const result = await db.execute({
+      sql: "UPDATE admin_users SET password = ? WHERE username = ?",
+      args: [passwordHash, username]
+    });
+
+    if (result.rowsAffected === 0) {
+      return res.status(404).json({ error: "User not found or password not changed." });
+    }
+
+    // Log Activity
+    await db.execute({
+      sql: "INSERT INTO activity_logs (username, action, details) VALUES (?, ?, ?)",
+      args: [username, "Reset Password", "Password reset successfully completed via recovery link."]
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Password reset completed successfully. You can now login with your new password."
+    });
+  } catch (err: any) {
+    console.error("Reset password error:", err);
+    if (err.name === 'TokenExpiredError') {
+      return res.status(400).json({ error: "Reset token has expired. Please request a new one." });
+    }
+    return res.status(400).json({ error: "Invalid or corrupt reset token." });
   }
 });
 
@@ -894,7 +1106,7 @@ app.get('/api/admin/users', authenticateToken, async (req: AuthenticatedRequest,
   }
 
   try {
-    const usersRes = await db.execute("SELECT id, username, role, created_at FROM admin_users ORDER BY created_at DESC");
+    const usersRes = await db.execute("SELECT id, username, role, email, created_at FROM admin_users ORDER BY created_at DESC");
     return res.status(200).json(usersRes.rows);
   } catch (err: any) {
     console.error("Error fetching users:", err);
@@ -908,9 +1120,9 @@ app.post('/api/admin/users', authenticateToken, async (req: AuthenticatedRequest
     return res.status(403).json({ error: "Forbidden: Only Developers and Super Admins can manage users." });
   }
 
-  const { username, password, role } = req.body;
-  if (!username || !password || !role) {
-    return res.status(400).json({ error: "Username, password, and role are required." });
+  const { username, password, role, email } = req.body;
+  if (!username || !password || !role || !email) {
+    return res.status(400).json({ error: "Username, password, role, and email are required." });
   }
 
   if (role !== 'admin' && role !== 'superadmin' && role !== 'developer') {
@@ -934,8 +1146,8 @@ app.post('/api/admin/users', authenticateToken, async (req: AuthenticatedRequest
 
     const passwordHash = await bcrypt.hash(password, 10);
     const result = await db.execute({
-      sql: "INSERT INTO admin_users (username, password, role) VALUES (?, ?, ?)",
-      args: [username, passwordHash, role]
+      sql: "INSERT INTO admin_users (username, password, role, email) VALUES (?, ?, ?, ?)",
+      args: [username, passwordHash, role, email]
     });
 
     // Log Activity
@@ -944,7 +1156,7 @@ app.post('/api/admin/users', authenticateToken, async (req: AuthenticatedRequest
       args: [
         req.user.username,
         "Create User",
-        `Created user ${username} with role: ${role}`
+        `Created user ${username} with role: ${role} and email: ${email}`
       ]
     });
 
@@ -2141,7 +2353,10 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
 });
 
 // Debug route to list installed fonts
-app.get('/api/debug-fonts', async (req, res) => {
+app.get('/api/debug-fonts', authenticateToken, async (req, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(403).send("Forbidden in production mode.");
+  }
   try {
     const { execSync } = require('child_process');
     let output = '';
@@ -2159,7 +2374,10 @@ app.get('/api/debug-fonts', async (req, res) => {
 });
 
 // Debug route to check embedded PDF fonts
-app.get('/api/debug-pdf-fonts', async (req, res) => {
+app.get('/api/debug-pdf-fonts', authenticateToken, async (req, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(403).send("Forbidden in production mode.");
+  }
   try {
     const tempPptx = path.join(process.cwd(), `test_debug_temp.pptx`);
     const tempPdf = path.join(process.cwd(), `test_debug_temp.pdf`);
@@ -2314,7 +2532,7 @@ app.delete('/api/admin/branches/:id', authenticateToken, async (req: Authenticat
 });
 
 // 19. Public Certificate Verification Route (Handles both JSON metadata and dynamic PDF streaming)
-app.get('/api/verify-certificate/*', async (req, res) => {
+app.get('/api/verify-certificate/*', sensitiveLimiter, async (req, res) => {
   let certificateId = decodeURIComponent((req.params as any)[0] || '');
   let isPdf = false;
 

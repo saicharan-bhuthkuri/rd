@@ -1,6 +1,54 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { API_BASE_URL } from './config';
+
+// Global Fetch Interceptor to inject Credentials and CSRF token
+const originalFetch = window.fetch;
+window.fetch = async (input, init) => {
+  const url = typeof input === 'string' ? input : (input instanceof Request ? input.url : '');
+  if (url.startsWith(API_BASE_URL) || url.startsWith('/api')) {
+    const newInit = { ...init };
+    newInit.credentials = 'include';
+
+    // Normalize headers structure
+    let headers: Record<string, string> = {};
+    if (newInit.headers) {
+      if (newInit.headers instanceof Headers) {
+        newInit.headers.forEach((value, key) => {
+          headers[key] = value;
+        });
+      } else if (Array.isArray(newInit.headers)) {
+        newInit.headers.forEach(([key, value]) => {
+          headers[key] = value;
+        });
+      } else {
+        headers = { ...newInit.headers } as Record<string, string>;
+      }
+    }
+
+    // Set CSRF token header for mutating requests
+    const method = (newInit.method || 'GET').toUpperCase();
+    if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
+      const csrfToken = localStorage.getItem('csrf_token');
+      if (csrfToken) {
+        headers['X-CSRF-Token'] = csrfToken;
+      }
+    }
+
+    // Remove bearer null / bearer undefined headers if they exist
+    if (headers['Authorization'] || headers['authorization']) {
+      const authKey = headers['Authorization'] ? 'Authorization' : 'authorization';
+      const authVal = headers[authKey];
+      if (authVal === 'Bearer null' || authVal === 'Bearer undefined' || !authVal.split(' ')[1] || authVal.split(' ')[1] === 'null' || authVal.split(' ')[1] === 'undefined') {
+        delete headers[authKey];
+      }
+    }
+
+    newInit.headers = headers;
+    return originalFetch(input, newInit);
+  }
+  return originalFetch(input, init);
+};
 import { Header } from './components/Header';
 import { Hero } from './components/Hero';
 import { About } from './components/About';
@@ -31,6 +79,9 @@ import { AdminCreateUserPage } from './pages/AdminCreateUserPage';
 import { AdminManageEventsPage } from './pages/AdminManageEventsPage';
 import { AdminCreateEventPage } from './pages/AdminCreateEventPage';
 import { AdminBranchesPage } from './pages/AdminBranchesPage';
+import { AdminForgotPasswordPage } from './pages/AdminForgotPasswordPage'; // Newly created page
+import { AdminResetPasswordPage } from './pages/AdminResetPasswordPage'; // Newly created page
+
 
 
 // Scroll Restoration Hook
@@ -62,11 +113,11 @@ const HomePage: React.FC = () => {
 
 // Protected Router Guard for Admin Privileges
 const ProtectedRoute: React.FC<{ children: React.ReactNode; allowedRoles?: string[] }> = ({ children, allowedRoles }) => {
-  const token = localStorage.getItem('admin_token');
   const adminUser = JSON.parse(localStorage.getItem('admin_user') || '{}');
   const role = adminUser.role || '';
+  const isLoggedIn = !!adminUser.username;
 
-  if (!token) {
+  if (!isLoggedIn) {
     return <Navigate to="/admin/login" replace />;
   }
 
@@ -104,7 +155,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
 function App() {
   useEffect(() => {
-    const eventSource = new EventSource(`${API_BASE_URL}/api/sync-stream`);
+    const eventSource = new EventSource(`${API_BASE_URL}/api/sync-stream`, { withCredentials: true });
     
     eventSource.onmessage = (event) => {
       try {
@@ -149,6 +200,8 @@ function App() {
 
           {/* Admin Routes */}
           <Route path="/admin/login" element={<AdminLoginPage />} />
+          <Route path="/admin/forgot-password" element={<AdminForgotPasswordPage />} />
+          <Route path="/admin/reset-password" element={<AdminResetPasswordPage />} />
           
           <Route
             path="/admin/dashboard"

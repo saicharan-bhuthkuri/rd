@@ -31,7 +31,7 @@ export const AdminLoginPage: React.FC = () => {
       }
 
       // Store auth credentials in localStorage
-      localStorage.setItem('admin_token', data.token);
+      localStorage.setItem('csrf_token', data.csrfToken);
       localStorage.setItem('admin_user', JSON.stringify(data.user));
 
       navigate('/admin/dashboard');
@@ -95,6 +95,17 @@ export const AdminLoginPage: React.FC = () => {
               'Access Console'
             )}
           </button>
+
+          <div style={{ marginTop: '1.25rem', textAlign: 'center' }}>
+            <span 
+              onClick={() => navigate('/admin/forgot-password')} 
+              style={{ fontSize: '0.85rem', color: '#6366f1', cursor: 'pointer', textDecoration: 'none', transition: 'color 0.2s' }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = '#818cf8')}
+              onMouseLeave={(e) => (e.currentTarget.style.color = '#6366f1')}
+            >
+              Forgot your password? Reset it here
+            </span>
+          </div>
         </form>
 
         <div style={{ marginTop: '2rem', textAlign: 'center', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
