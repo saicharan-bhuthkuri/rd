@@ -133,7 +133,7 @@ The Research & Development (R&D) Cell at Trinity College requires a robust infra
 graph TD
     User([Public User / Admin]) -->|Interacts| Frontend[Vite React TS Client]
     Frontend -->|HTTPS REST / Cookies / X-CSRF-Token| Backend[Node Express TS API Server]
-    subgraph Backend Server Security Pipeline
+    subgraph "Backend Server Security Pipeline"
         Backend --> CORS[CORS filter]
         CORS --> Limiter[Rate Limiter]
         Limiter --> AuthGate[Auth & CSRF validator]
@@ -397,7 +397,7 @@ The Bulk Certificate Dispatch & Application Management System utilizes a modern,
 graph TD
     User([Public User / Admin]) -->|Interacts| Frontend[Vite React TS Client]
     Frontend -->|HTTPS REST / Cookies / X-CSRF-Token| Backend[Node Express TS API Server]
-    subgraph Backend Server Security Pipeline
+    subgraph "Backend Server Security Pipeline"
         Backend --> CORS[CORS filter]
         CORS --> Limiter[Rate Limiter]
         Limiter --> AuthGate[Auth & CSRF validator]
@@ -413,19 +413,19 @@ graph TD
 
 ```mermaid
 graph TD
-    subgraph Enrollment Workflow
+    subgraph "Enrollment Workflow"
         Candidate([Student / Applicant]) -->|Submit Form| AppPortal[Apply Page / React Client]
         AppPortal -->|POST /api/apply/club <br/>Rate Limited| ExpressAPI[Express API Backend]
         ExpressAPI -->|SQL insert| TursoDB[(Turso Edge SQLite)]
     end
 
-    subgraph Administration & Approval Workflow
+    subgraph "Administration & Approval Workflow"
         Admin([Club Administrator]) -->|Log into portal <br/>Rate Limited| AdminUI[Admin Dashboard]
         AdminUI -->|View rosters & update status <br/>Cookie + CSRF verification| ExpressAPI
         ExpressAPI -->|SQL UPDATE| TursoDB
     end
 
-    subgraph Bulk Document Generation & Dispatch Pipeline
+    subgraph "Bulk Document Generation & Dispatch Pipeline"
         AdminUI -->|Trigger bulk dispatches| ExpressAPI
         ExpressAPI -->|Read PPTX XML & replace placeholders| PizZip[PizZip Template compiler]
         PizZip -->|Output customized slides| LocalTmp[/tmp ephemerals]
@@ -435,7 +435,7 @@ graph TD
         GmailAPI -->|Inbox receipt| Candidate
     end
 
-    subgraph Password Recovery Workflow
+    subgraph "Password Recovery Workflow"
         AdminRec([Administrator]) -->|Request link <br/>Rate Limited| RecUI[Forgot Password UI]
         RecUI -->|POST /api/admin/forgot-password| ExpressAPI
         ExpressAPI -->|Dispatch link email| GASProxy
@@ -542,7 +542,7 @@ The use cases outline system access across candidate applicants, club administra
 
 ```mermaid
 graph LR
-    subgraph Actors
+    subgraph "Actors"
         U["Public Candidate / Student"]
         A["Club Administrator"]
         SA["Super Administrator / Developer"]
@@ -617,7 +617,7 @@ Delineates how data moves through internal processes, queues, and datastores.
 
 ```mermaid
 graph TD
-    subgraph Entities
+    subgraph "Entities"
         E1(["Public Visitor"])
         E2(["Administrator"])
         E3(["Candidate Inbox"])
@@ -1246,7 +1246,7 @@ graph TD
     Render -->|HTTPS POST JSON| GoogleProxy[Google Apps Script Proxy]
     GoogleProxy -->|Gmail API OAuth Secure Relay| Gmail[Gmail Dispatch Engine]
 
-    subgraph Host Boundaries
+    subgraph "Host Boundaries"
         Firebase
         Render
         Turso
@@ -2201,18 +2201,18 @@ Below are the mapped routes defined within [`frontend/src/App.tsx`](file:///c:/U
 
 ```mermaid
 graph LR
-    subgraph Client Layer (Vite React TS)
+    subgraph "Client Layer (Vite React TS)"
         UI[User Interface Page Components] -->|State Management| State[React Hooks: useState/useEffect]
         State -->|HTTP Requests / SSE| API_Client[Fetch Client / EventSource]
     end
 
-    subgraph Service Layer (Node Express TS)
+    subgraph "Service Layer (Node Express TS)"
         API_Client -->|REST REST API Routing| Express[Express App Router]
         Express -->|Request validation & JWT Auth| Middleware[Middleware Controllers]
         Middleware -->|Business operations: PPTX/PDF| Controllers[Service Handlers]
     end
 
-    subgraph Storage Layer (Turso LibSQL Edge)
+    subgraph "Storage Layer (Turso LibSQL Edge)"
         Controllers -->|SQL Execution / Transactions| TursoClient[Turso Database Client]
         TursoClient -->|Synchronous Edge replication| TursoDB[(Turso Edge SQL DB)]
     end
@@ -2379,11 +2379,11 @@ cd ../frontend && npm run dev
 
 ```mermaid
 graph TD
-    subgraph Trinity Bulk Certificate Platform
+    subgraph "Trinity Bulk Certificate Platform"
         App[Node.js Express API Server]
     end
 
-    subgraph External Dependencies
+    subgraph "External Dependencies"
         Turso["Turso Edge SQLite (Cloud DB)"]
         AppsScript["Google Apps Script Proxy (Web App)"]
         GmailAPI["Gmail API (SMTP Relay Gateway)"]
