@@ -839,8 +839,19 @@ export const ApplyPage: React.FC = () => {
                           rows={4}
                           placeholder="Detail any hardware prerequisites, code experience, or requirements..."
                           value={notes}
-                          onChange={(e) => setNotes(e.target.value)}
+                          onChange={(e) => setNotes(e.target.value.slice(0, 500))}
+                          maxLength={500}
                         />
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.25rem', fontSize: '0.75rem' }}>
+                          {notes.length === 500 ? (
+                            <span style={{ color: '#dc2626', fontWeight: 500 }}>Maximum limit of 500 characters reached</span>
+                          ) : (
+                            <span />
+                          )}
+                          <span style={{ color: notes.length === 500 ? '#dc2626' : 'var(--text-secondary)' }}>
+                            {notes.length} / 500
+                          </span>
+                        </div>
                       </div>
                     </>
                   )}
@@ -882,8 +893,19 @@ export const ApplyPage: React.FC = () => {
                           rows={5}
                           placeholder="Summarize your motivation and what projects you'd like to work on..."
                           value={reasonToJoin}
-                          onChange={(e) => setReasonToJoin(e.target.value)}
+                          onChange={(e) => setReasonToJoin(e.target.value.slice(0, 500))}
+                          maxLength={500}
                         />
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.25rem', fontSize: '0.75rem' }}>
+                          {reasonToJoin.length === 500 ? (
+                            <span style={{ color: '#dc2626', fontWeight: 500 }}>Maximum limit of 500 characters reached</span>
+                          ) : (
+                            <span />
+                          )}
+                          <span style={{ color: reasonToJoin.length === 500 ? '#dc2626' : 'var(--text-secondary)' }}>
+                            {reasonToJoin.length} / 500
+                          </span>
+                        </div>
                       </div>
                     </>
                   )}
@@ -1282,8 +1304,19 @@ export const ApplyPage: React.FC = () => {
                           rows={4}
                           placeholder="Provide a high-level explanation of your project and what it does..."
                           value={projectDescription}
-                          onChange={(e) => setProjectDescription(e.target.value)}
+                          onChange={(e) => setProjectDescription(e.target.value.slice(0, 1000))}
+                          maxLength={1000}
                         />
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.25rem', fontSize: '0.75rem' }}>
+                          {projectDescription.length === 1000 ? (
+                            <span style={{ color: '#dc2626', fontWeight: 500 }}>Maximum limit of 1,000 characters reached</span>
+                          ) : (
+                            <span />
+                          )}
+                          <span style={{ color: projectDescription.length === 1000 ? '#dc2626' : 'var(--text-secondary)' }}>
+                            {projectDescription.length} / 1,000
+                          </span>
+                        </div>
                       </div>
 
                       <div className="form-group">
@@ -1294,8 +1327,19 @@ export const ApplyPage: React.FC = () => {
                           rows={3}
                           placeholder="What specific problem does your project solve?"
                           value={problemStatement}
-                          onChange={(e) => setProblemStatement(e.target.value)}
+                          onChange={(e) => setProblemStatement(e.target.value.slice(0, 1000))}
+                          maxLength={1000}
                         />
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.25rem', fontSize: '0.75rem' }}>
+                          {problemStatement.length === 1000 ? (
+                            <span style={{ color: '#dc2626', fontWeight: 500 }}>Maximum limit of 1,000 characters reached</span>
+                          ) : (
+                            <span />
+                          )}
+                          <span style={{ color: problemStatement.length === 1000 ? '#dc2626' : 'var(--text-secondary)' }}>
+                            {problemStatement.length} / 1,000
+                          </span>
+                        </div>
                       </div>
 
                       <div className="form-group" style={{ 
