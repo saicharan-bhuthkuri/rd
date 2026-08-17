@@ -997,10 +997,17 @@ Styling is managed via [`frontend/src/pages/index.css`](file:///c:/Users/bhuth/O
 * **`admin`**: Full access to dashboard rosters and bulk dispatch engines. Cannot create or view user profiles, manage administrators, or delete admin accounts.
 
 ### Authentication Flow
+The system utilizes a dual-authentication mechanism to support both local development (same-site cookies) and cross-site production deployments (Firebase and Render hosted on separate domains):
+
+1. **Token Delivery**: On login, the backend issues an HttpOnly `admin_token` cookie and returns the signed JWT `token` and a `csrfToken` in the JSON response body.
+2. **Persistence**: The frontend stores the JWT token under `admin_token` and the CSRF token under `csrf_token` in `localStorage`.
+3. **Authorization Header (Cross-Site)**: All API requests attach the token to the `Authorization: Bearer <token>` header, bypassing cross-site cookie restrictions.
+4. **Cookie Fallback & CSRF Protection (Same-Site)**: If cookies are accepted, mutating requests (`POST`, `PUT`, `DELETE`) are verified against the `X-CSRF-Token` header.
+
 ```text
-Admin  ---> Submit Credentials  --->  Verify via bcrypt  ---> Set-Cookie: admin_token (HttpOnly) & Return CSRF Token
-                                                                                             |
-Admin Request  <---  Attach CSRF Token to "X-CSRF-Token" Header & Send Cookies <-------------+
+Admin  ---> Submit Credentials  --->  Verify via bcrypt  ---> Set-Cookie: admin_token (HttpOnly) & Return JSON { token, csrfToken }
+                                                                                              |
+Admin Request  <---  Attach Bearer Token to "Authorization" & CSRF Token to "X-CSRF-Token" <--+
 ```
 
 ---
@@ -1126,6 +1133,7 @@ Below are the environment variables defined within [`backend/src/index.ts`](file
 | `SENDER_EMAIL` | Sender address used for email dispatches. | No (defaults fallback) | `recruitmentrd6@gmail.com` | Nodemailer & HTTP payload |
 | `SENDER_PASSWORD`| Gmail app password. | No (defaults fallback) | `kohmtlqkeezrbewz` | Nodemailer client auth |
 | `GMAIL_HTTP_PROXY_URL`| Google Apps Script deployment URL. Bypasses Render SMTP port blocks. | **Yes (in Cloud)** | `https://script.google.com/macros/s/AKfyc...` | Express Dispatch Client |
+| `FRONTEND_URL` | The public URL of the deployed frontend web app. Used as the recovery link origin fallback. | No (defaults to `https://tcek-rd.web.app`) | `https://tcek-rd.web.app` | Forgot Password link origin |
 | `GROQ_MODELS` | Optional models check used in health checks. | No | `["llama3-8b"]` | `GET /api/health` |
 
 ---
