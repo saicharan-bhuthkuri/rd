@@ -30,6 +30,39 @@ export const VerifyCertificatePage: React.FC = () => {
   const [searched, setSearched] = useState(false);
   const [isPdfLoading, setIsPdfLoading] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+
+  const handleDownloadPdf = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!verifiedData) return;
+
+    setIsDownloadingPdf(true);
+    try {
+      const pdfUrl = getPdfUrl(verifiedData.certificateId);
+      const response = await fetch(pdfUrl);
+      if (!response.ok) {
+        throw new Error('Failed to download PDF certificate.');
+      }
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      const safeName = verifiedData.fullName.replace(/[^a-zA-Z0-9_\s]/g, '').trim().replace(/\s+/g, '_');
+      link.download = `Certificate_${safeName}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || 'An error occurred while downloading the PDF.');
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
 
   const handleVerify = async (idToVerify: string) => {
     const cleanId = idToVerify.trim();
@@ -312,10 +345,9 @@ export const VerifyCertificatePage: React.FC = () => {
                     </p>
                   </div>
 
-                  <a
-                    href={getPdfUrl(verifiedData.certificateId)}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    onClick={handleDownloadPdf}
+                    disabled={isDownloadingPdf}
                     className="btn btn-primary"
                     style={{
                       padding: '0.5rem 1rem',
@@ -324,11 +356,21 @@ export const VerifyCertificatePage: React.FC = () => {
                       borderRadius: '8px',
                       boxShadow: 'none',
                       gap: '0.25rem',
-                      justifyContent: 'center'
+                      justifyContent: 'center',
+                      display: 'inline-flex',
+                      alignItems: 'center'
                     }}
                   >
-                    <Download size={12} /> Download PDF
-                  </a>
+                    {isDownloadingPdf ? (
+                      <>
+                        <Loader2 className="spinner-icon animate-spin" size={12} /> Downloading...
+                      </>
+                    ) : (
+                      <>
+                        <Download size={12} /> Download PDF
+                      </>
+                    )}
+                  </button>
                 </div>
 
                 {/* Real Dynamic PDF Certificate Viewer (Responsive scaling to prevent horizontal scroll overflow) */}
