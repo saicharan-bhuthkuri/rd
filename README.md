@@ -488,13 +488,16 @@ sequenceDiagram
     Browser->>Server: POST /api/admin/forgot-password { email }
     Server->>DB: Query admin by email
     DB-->>Server: Admin user found
-    Server->>Server: Sign short-lived (15m) reset token
+    Server->>Server: Generate raw token & unique salt
+    Server->>DB: Insert token_hash, salt, expires_at in password_reset_tokens
     Server->>Email: Send email with reset link (?token=resetToken)
     Email-->>Admin: Receives reset email
     Admin->>Browser: Clicks link & enters new password
     Browser->>Server: POST /api/admin/reset-password { token, newPassword }
     Server->>Server: Verify token signature & expiry
-    Server->>Server: Hash new password
+    Server->>DB: Query active tokens & verify salt-hashed rawToken
+    Server->>DB: Update token used = 1
+    Server->>Server: Hash new password with unique salt
     Server->>DB: Update password in admin_users
     DB-->>Server: Password updated
     Server-->>Browser: 200 OK (Password reset success)
@@ -1059,7 +1062,16 @@ erDiagram
         text details
         text created_at
     }
+    password_reset_tokens {
+        integer id PK
+        text username
+        text token_hash
+        text salt
+        text expires_at
+        integer used
+    }
     event_registrations }o--|| events : "registers for"
+    password_reset_tokens }o--|| admins : "belongs to"
 ```
 
 ### Schema Details
@@ -1095,6 +1107,7 @@ erDiagram
 7. **`events`**: Registered events. Category can be `'Workshop'`, `'Seminar'`, `'Colloquium'`, or `'Hackathon'`.
 8. **`templates`**: Holds base64 representations of PPTX templates.
 9. **`branches`**: Holds branch names.
+10. **`password_reset_tokens`**: Stores active and expired password recovery tokens. Includes a `token_hash` and `salt` (using SHA-256) to secure tokens at rest against database compromises, and a `used` status column to enforce one-time usage.
 
 ---
 
@@ -2087,7 +2100,7 @@ graph LR
 * **Rate Limiting**: Enforces rate limiting on all API routes using `express-rate-limit`, with strict thresholds on sensitive pathways (e.g., login, forgot password, registration/application submissions, and certificate verification).
 * **Certificate ID Obfuscation**: Appends a unique, cryptographically secure 4-byte random hex suffix to certificate verification IDs (e.g. `TCEK/RD/2026/0001-A9B2E3F4`). The public verification endpoint checks and blocks brute-force sequential scanning by requiring the exact suffixed ID.
 * **HttpOnly Cookies & CSRF Protection**: Session tokens are stored in secure HTTP-only cookies, removing them from client-side `LocalStorage` to prevent XSS-based token theft. To prevent Cross-Site Request Forgery (CSRF), state-changing requests validate an `X-CSRF-Token` header containing a signed CSRF token.
-* **Automated Account Recovery**: Added a secure forgot-password and reset-password flow using short-lived signed JWT reset links sent via email.
+* **Automated Account Recovery**: Added a secure, stateful, one-time password reset flow. Reset tokens are salted and hashed (using SHA-256) inside the database to protect against database read compromises and ensure one-time usage via signed JWT links.
 * **Environment-Configured Credentials**: Seeding default developer and superadmin passwords from environment variables in `.env` rather than hardcoding them in the startup source code.
 * **Restricted Debug Endpoints**: Font debug endpoints require token authentication and are completely disabled in production mode.
 
