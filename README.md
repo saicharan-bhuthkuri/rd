@@ -1604,7 +1604,7 @@ FUNCTION initializeClientSync():
 
 #### 5. [`frontend/src/pages/ApplyPage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/pages/ApplyPage.tsx)
 * **Purpose**: Public Application Forms portal.
-* **Responsibility**: Renders dynamic signup screens for club recruitment, event attendance, and hackathon teams; handles real-time addition/removal of team member row profiles; enforces strict client-side email format validation with interactive error alerts upon submission.
+* **Responsibility**: Renders dynamic signup screens for club recruitment, event attendance, and hackathon teams; handles real-time addition/removal of team member row profiles; filters out hackathons from the event dropdown list in the event registration form; enforces strict client-side email format validation with interactive error alerts upon submission.
 * **Dependencies**: `react`, `react-router-dom`.
 * **What Calls It**: Routed inside `App.tsx` (public path `/apply`).
 * **What It Calls**: `GET /api/events`, `GET /api/branches`, `POST /api/apply/club`, `POST /api/apply/event`, `POST /api/apply/hackathon`.

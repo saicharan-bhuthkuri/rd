@@ -252,7 +252,9 @@ export const ApplyPage: React.FC = () => {
         const response = await fetch(`${API_BASE_URL}/api/events`);
         if (response.ok) {
           const data = await response.json();
-          const titles = data.map((evt: any) => evt.title);
+          const titles = data
+            .filter((evt: any) => evt.category !== 'Hackathon')
+            .map((evt: any) => evt.title);
           setEventsList(titles);
           
           const hackathons = data
