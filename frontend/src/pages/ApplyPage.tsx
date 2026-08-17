@@ -368,15 +368,25 @@ export const ApplyPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
     // JS-based manual form verification to prevent hidden inputs focus block issues
     if (formType === 'join-club') {
       if (!fullName.trim() || !pinNumber.trim() || !email.trim() || !mobile.trim() || !branch || !yearOfStudy || !interests.trim() || !skills.trim() || !reasonToJoin.trim()) {
         alert("Please fill in all required fields.");
         return;
       }
+      if (!emailRegex.test(email.trim())) {
+        alert("Please enter a valid Email Address.");
+        return;
+      }
     } else if (formType === 'event') {
       if (!fullName.trim() || !pinNumber.trim() || !email.trim() || !mobile.trim() || !branch || !yearOfStudy || !eventName) {
         alert("Please fill in all required fields.");
+        return;
+      }
+      if (!emailRegex.test(email.trim())) {
+        alert("Please enter a valid Email Address.");
         return;
       }
     } else if (formType === 'hackathon') {
@@ -394,6 +404,10 @@ export const ApplyPage: React.FC = () => {
       }
       if (!email.trim()) {
         alert("Please enter the Team Leader's Email Address.");
+        return;
+      }
+      if (!emailRegex.test(email.trim())) {
+        alert("Please enter a valid Email Address for the Team Leader.");
         return;
       }
       if (!mobile.trim()) {
@@ -438,6 +452,10 @@ export const ApplyPage: React.FC = () => {
         }
         if (!m.email.trim()) {
           alert(`Please enter Member ${num}'s Email Address.`);
+          return;
+        }
+        if (!emailRegex.test(m.email.trim())) {
+          alert(`Please enter a valid Email Address for Member ${num}.`);
           return;
         }
         if (!m.phone.trim()) {

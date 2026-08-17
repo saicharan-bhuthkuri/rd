@@ -225,7 +225,7 @@ The proposed system resolves manual vulnerabilities through an automated pipelin
 ---
 
 ## 7. Scope
-* **Student Interface**: Form validation, event schedules, and team registrations.
+* **Student Interface**: Form validation (including strict client-side email format checks), event schedules, and team registrations.
 * **Administrative Interface**: Multi-tab dashboard, candidate rosters, branches/events setup, and sync logs.
 * **Compilation Pipeline**: Base64 PPTX database storage, PizZip string replacers, and LibreOffice CLI batch compilers.
 * **Distribution Subsystem**: Google Web App script HTTPS Gmail relayer.
@@ -1604,7 +1604,7 @@ FUNCTION initializeClientSync():
 
 #### 5. [`frontend/src/pages/ApplyPage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/pages/ApplyPage.tsx)
 * **Purpose**: Public Application Forms portal.
-* **Responsibility**: Renders dynamic signup screens for club recruitment, event attendance, and hackathon teams; handles real-time addition/removal of team member row profiles.
+* **Responsibility**: Renders dynamic signup screens for club recruitment, event attendance, and hackathon teams; handles real-time addition/removal of team member row profiles; enforces strict client-side email format validation with interactive error alerts upon submission.
 * **Dependencies**: `react`, `react-router-dom`.
 * **What Calls It**: Routed inside `App.tsx` (public path `/apply`).
 * **What It Calls**: `GET /api/events`, `GET /api/branches`, `POST /api/apply/club`, `POST /api/apply/event`, `POST /api/apply/hackathon`.
