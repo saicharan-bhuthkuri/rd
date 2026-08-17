@@ -993,7 +993,7 @@ The system is split into distinct functional modules:
 * **Implementation Location**: [`backend/src/index.ts:L1291-1324`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts#L1291-1324)
 
 #### 5. Public Certificate Verification Portal
-* **What it does**: Public interface validating certificate IDs (e.g. `TCEK/RD/2026/0001` or `TCEK/RD/HACK/2026/0001-1`), querying metadata, compiling the PPTX on the fly, converting it to PDF, and streaming the file buffer inline inside a 16:9 widescreen frame.
+* **What it does**: Public interface validating certificate IDs (e.g. `TCEK/RD/2026-A9B2E3F4` or `TCEK/RD/HACK/2026-A9B2E3F4`), querying metadata, compiling the PPTX on the fly, converting it to PDF, and streaming the file buffer inline inside a 16:9 widescreen frame.
 * **Implementation Location**: [`VerifyCertificatePage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/pages/VerifyCertificatePage.tsx) and [`backend/src/index.ts:L2317-2466`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts#L2317-2466)
 * **Backend API**: `GET /api/verify-certificate/*`
 * **Database Tables**: `event_registrations`, `events`, `templates`
@@ -1105,7 +1105,7 @@ FUNCTION bulkSendCertificates(eventTitle):
     
     // 3. Map customization values and call PPTX parser for each recipient
     FOR EACH student IN recipients:
-        certId = generateUniqueCertId(student.id) // e.g. TCEK/RD/2026/0001
+        certId = generateUniqueCertId(student.id) // e.g. TCEK/RD/2026-A9B2E3F4
         
         replacements = {
             "{{PARTICIPANT NAME}}": student.full_name,
@@ -1229,7 +1229,7 @@ FUNCTION bulkSendHackathonCertificates(hackathonName):
             
     // 4. Generate customised PPTX files on disk
     FOR EACH task IN tasks:
-        certId = "TCEK/RD/HACK/2026/" + task.teamId + "-" + task.roleIndex
+        certId = "TCEK/RD/HACK/2026-" + task.uniqueSuffix
         replacements = {
             "{{PARTICIPANT NAME}}": task.participantName,
             "{{EVENT NAME}}": hackathonName,
@@ -1378,7 +1378,7 @@ FUNCTION bulkSendOffers():
 
 ```text
 FUNCTION verifyCertificateRoute(req, res):
-    certificateId = parseUrlSuffix(req.path) // e.g. "TCEK/RD/2026/0001" or "TCEK/RD/2026/0001/pdf"
+    certificateId = parseUrlSuffix(req.path) // e.g. "TCEK/RD/2026-A9B2E3F4" or "TCEK/RD/2026-A9B2E3F4/pdf"
     
     isPdfRequest = false
     IF certificateId ends with "/pdf":
@@ -1782,7 +1782,7 @@ Styling is managed via [`frontend/src/index.css`](file:///c:/Users/bhuth/OneDriv
       "yearOfStudy": "II Year",
       "eventName": "Edge AI: Deploying TinyML on Microcontrollers",
       "status": "Won Second Place",
-      "certificateId": "TCEK/RD/2026/0001",
+      "certificateId": "TCEK/RD/2026-A9B2E3F4",
       "eventDate": "July 12, 2026",
       "issuedAt": "2026-08-16 08:30:00"
     }
@@ -2234,7 +2234,7 @@ Admin Request  <---  Attach Bearer Token to "Authorization" & CSRF Token to "X-C
 
 ### Implemented Security Enhancements & Protections
 * **Rate Limiting**: Enforces rate limiting on all API routes using `express-rate-limit`, with strict thresholds on sensitive pathways (e.g., login, forgot password, registration/application submissions, and certificate verification).
-* **Certificate ID Obfuscation**: Appends a unique, cryptographically secure 4-byte random hex suffix to certificate verification IDs (e.g. `TCEK/RD/2026/0001-A9B2E3F4`). The public verification endpoint checks and blocks brute-force sequential scanning by requiring the exact suffixed ID.
+* **Certificate ID Obfuscation**: Appends a unique, cryptographically secure 4-byte random hex suffix to certificate verification IDs (e.g. `TCEK/RD/2026-A9B2E3F4`). The public verification endpoint checks and blocks brute-force sequential scanning by requiring the exact suffixed ID.
 * **Dual Auth & CSRF Protection**: For same-origin deployments, session tokens are stored in secure HTTP-only cookies (`admin_token`) to prevent XSS-based token theft. For cross-origin production deployments, session tokens are stored in local storage and sent via the `Authorization` header due to cross-site cookie boundaries, protected against CSRF via double-submit header checks.
 * **Automated Account Recovery**: Added a secure, stateful, one-time password reset flow. Reset tokens are salted and hashed (using SHA-256) inside the database to protect against database read compromises and ensure one-time usage via signed JWT links.
 * **Environment-Configured Credentials**: Seeding default developer and superadmin passwords from environment variables in `.env` rather than hardcoding them in the startup source code.

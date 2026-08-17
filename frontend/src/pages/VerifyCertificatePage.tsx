@@ -195,7 +195,7 @@ export const VerifyCertificatePage: React.FC = () => {
                     type="text"
                     id="certificateId"
                     required
-                    placeholder="e.g. TCEK/RD/2026/0001"
+                    placeholder="e.g. TCEK/RD/2026-A9B2E3F4"
                     value={certificateId}
                     onChange={(e) => setCertificateId(e.target.value)}
                     style={{

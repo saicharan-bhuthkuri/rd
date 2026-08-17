@@ -2139,7 +2139,7 @@ app.post('/api/admin/bulk-send/certificates', authenticateToken, async (req: Aut
       const pdfFilename = path.join(process.cwd(), `Certificate_${safeName}_${id}.pdf`);
 
       const uniqueSuffix = crypto.randomBytes(4).toString('hex').toUpperCase();
-      const certId = `TCEK/RD/2026/${String(id).padStart(4, '0')}-${uniqueSuffix}`;
+      const certId = `TCEK/RD/2026-${uniqueSuffix}`;
 
       const replacements = {
         '{{PARTICIPANT NAME}}': studentName,
@@ -2445,7 +2445,7 @@ app.post('/api/admin/bulk-send/hackathon-certificates', authenticateToken, async
       const pdfFilename = path.join(process.cwd(), `Hack_Cert_${safeName}_${teamId}_${roleIndex}.pdf`);
 
       const uniqueSuffix = crypto.randomBytes(4).toString('hex').toUpperCase();
-      const certId = `TCEK/RD/HACK/2026/${String(teamId).padStart(4, '0')}-${roleIndex}-${uniqueSuffix}`;
+      const certId = `TCEK/RD/HACK/2026-${uniqueSuffix}`;
       const actionText = task.certificateType || certificateTypeText || 'Participation';
       const roleText = isLeader ? 'Team Leader' : 'Team Member';
 

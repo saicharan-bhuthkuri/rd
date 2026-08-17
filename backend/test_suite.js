@@ -128,7 +128,7 @@ async function runTests() {
     });
 
     // 2. Insert a mock registration with a suffixed certificate ID
-    const mockCertId = "TCEK/RD/2026/9999-TESTOBFUSCATION";
+    const mockCertId = "TCEK/RD/2026-TESTOBFUSCATION";
     await dbClient.execute({
       sql: "INSERT INTO event_registrations (id, full_name, pin_number, email, mobile, branch, year_of_study, event_name, certificate_id, certificate_sent) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       args: [9999, 'Test Candidate', '9999', 'test@example.com', '9999999999', 'CSE', 'III', 'Deep Learning Bootcamp: PyTorch Fundamentals', mockCertId, 1]
