@@ -980,7 +980,7 @@ The system is split into distinct functional modules:
 * **Implementation Location**: [`backend/src/index.ts`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts) and [`App.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/App.tsx)
 
 #### 7. Cookie-based Session Authentication & CSRF Protection
-* **What it does**: Stores JWT session tokens in secure HTTP-only cookies (`admin_token`) to mitigate XSS attacks. Mutating API actions (POST, PUT, DELETE) are validated against a double-submit CSRF token (`csrfToken`) passed in the `X-CSRF-Token` header.
+* **What it does**: Dynamic Token/Cookie Authentication: On login, the backend issues an HttpOnly cookie and returns a signed JWT. In cross-origin production (Firebase to Render), the client attaches the JWT to the `Authorization` header. In same-site deployments, the backend authenticates requests via the HttpOnly cookie fallback. Mutating requests validate a double-submit CSRF token via the `X-CSRF-Token` header.
 * **Implementation Location**: [`backend/src/index.ts`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts) and [`App.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/App.tsx)
 * **Auth Requirements**: Enforced across all administrative paths.
 
@@ -1530,11 +1530,11 @@ FUNCTION initializeClientSync():
     │   │   ├── AdminCreateUserPage.tsx # Superadmin user registration
     │   │   ├── AdminManageEventsPage.tsx # List and deletion interface for events
     │   │   ├── AdminCreateEventPage.tsx # Event creator form
-    │   │   ├── AdminBranchesPage.tsx # Branch manager (add/remove engineering branches)
-    │   │   └── index.css       # Core styling system (CSS grids, light/dark styling vars)
+    │   │   └── AdminBranchesPage.tsx # Branch manager (add/remove engineering branches)
     │   │
     │   ├── App.tsx             # Application Router and EventSource client handler
     │   ├── config.ts           # Dynamic API base URL resolver
+    │   ├── index.css           # Core styling system (CSS grids, light/dark styling vars)
     │   └── main.tsx            # DOM bootstrap entry point
     ├── vite.config.ts          # Vite asset bundler configuration
     ├── tsconfig.json           # TS configurations
@@ -1618,7 +1618,7 @@ FUNCTION initializeClientSync():
 * **`App.tsx`**: Configures routes, layouts, and handles the SSE `EventSource` connection, dispatching custom `app-sync` events to update state.
 
 ### Reusable Styling System
-Styling is managed via [`frontend/src/pages/index.css`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/pages/index.css). Key parameters:
+Styling is managed via [`frontend/src/index.css`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/index.css). Key parameters:
 * **Theming**: Selectors `:root` (light) and `[data-theme="dark"]` define color tokens.
 * **Core Variables**: Colors like `--primary-rgb`, `--accent-rgb`, `--bg-dark`, and font-families (`Outfit`, `Inter`).
 * **Glassmorphism**: `.glass-panel` utilizes `backdrop-filter: blur(12px)` and transparent border variables.
@@ -2211,7 +2211,7 @@ Admin Request  <---  Attach Bearer Token to "Authorization" & CSRF Token to "X-C
 ### Implemented Security Enhancements & Protections
 * **Rate Limiting**: Enforces rate limiting on all API routes using `express-rate-limit`, with strict thresholds on sensitive pathways (e.g., login, forgot password, registration/application submissions, and certificate verification).
 * **Certificate ID Obfuscation**: Appends a unique, cryptographically secure 4-byte random hex suffix to certificate verification IDs (e.g. `TCEK/RD/2026/0001-A9B2E3F4`). The public verification endpoint checks and blocks brute-force sequential scanning by requiring the exact suffixed ID.
-* **HttpOnly Cookies & CSRF Protection**: Session tokens are stored in secure HTTP-only cookies, removing them from client-side `LocalStorage` to prevent XSS-based token theft. To prevent Cross-Site Request Forgery (CSRF), state-changing requests validate an `X-CSRF-Token` header containing a signed CSRF token.
+* **Dual Auth & CSRF Protection**: For same-origin deployments, session tokens are stored in secure HTTP-only cookies (`admin_token`) to prevent XSS-based token theft. For cross-origin production deployments, session tokens are stored in local storage and sent via the `Authorization` header due to cross-site cookie boundaries, protected against CSRF via double-submit header checks.
 * **Automated Account Recovery**: Added a secure, stateful, one-time password reset flow. Reset tokens are salted and hashed (using SHA-256) inside the database to protect against database read compromises and ensure one-time usage via signed JWT links.
 * **Environment-Configured Credentials**: Seeding default developer and superadmin passwords from environment variables in `.env` rather than hardcoding them in the startup source code.
 * **Restricted Debug Endpoints**: Font debug endpoints require token authentication and are completely disabled in production mode.
@@ -2246,7 +2246,7 @@ graph TD
 
 | Threat | Protection Mechanism |
 | :--- | :--- |
-| **XSS token theft** | Store JWT token in secure, HttpOnly, SameSite cookies (`admin_token`). |
+| **XSS token theft** | Store JWT token in secure, HttpOnly cookies for same-origin fallback; cross-site uses local storage with CSRF validation. |
 | **CSRF attacks** | Enforce header-based Double-Submit CSRF checks (`X-CSRF-Token` validation). |
 | **Brute-force logins** | Apply API rate limiting gate limiters on sensitive auth path endpoints. |
 | **Password compromise** | Enforce salt generation (16-byte cryptographically secure) and `bcryptjs` hashing. |
@@ -2939,7 +2939,7 @@ graph TD
 * **Static Typings Verification**: **Passed** (TypeScript transpilation checks yield exit code `0`).
 * **Production Build Assets**: **Passed** (Vite optimizes and minifies assets inside `frontend/dist` with exit code `0`).
 * **Linter Code Compliance**: **Passed** (ESLint flat configurations adjusted and critical temporal dead zone hoisting bugs and state-setting hook loops resolved successfully with exit code `0`).
-* **Overall System Readiness**: **100% PRODUCTION READY** (All verification pathways, Turso SQLite reads, PizZip XML token modifications, sandboxed batch PDF compilations, and HTTPS Google Apps Script email proxy dispatches compile and run successfully under representative loads with zero errors).
+* **Overall System Readiness**: **System Validation Status: Deployment-Ready for Institutional Pilot Workloads** (All verification pathways, Turso SQLite reads, PizZip XML token modifications, sandboxed batch PDF compilations, and HTTPS Google Apps Script email proxy dispatches compile and run successfully under representative loads with zero errors).
 
 ---
 
@@ -3012,10 +3012,10 @@ The following table compares manual certificate processing times against the pro
 
 | Metric / Test Case | Manual Method (Excel to PPT) | Proposed System (COM Sequential Windows) | Deployed Cloud System (LibreOffice Batch Linux) |
 | :--- | :--- | :--- | :--- |
-| **1 Certificate** | 120 seconds | 4.49 seconds | **~2.00 seconds** |
-| **10 Certificates** | 1,200 seconds (20 mins) | 27.95 seconds | **~3.10 seconds** |
-| **25 Certificates** | 3,000 seconds (50 mins) | ~70 seconds (Projected) | **~4.50 seconds** |
-| **50 Certificates** | 6,000 seconds (1.6 hrs) | ~140 seconds (Projected) | **~7.00 seconds** |
+| **1 Certificate** | 120 seconds | 4.49 seconds | **~2.00 seconds (Projected)** |
+| **10 Certificates** | 1,200 seconds (20 mins) | 27.95 seconds | **~3.10 seconds (Projected)** |
+| **25 Certificates** | 3,000 seconds (50 mins) | ~70 seconds (Projected) | **~4.50 seconds (Projected)** |
+| **50 Certificates** | 6,000 seconds (1.6 hrs) | ~140 seconds (Projected) | **~7.00 seconds (Projected)** |
 | **100 Certificates** | 12,000 seconds (3.3 hrs) | ~280 seconds (Projected) | **~12.00 seconds** |
 | **Email Success Rate** | 96.5% (Human errors) | 100% (No SMTP blockages) | **100% (No SMTP blockages)** |
 | **API Response Time** | N/A | ~50–150 ms (Average) | **~50–150 ms (Average)** |
@@ -3034,7 +3034,7 @@ The novelty of the system lies not in any single technology but in the integrati
 ### Impact Summary
 
 **Manual → Automated Workflow Migration**
-* **100 Certificates Dispatch**: **~3.3 hours manual processing → ~12 seconds automated execution**.
+* **100 Certificates Dispatch**: **~3.3 hours manual processing → Projected ~12 seconds under the proposed LibreOffice batch configuration**.
 * **Document Compilation**: **Manual copy-pasting & formatting → Automated slide XML token replacement**.
 * **Certificate Verification**: **Hours/days delay (manual email validation) → Instant public portal lookup (<300ms)**.
 * **Email Dispatch**: **Manual sequential sending → Automated batch HTTPS relay proxy**.
@@ -3217,12 +3217,18 @@ By integrating low-level XML slides manipulation, headless LibreOffice parallel 
 ---
 
 
-### Standard Liturature & Specifications
-1. **Office Open XML File Formats**: Standard ECMA-376, Office Open XML File Formats.
-2. **LibreOffice Headless Conversion**: LibreOffice CLI parameters and headless UNO compilation guides.
-3. **Google Apps Script Web Apps**: Google Workspace Developer Guides on Apps Script Web App execution models.
-4. **Turso libSQL client**: Turso serverless libSQL database client drivers and edge replication APIs.
-5. **Secure Authentication Patterns**: OWASP Cheat Sheet Series on Session Management, Cross-Site Request Forgery (CSRF) Prevention, and Password Hashing.
+### Standard Literature, RFCs & Official Specifications
+1. **Office Open XML File Formats**: ECMA International. (2016). *Standard ECMA-376: Office Open XML File Formats*. 5th edition. [ECMA-376 Specification](https://www.ecma-international.org/publications-and-standards/standards/ecma-376/)
+2. **LibreOffice Headless Compiler**: The Document Foundation. (2026). *LibreOffice Command-Line Parameters and Headless Conversion Documentation*. [LibreOffice CLI Documentation](https://help.libreoffice.org/latest/en-US/text/shared/guide/start_parameters.html)
+3. **JSON Web Tokens (JWT)**: Jones, M., Bradley, J., & Sakimura, N. (2015). *RFC 7519: JSON Web Token (JWT)*. Internet Engineering Task Force (IETF). [RFC 7519 Specification](https://datatracker.ietf.org/doc/html/rfc7519)
+4. **Cross-Site Request Forgery (CSRF) Mitigation**: OWASP Foundation. (2025). *Cross-Site Request Forgery Prevention Cheat Sheet*. [OWASP CSRF Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html)
+5. **Secure Password Hashing & Storage**: OWASP Foundation. (2025). *Password Hashing Cheat Sheet*. [OWASP Password Hashing Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Password_Hashing_Cheat_Sheet.html)
+6. **Server-Sent Events (SSE)**: World Wide Web Consortium (W3C). (2015). *Server-Sent Events: W3C Recommendation*. [W3C SSE Specification](https://www.w3.org/TR/eventsource/)
+7. **Turso & libSQL Database Driver**: Turso DB. (2026). *libSQL Client SDK for JavaScript and TypeScript*. [Turso libSQL Docs](https://docs.turso.tech/)
+8. **Google Apps Script Web App Services**: Google Developers. (2026). *Apps Script Web Apps and Gmail API Services integration guide*. [Google Apps Script Reference](https://developers.google.com/apps-script/guides/web)
+9. **React Framework**: Meta Platforms, Inc. (2025). *React 19 Documentation and API Reference*. [React 19 Docs](https://react.dev)
+10. **TypeScript Compiler & Language Reference**: Microsoft Corp. (2026). *TypeScript Language Specification and Compiler Reference*. [TypeScript Docs](https://www.typescriptlang.org/docs/)
+11. **Express Web Application Framework**: StrongLoop. (2025). *Express 4.x API Reference and Routing Guide*. [Express.js Docs](https://expressjs.com)
 
 ---
 
