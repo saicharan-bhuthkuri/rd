@@ -84,7 +84,7 @@ The system features dynamic template compilation by directly parsing PowerPoint 
 | **Figure 17** | External Service Dependency Diagram | Maps external platform API boundaries and UptimeRobot heartbeat checks. | [33. External Service Dependency Map](#33-external-service-dependency-map) | [View Figure](#33-external-service-dependency-map) |
 | **Figure 18** | Technology Readiness & Implementation Maturity | Readiness level proofs (TRL 6 / IR 6) and future migration goals. | [35. TRL & IR Assessment](#35-technology-readiness-level-trl--implementation-readiness-ir-assessment) | [View Figure](#35-technology-readiness-level-trl--implementation-readiness-ir-assessment) |
 | **Figure 19** | Admin Authentication & CSRF Protection Flow | Sequence diagram showing cookie-based auth and header-based CSRF checks. | [5. Application Architecture](#5-application-architecture) | [View Figure](#5-application-architecture) |
-| **Figure 20** | Password Recovery & Reset Flow | Sequence diagram of signed JWT email recovery link and update query. | [5. Application Architecture](#5-application-architecture) | [View Figure](#5-application-architecture) |
+| **Figure 20** | Password Recovery & Reset Flow | Sequence diagram of signed JWT email recovery link, stateful one-time token checks, and update query. | [5. Application Architecture](#5-application-architecture) | [View Figure](#5-application-architecture) |
 | **Figure 21** | Security Enforcement Architecture | Flowchart showing incoming request filters (CORS, Rate Limiters, Cookie Auth, and CSRF checks). | [20. Security](#20-security) | [View Figure](#20-security) |
 
 ---
@@ -193,10 +193,10 @@ The system is split into distinct functional modules:
 * **Auth Requirements**: Enforced across all administrative paths.
 
 #### 8. Automated Administrator Account Recovery
-* **What it does**: Self-service forgot-password workflow. Admins enter their registered email, which generates a short-lived (15 minutes) secure reset token sent via the system email handler. Clicking the link takes the user to a reset page where the React frontend automatically parses and validates the token on mount. If expired, it blocks form entry and displays a warning with a shortcut to request a new link.
+* **What it does**: Self-service forgot-password workflow. Admins enter their registered email, which generates a short-lived (15 minutes) secure, stateful, one-time reset token stored in the database. Clicking the link takes the user to a reset page where the React frontend automatically parses and validates the token. If expired or already used, it blocks form entry and displays a warning.
 * **Implementation Location**: [`AdminForgotPasswordPage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/pages/AdminForgotPasswordPage.tsx), [`AdminResetPasswordPage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/pages/AdminResetPasswordPage.tsx), and [`backend/src/index.ts`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts)
 * **Backend API**: `POST /api/admin/forgot-password`, `POST /api/admin/reset-password`
-* **Database Tables**: `admin_users`
+* **Database Tables**: `admin_users`, `password_reset_tokens`
 
 #### 9. Hide/Unhide Password Toggle
 * **What it does**: Adds a show/hide password visibility toggle directly inside the admin login credentials form to enhance usability and prevent entry mistakes.
