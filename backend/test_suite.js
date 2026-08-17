@@ -78,6 +78,21 @@ async function runTests() {
     logTest("POST /api/admin/login with invalid credentials returns 401 Unauthorized", false, err.message);
   }
 
+  // Test 3.5: POST login with valid credentials
+  try {
+    const res = await fetch('http://localhost:5001/api/admin/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'charan', password: process.env.DEFAULT_DEV_PASSWORD || 'Bharat@8336' })
+    });
+    assert.strictEqual(res.status, 200);
+    const data = await res.json();
+    assert.ok(data.success);
+    logTest("POST /api/admin/login with valid seeded credentials returns 200 OK", true);
+  } catch (err) {
+    logTest("POST /api/admin/login with valid seeded credentials returns 200 OK", false, err.message);
+  }
+
   // Test 4: GET verify invalid certificate ID
   try {
     const res = await fetch('http://localhost:5001/api/verify-certificate/INVALID_CODE_999');

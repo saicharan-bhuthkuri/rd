@@ -13,6 +13,12 @@ import PizZip from 'pizzip';
 import dns from 'dns';
 import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
+import crypto from 'crypto';
+
+function generateSalt(): string {
+  return crypto.randomBytes(16).toString('hex');
+}
+
 
 // Force DNS lookup to prefer IPv4 first. This prevents ENETUNREACH errors on hostings like Render where IPv6 is not routable.
 dns.setDefaultResultOrder('ipv4first');
@@ -198,6 +204,7 @@ async function setupDatabase() {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT UNIQUE NOT NULL,
         password TEXT NOT NULL,
+        salt TEXT,
         role TEXT NOT NULL CHECK(role IN ('developer', 'superadmin', 'admin')),
         email TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -353,6 +360,13 @@ async function setupDatabase() {
       // Column already exists, ignore
     }
 
+    try {
+      await db.execute(`ALTER TABLE admin_users ADD COLUMN salt TEXT;`);
+      console.log("Database verification: salt column verified/added to admin_users.");
+    } catch (e) {
+      // Column already exists, ignore
+    }
+
     // Seed Default accounts
     const DEFAULT_DEV_PASSWORD = process.env.DEFAULT_DEV_PASSWORD || 'Bharat@8336';
     const DEFAULT_SUPERADMIN_PASSWORD = process.env.DEFAULT_SUPERADMIN_PASSWORD || 'akhya@1962';
@@ -362,12 +376,31 @@ async function setupDatabase() {
     }
 
     // Seeding Developer: charan
-    const devPassHash = await bcrypt.hash(DEFAULT_DEV_PASSWORD, 10);
     try {
-      await db.execute({
-        sql: `INSERT OR IGNORE INTO admin_users (username, password, role, email) VALUES (?, ?, ?, ?)`,
-        args: ['charan', devPassHash, 'developer', 'recruitmentrd6@gmail.com']
+      const devCheck = await db.execute({
+        sql: `SELECT password, salt FROM admin_users WHERE username = ?`,
+        args: ['charan']
       });
+      if (devCheck.rows.length === 0) {
+        const devSalt = generateSalt();
+        const devPassHash = await bcrypt.hash(devSalt + DEFAULT_DEV_PASSWORD, 10);
+        await db.execute({
+          sql: `INSERT INTO admin_users (username, password, salt, role, email) VALUES (?, ?, ?, ?, ?)`,
+          args: ['charan', devPassHash, devSalt, 'developer', 'recruitmentrd6@gmail.com']
+        });
+        console.log("Seeding: Developer 'charan' created with salt.");
+      } else {
+        const user = devCheck.rows[0];
+        if (user.salt === null || user.salt === undefined) {
+          const devSalt = generateSalt();
+          const devPassHash = await bcrypt.hash(devSalt + DEFAULT_DEV_PASSWORD, 10);
+          await db.execute({
+            sql: `UPDATE admin_users SET password = ?, salt = ? WHERE username = ?`,
+            args: [devPassHash, devSalt, 'charan']
+          });
+          console.log("Seeding: Migrated Developer 'charan' to use a unique salt.");
+        }
+      }
       await db.execute({
         sql: `UPDATE admin_users SET email = ? WHERE username = ? AND email IS NULL`,
         args: ['recruitmentrd6@gmail.com', 'charan']
@@ -378,12 +411,31 @@ async function setupDatabase() {
     }
 
     // Seeding Super Admin: akhya
-    const superadminPassHash = await bcrypt.hash(DEFAULT_SUPERADMIN_PASSWORD, 10);
     try {
-      await db.execute({
-        sql: `INSERT OR IGNORE INTO admin_users (username, password, role, email) VALUES (?, ?, ?, ?)`,
-        args: ['akhya', superadminPassHash, 'superadmin', 'recruitmentrd6@gmail.com']
+      const superadminCheck = await db.execute({
+        sql: `SELECT password, salt FROM admin_users WHERE username = ?`,
+        args: ['akhya']
       });
+      if (superadminCheck.rows.length === 0) {
+        const superadminSalt = generateSalt();
+        const superadminPassHash = await bcrypt.hash(superadminSalt + DEFAULT_SUPERADMIN_PASSWORD, 10);
+        await db.execute({
+          sql: `INSERT INTO admin_users (username, password, salt, role, email) VALUES (?, ?, ?, ?, ?)`,
+          args: ['akhya', superadminPassHash, superadminSalt, 'superadmin', 'recruitmentrd6@gmail.com']
+        });
+        console.log("Seeding: Super Admin 'akhya' created with salt.");
+      } else {
+        const user = superadminCheck.rows[0];
+        if (user.salt === null || user.salt === undefined) {
+          const superadminSalt = generateSalt();
+          const superadminPassHash = await bcrypt.hash(superadminSalt + DEFAULT_SUPERADMIN_PASSWORD, 10);
+          await db.execute({
+            sql: `UPDATE admin_users SET password = ?, salt = ? WHERE username = ?`,
+            args: [superadminPassHash, superadminSalt, 'akhya']
+          });
+          console.log("Seeding: Migrated Super Admin 'akhya' to use a unique salt.");
+        }
+      }
       await db.execute({
         sql: `UPDATE admin_users SET email = ? WHERE username = ? AND email IS NULL`,
         args: ['recruitmentrd6@gmail.com', 'akhya']
@@ -853,7 +905,9 @@ app.post('/api/admin/login', sensitiveLimiter, async (req, res) => {
     }
 
     const user = userRes.rows[0];
-    const passwordMatch = await bcrypt.compare(password, user.password as string);
+    const salt = user.salt as string | null | undefined;
+    const saltedPassword = salt ? (salt + password) : password;
+    const passwordMatch = await bcrypt.compare(saltedPassword, user.password as string);
     if (!passwordMatch) {
       return res.status(401).json({ error: "Invalid username or password." });
     }
@@ -982,11 +1036,12 @@ app.post('/api/admin/reset-password', sensitiveLimiter, async (req, res) => {
     }
 
     const username = decoded.username;
-    const passwordHash = await bcrypt.hash(newPassword, 10);
+    const salt = generateSalt();
+    const passwordHash = await bcrypt.hash(salt + newPassword, 10);
 
     const result = await db.execute({
-      sql: "UPDATE admin_users SET password = ? WHERE username = ?",
-      args: [passwordHash, username]
+      sql: "UPDATE admin_users SET password = ?, salt = ? WHERE username = ?",
+      args: [passwordHash, salt, username]
     });
 
     if (result.rowsAffected === 0) {
@@ -1146,10 +1201,11 @@ app.post('/api/admin/users', authenticateToken, async (req: AuthenticatedRequest
       return res.status(409).json({ error: "Username already exists." });
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
+    const salt = generateSalt();
+    const passwordHash = await bcrypt.hash(salt + password, 10);
     const result = await db.execute({
-      sql: "INSERT INTO admin_users (username, password, role, email) VALUES (?, ?, ?, ?)",
-      args: [username, passwordHash, role, email]
+      sql: "INSERT INTO admin_users (username, password, salt, role, email) VALUES (?, ?, ?, ?, ?)",
+      args: [username, passwordHash, salt, role, email]
     });
 
     // Log Activity
