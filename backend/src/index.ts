@@ -979,9 +979,9 @@ app.post('/api/admin/logout', (req, res) => {
   return res.status(200).json({ success: true, message: "Logged out successfully." });
 });
 
-async function sendSystemEmail(to: string, subject: string, text: string) {
+async function sendSystemEmail(to: string, subject: string, text: string, html?: string) {
   if (process.env.GMAIL_HTTP_PROXY_URL) {
-    const payload = { to, subject, text };
+    const payload = { to, subject, text, html };
     const proxyRes = await postToAppsScript(process.env.GMAIL_HTTP_PROXY_URL, payload);
     if (!proxyRes.success) {
       throw new Error(`Google Apps Script Proxy failed: ${proxyRes.error}`);
@@ -991,7 +991,8 @@ async function sendSystemEmail(to: string, subject: string, text: string) {
       from: SENDER_EMAIL,
       to,
       subject,
-      text
+      text,
+      html
     });
   }
 }
@@ -1027,7 +1028,7 @@ app.post('/api/admin/forgot-password', sensitiveLimiter, async (req, res) => {
         { expiresIn: '15m' }
       );
 
-      const origin = req.headers.origin || 'http://localhost:5173';
+      const origin = req.headers.origin || process.env.FRONTEND_URL || 'https://tcek-rd.web.app';
       const resetLink = `${origin}/admin/reset-password?token=${resetToken}`;
 
       if (process.env.NODE_ENV === 'test') {
@@ -1035,9 +1036,125 @@ app.post('/api/admin/forgot-password', sensitiveLimiter, async (req, res) => {
       }
 
       const subject = "R&D Club Admin Password Reset Request";
-      const text = `Hello,\n\nYou are receiving this email because a password reset request was submitted for your R&D Club administrator account (${username}).\n\nPlease click on the following link, or paste it into your browser to complete the process. This link is valid for 15 minutes:\n\n${resetLink}\n\nIf you did not request a password reset, you can safely ignore this email.\n\nBest regards,\nR&D Club Admin System`;
+      const text = `Hello,\n\nYou are receiving this email because a password reset request was submitted for your R&D Club administrator account (${username}).\n\nPlease click on the following link, or paste it into your browser to complete the process. This link is valid for 15 minutes:\n\n<${resetLink}>\n\nIf you did not request a password reset, you can safely ignore this email.\n\nBest regards,\nR&D Club Admin System`;
 
-      await sendSystemEmail(email.trim(), subject, text);
+      const html = `<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background-color: #0f172a;
+      color: #f1f5f9;
+      margin: 0;
+      padding: 0;
+      -webkit-font-smoothing: antialiased;
+    }
+    .wrapper {
+      width: 100%;
+      background-color: #0f172a;
+      padding: 40px 0;
+    }
+    .container {
+      max-width: 580px;
+      margin: 0 auto;
+      background-color: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 40px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    }
+    .logo {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+    .logo-icon {
+      display: inline-block;
+      width: 48px;
+      height: 48px;
+      background-color: rgba(16, 185, 129, 0.1);
+      border-radius: 50%;
+      line-height: 48px;
+      color: #10b981;
+      font-size: 24px;
+      font-weight: bold;
+      text-align: center;
+    }
+    h2 {
+      color: #ffffff;
+      font-size: 24px;
+      font-weight: 700;
+      text-align: center;
+      margin-top: 0;
+      margin-bottom: 16px;
+    }
+    p {
+      color: #94a3b8;
+      font-size: 16px;
+      line-height: 24px;
+      margin-top: 0;
+      margin-bottom: 24px;
+    }
+    .button-container {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+    .btn {
+      display: inline-block;
+      background-color: #10b981;
+      color: #ffffff !important;
+      text-decoration: none;
+      padding: 12px 32px;
+      font-size: 16px;
+      font-weight: 600;
+      border-radius: 8px;
+      box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.2);
+    }
+    .btn:hover {
+      background-color: #059669;
+    }
+    .footer {
+      text-align: center;
+      margin-top: 32px;
+      border-top: 1px solid #334155;
+      padding-top: 24px;
+      color: #64748b;
+      font-size: 14px;
+    }
+    .link-fallback {
+      word-break: break-all;
+      color: #10b981;
+      font-size: 14px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="container">
+      <div class="logo">
+        <div class="logo-icon">🛡️</div>
+      </div>
+      <h2>Password Reset Request</h2>
+      <p>Hello,</p>
+      <p>You are receiving this email because a password reset request was submitted for your R&D Club administrator account (<strong>${username}</strong>).</p>
+      <p>Please click the button below to complete the process. This link is valid for 15 minutes:</p>
+      <div class="button-container">
+        <a href="${resetLink}" class="btn" target="_blank">Reset Password</a>
+      </div>
+      <p>If the button doesn't work, you can copy and paste the following link into your web browser:</p>
+      <p class="link-fallback"><a href="${resetLink}" style="color: #10b981; text-decoration: none;">${resetLink}</a></p>
+      <p>If you did not request a password reset, you can safely ignore this email.</p>
+      <div class="footer">
+        Best regards,<br>
+        <strong>R&D Club Admin System</strong>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`;
+
+      await sendSystemEmail(email.trim(), subject, text, html);
 
       // Log Activity
       await db.execute({

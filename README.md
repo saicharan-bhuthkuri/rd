@@ -1189,11 +1189,12 @@ Render's free tier blocks outgoing SMTP ports (25, 465, 587) to prevent spam, wh
         );
       });
       
-      // Dispatch via Google's native MailApp
+      // Dispatch via Google's native MailApp supporting optional HTML body
       MailApp.sendEmail({
         to: data.to,
         subject: data.subject,
-        body: data.text,
+        body: data.text || "",
+        htmlBody: data.html,
         attachments: attachments
       });
       
