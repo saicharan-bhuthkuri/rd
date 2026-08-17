@@ -1159,7 +1159,9 @@ app.post('/api/admin/forgot-password', sensitiveLimiter, async (req, res) => {
 </body>
 </html>`;
 
-    await sendSystemEmail(email.trim(), subject, text, html);
+    if (process.env.NODE_ENV !== 'test') {
+      await sendSystemEmail(email.trim(), subject, text, html);
+    }
 
     // Log Activity
     await db.execute({
