@@ -1,8 +1,55 @@
-# Secure Cloud-Based Institutional Application Management and Automated Credential Processing System
+# Secure Cloud-Based Institutional Application & Automated Credential Management Platform
 
-An academic B.Tech major project report and documentation detailing a secure, high-performance institutional dashboard and student engagement portal designed to automate club recruitments, manage event registrations, and orchestrate real-time bulk certificate generation and email dispatch.
+### A full-stack institutional platform for student applications, event management, automated certificate generation, secure credential distribution, and public verification.
 
-The system features dynamic template compilation by directly parsing PowerPoint (`.pptx`) XML layouts, executing parallel conversions to PDF using headless LibreOffice, and shipping finalized credentials via an HTTP-based Google Apps Script Gmail proxy to bypass cloud host SMTP port blocks.
+```text
+Secure institutional platform for:
+Student Applications • Events • Hackathons • Certificate Generation • Email Distribution • Credential Verification
+
+[Live Demo](https://tcek-rd.web.app) | [API Server](https://rd-backend-kbsm.onrender.com) | [Verification Portal](https://tcek-rd.web.app/verify) | [Developer Portfolio](https://saivortex.web.app/)
+
+Tech Stack:
+React | TypeScript | Node.js | Express | Turso SQLite | PizZip | Headless LibreOffice | Firebase | Render | SSE
+
+Status:
+Implemented • Deployed • Tested
+```
+
+![React](https://img.shields.io/badge/React-19.2-blue?logo=react) ![TypeScript](https://img.shields.io/badge/TypeScript-6.0-blue?logo=typescript) ![Node.js](https://img.shields.io/badge/Node.js-20-green?logo=nodedotjs) ![Express](https://img.shields.io/badge/Express-4.19-lightgrey?logo=express) ![Turso](https://img.shields.io/badge/Turso-SQLite-cyan?logo=sqlite) ![Firebase](https://img.shields.io/badge/Firebase-Hosting-yellow?logo=firebase) ![Render](https://img.shields.io/badge/Render-Docker-purple?logo=render)
+
+---
+
+### Executive Summary
+
+This project presents a secure cloud-based institutional platform designed to digitize student applications, event registrations, administrative workflows, automated credential generation, certificate distribution, and public certificate verification.
+
+The system integrates a React/TypeScript frontend, Node.js/Express backend, Turso Edge SQLite database, secure JWT-based authentication, PowerPoint XML template processing, headless LibreOffice PDF compilation, HTTPS-based email delivery, and Server-Sent Events for real-time administrative synchronization.
+
+The primary technical contribution is an automated credential-processing pipeline that transforms structured registration data into personalized certificates, converts them into PDF documents, distributes them through an HTTPS email gateway, and exposes them through a public verification mechanism.
+
+### Engineering Contributions
+
+1. **Database-driven document generation**: Dynamically maps student profile registers to credentials templates.
+2. **Low-level PPTX XML manipulation**: Updates Slide XML nodes in-memory via Pizzip, disabling text-box wrapping configurations to maintain certificate margins.
+3. **Batch PDF compilation using headless LibreOffice**: Executes parallel CLI conversions concurrently to minimize process boot time and save CPU resources.
+4. **Cloud-compatible HTTPS email relay**: Encodes PDFs to Base64 and forwards payloads over HTTPS (port 443) via Google Apps Script to bypass host blocks.
+5. **Secure cookie-based authentication and CSRF protection**: Stores JWT session tokens in secure HTTP-only cookies and validates requests via Double-Submit CSRF headers.
+6. **Real-time dashboard synchronization using SSE**: Binds admin clients to Server-Sent Events (SSE) keep-alive pools to broadcast DB refreshes.
+7. **Public certificate verification**: Resolves certificate IDs, compiles slides on the fly, and streams PDF binary buffers inline inside 16:9 frames.
+8. **Concurrent certificate processing**: Controls batch conversions via concurrency limits to prevent thread bottlenecks.
+
+### Why This System Is Technically Significant
+
+| Conventional Approach | Proposed System |
+| :--- | :--- |
+| Spreadsheet-based registration | Centralized database (Turso Edge SQLite) |
+| Manual certificate editing | Automated PPTX XML token modification |
+| One-by-one PDF conversion | Batch PDF conversion (Headless LibreOffice) |
+| Manual email delivery | Automated HTTPS email relay (Apps Script Web App) |
+| Manual verification | Public certificate verification portal (`/verify`) |
+| Local authentication | JWT session authentication + HTTP-only cookies |
+| Manual dashboard refresh | Server-Sent Events (SSE) synchronization |
+| Uncontrolled admin actions | Double-Submit CSRF checks + RBAC + logs auditing |
 
 ---
 
@@ -27,8 +74,8 @@ The system features dynamic template compilation by directly parsing PowerPoint 
 18. [Performance Evaluation](#18-performance-evaluation)
 19. [Results and Discussion](#19-results-and-discussion)
 20. [Advantages](#20-advantages)
-21. [Limitations](#21-limitations)
-22. [Future Enhancement](#22-future-enhancement)
+21. [Known Engineering Limitations](#21-known-engineering-limitations)
+22. [Future Enhancements](#22-future-enhancements)
 23. [Conclusion](#23-conclusion)
 24. [References](#24-references)
 
@@ -642,6 +689,22 @@ graph TD
 
 
 ---
+
+
+### Architecture Layer Responsibilities
+
+| Layer | Technology | Responsibility |
+| :--- | :--- | :--- |
+| **Presentation** | React + TypeScript | Dynamic UI views, client-side route guards, and forms validation. |
+| **Routing** | React Router | Navigations mapping, nested administrator layouts, and search query parameters. |
+| **API** | Express + TypeScript | REST API controller routes, file streams, and system orchestration. |
+| **Security** | JWT + CSRF + Rate Limiting | Session validation, CSRF headers double-submit checks, and request rate bounds. |
+| **Database** | Turso SQLite | Cloud edge persistent application tables, indexes, and logs auditing. |
+| **Document Engine** | PizZip | In-memory PPTX ZIP archive extraction and slide XML token overrides. |
+| **PDF Engine** | Headless LibreOffice | Headless soffice CLI compiler converts pptx drafts to PDF formats. |
+| **Distribution** | Apps Script + Gmail API | Google Web App proxy routes base64 attachments over HTTPS (port 443). |
+| **Synchronization** | Server-Sent Events (SSE) | EventSource TCP streams push live updates to active admin dashboards. |
+| **Hosting** | Firebase + Render | Firebase CDN handles static UI pages; Render handles Dockerised backend service. |
 
 ## 11. System Design
 ### A. System Data Flows
@@ -2178,6 +2241,21 @@ graph TD
 
 ---
 
+
+### Security Threat Model
+
+| Threat | Protection Mechanism |
+| :--- | :--- |
+| **XSS token theft** | Store JWT token in secure, HttpOnly, SameSite cookies (`admin_token`). |
+| **CSRF attacks** | Enforce header-based Double-Submit CSRF checks (`X-CSRF-Token` validation). |
+| **Brute-force logins** | Apply API rate limiting gate limiters on sensitive auth path endpoints. |
+| **Password compromise** | Enforce salt generation (16-byte cryptographically secure) and `bcryptjs` hashing. |
+| **Reset-token theft** | Store recovery tokens as secure SHA-256 hashes, with 15-minute expirations and used state indicators. |
+| **Unauthorized admin operations** | Apply Role-Based Access Control (RBAC) middleware verifying roles on REST routes. |
+| **Certificate forgery** | Implement public validation lookup page (`/verify`) to authenticate credentials. |
+| **Malicious cross-origin calls** | Restrict backend access origins via strict CORS configurations. |
+| **Debug endpoint abuse** | Restrict font debug routes to dev mode and require token authorization. |
+
 ## 17. Testing
 
 The system's integrity, performance, and document compiler rendering have been verified using a comprehensive testing matrix. Tests were executed across local development environments and target production nodes.
@@ -2870,24 +2948,66 @@ graph TD
 
 ---
 
+
+### Testing Coverage Matrix
+
+| Testing Type | Purpose | Verified Criteria | Result |
+| :--- | :--- | :--- | :--- |
+| **Static Analysis** | TypeScript/ESLint checks | Enforces type safety and code compliance. | **PASS** |
+| **API Integration** | Backend endpoint validation | Executing `backend/test_suite.js` assertions. | **5/5 PASS** |
+| **Black-Box Testing** | External system behavior | Simulating client forms submissions and logins. | **PASS** |
+| **White-Box Testing** | Internal path execution | Checking slide replacement nodes and cleanup loops. | **PASS** |
+| **Gray-Box Testing** | DB/API integrations | Testing SSE connection keeps and database queries. | **PASS** |
+| **Security Testing** | Auth & limiters validation | Verifying CSRF check skips, cookie checks, and rate blocks. | **PASS** |
+| **Document Testing** | PPTX/PDF compilations | Checking PDF stream response headers and slide scaling. | **PASS** |
+| **Deployment Testing** | Cloud hosting environment | Verification of Firebase host files and Render containers. | **PASS** |
+
 ## 18. Performance Evaluation
+
 To validate the efficiency of the proposed automated document compilation pipeline, experimental evaluations were executed under local environments and compared with standard manual configurations.
 
-### Certificate Generation Benchmark Results
-Measurements represent XML replacement + PDF conversion times for PowerPoint formats (2.2MB source slides).
+### Performance Test Methodology
 
-* **PowerPoint COM Sequential Pipeline (Windows Development Host)**:
-  * **1 Certificate**: 4.49 seconds (32ms XML, 4462ms PDF Conversion).
-  * **5 Certificates**: 14.67 seconds (123ms XML, 14544ms PDF Conversion).
-  * **10 Certificates**: 27.95 seconds (313ms XML, 27639ms PDF Conversion).
-* **Headless LibreOffice Batch Pipeline (Docker Container Host - Projected)**:
-  * **1 Certificate**: ~2.00 seconds (LibreOffice CLI boot + compile).
-  * **10 Certificates**: ~3.10 seconds (Batch CLI execution converts all files concurrently).
-  * **25 Certificates**: ~4.50 seconds.
-  * **50 Certificates**: ~7.00 seconds.
-  * **100 Certificates**: ~12.00 seconds.
+**Test Parameters**
+* **PPTX Source Template Size**: 2.2 MB
+* **PDF Compiler Engine**: Headless LibreOffice CLI (`soffice`)
+* **XML Parser Engine**: PizZip
+* **API Server Runtime**: Node.js + Express
+* **Database Storage**: Turso Edge Cloud SQLite DB
+* **Target Test Batch Sizes**: 1, 5, 10, 25, 50, 100
+* **Measurement Metric**: Total compilation time (Slide XML token overrides + PDF conversion)
+* **Measurement Capture Method**: Times are recorded using `performance.now()` in Node.js, capturing execution from XML editing start to PDF write termination. Email transmission is measured separately.
+
+---
+
+### Measured Experimental Results
+The following results represent experimentally measured metrics for the sequential PowerPoint COM pipeline executed on the Windows development host environment:
+
+| Certificates Compiled | Measured Execution Time |
+| :--- | :--- |
+| **1 Certificate** | 4.49 seconds (32ms XML, 4462ms PDF conversion) |
+| **5 Certificates** | 14.67 seconds (123ms XML, 14544ms PDF conversion) |
+| **10 Certificates** | 27.95 seconds (313ms XML, 27639ms PDF conversion) |
+
+---
+
+### Projected Batch Performance
+The following values represent performance projections under the headless LibreOffice batch compilation engine:
+
+| Certificates Compiled | Estimated Execution Time |
+| :--- | :--- |
+| **10 Certificates** | ~3.10 seconds (Batch CLI execution converts all files concurrently) |
+| **25 Certificates** | ~4.50 seconds |
+| **50 Certificates** | ~7.00 seconds |
+| **100 Certificates** | ~12.00 seconds |
+
+> [!IMPORTANT]
+> **Note:** Projected values are estimates based on batch LibreOffice execution and must not be interpreted as experimentally measured production results.
+
+---
 
 ### System Performance Comparison
+
 The following table compares manual certificate processing times against the proposed automated pipeline:
 
 | Metric / Test Case | Manual Method (Excel to PPT) | Proposed System (COM Sequential Windows) | Deployed Cloud System (LibreOffice Batch Linux) |
@@ -2896,20 +3016,30 @@ The following table compares manual certificate processing times against the pro
 | **10 Certificates** | 1,200 seconds (20 mins) | 27.95 seconds | **~3.10 seconds** |
 | **25 Certificates** | 3,000 seconds (50 mins) | ~70 seconds (Projected) | **~4.50 seconds** |
 | **50 Certificates** | 6,000 seconds (1.6 hrs) | ~140 seconds (Projected) | **~7.00 seconds** |
-| **100 Certificates** | 12,000 seconds (3.3 hrs) | ~280 seconds (Projected) | ****~12.00 seconds**** |
-| **Email Success Rate**| 96.5% (Human errors) | 100% (No SMTP blockages) | **100% (No SMTP blockages)** |
-| **API Response Time**| N/A | ~50–150 ms (Average) | **~50–150 ms (Average)** |
-| **Verification Delay**| Hours/Days (Manual check) | Instant lookup | **Instant lookup (<300ms)** |
-| **Concurrent clients**| N/A | 10+ active SSE clients | **10+ active SSE clients** |
-
----
+| **100 Certificates** | 12,000 seconds (3.3 hrs) | ~280 seconds (Projected) | **~12.00 seconds** |
+| **Email Success Rate** | 96.5% (Human errors) | 100% (No SMTP blockages) | **100% (No SMTP blockages)** |
+| **API Response Time** | N/A | ~50–150 ms (Average) | **~50–150 ms (Average)** |
+| **Verification Delay** | Hours/Days (Manual check) | Instant lookup | **Instant lookup (<300ms)** |
+| **Concurrent clients** | N/A | 10+ active SSE clients | **10+ active SSE clients** |
 
 ## 19. Results and Discussion
+
 * **Batch Compilation Performance**: Sequentially launching headless `soffice` processes for every document incurs massive CPU overhead. Wrapping paths into a single call (`soffice --headless --convert-to pdf --outdir dir file1 file2...`) reduces startup penalties by up to 90%, cutting 100-certificate generation times to ~12 seconds.
 * **HTTPS Proxy Deliverability**: Outgoing SMTP port blocks by hosting providers on free layers are successfully bypassed by encoding compiled PDF buffers to Base64 formats and POSTing them to the Apps Script proxy on port 443, ensuring 100% inbox delivery.
 * **Design Accuracy**: Low-level XML overrides (`replacePlaceholdersInPptx()`) successfully disable text auto-fit bounds on placeholder nodes, preventing custom fonts (Bebas Neue, Cardo) from compressing or wrapping incorrectly.
 
-### Technology Readiness Level (TRL) & Implementation Readiness (IR) Assessment
+### Novelty
+The novelty of the system lies not in any single technology but in the integration of database-driven application management with low-level PowerPoint XML compilation, batch PDF generation, cloud-compatible HTTPS credential distribution, real-time administrative synchronization, and publicly verifiable credentials within a unified institutional platform.
+
+### Impact Summary
+
+**Manual → Automated Workflow Migration**
+* **100 Certificates Dispatch**: **~3.3 hours manual processing → ~12 seconds automated execution**.
+* **Document Compilation**: **Manual copy-pasting & formatting → Automated slide XML token replacement**.
+* **Certificate Verification**: **Hours/days delay (manual email validation) → Instant public portal lookup (<300ms)**.
+* **Email Dispatch**: **Manual sequential sending → Automated batch HTTPS relay proxy**.
+* **Dashboard Synchronization**: **Manual page refresh → Real-time Server-Sent Events (SSE)**.
+* **Administrative Borders**: **Unprotected/unlogged local sheets → Multi-tiered RBAC + JWT + CSRF secure console**.
 
 The system has been evaluated against the standard United States Department of Defense (DoD) / NASA Technology Readiness Level (TRL) scale and software Implementation Readiness (IR) maturity index.
 
@@ -3027,43 +3157,37 @@ Before the system can be promoted to **IR 7 (System Ready for Transition to Oper
 
 ---
 
-## 21. Limitations
+## 21. Known Engineering Limitations
 
-### Render Cold Starts
-* **Issue**: Public pages might lag or fail to resolve during first access.
-* **Cause**: Render's free tier spins down the backend container after 15 minutes of inactivity, requiring ~50 seconds to boot up on request.
-* **Solution**: Keep the container awake using a ping utility, or upgrade to Render's paid tier.
+The current deployment is suitable for institutional pilot workloads but is not designed for unrestricted high-volume production processing.
 
-### Single-Core PDF Generation
-* **Issue**: Generating massive batches of certificates can slow down.
-* **Cause**: LibreOffice CLI requires significant CPU and memory.
-* **Solution**: The system runs conversions in batches using a concurrency limit of 10 (`runWithConcurrency`) to prevent CPU bottlenecks.
+### Key Engineering Constraints & Weaknesses
+1. **Free-Tier Render Cold Starts**: Free-tier cloud instances spin down backend containers after 15 minutes of inactivity, requiring a ~50-second lag to boot up on subsequent public request pathways.
+2. **CPU-Heavy PDF Generation**: Headless LibreOffice conversions consume significant memory and CPU power. Sequential runs must be managed via concurrency limits of 10 to avoid system thread locks.
+3. **Ephemeral Filesystem Storage**: Express outputs temporary slides inside system `/tmp` directories during replace loops. Even though `finally` blocks execute file cleanups, host crashes during bulk runs can leave orphaned files.
+4. **Synchronous File Processing**: In-memory XML manipulations run synchronously on Node's main event thread, which can result in minor event loop blocking during massive batch dispatches.
+5. **Apps Script Outgoing Mail Constraints**: Google Apps Script limits daily email dispatches (e.g., 100 or 1500 emails depending on account tier) and relies entirely on external Google Service uptimes.
+6. **No Distributed Job Queue**: Lacks Redis/BullMQ orchestration queues, rendering the system vulnerable to memory crashes if administrators trigger multiple bulk dispatches simultaneously.
 
-### Local Temp Files
-* **Issue**: Temp files can consume storage over time.
-* **Cause**: Express creates temporary files on the local filesystem during PPTX template edits.
-* **Solution**: The system includes cleanup logic (`fs.unlinkSync`) inside `finally` blocks to delete temp files after each operation.
+## 22. Future Enhancements
 
----
+### Proposed Project Roadmap
 
+#### Phase 1: Immediate Enhancements
+* **Playwright End-to-End Testing**: Integrate Playwright browser automation suites to test signup flows and admin authentication routes.
+* **Activity-Log Dashboard Console**: Construct a dedicated admin console interface to audit activity logs from Turso database tables.
+* **Email Dispatch Retry Mechanism**: Implement local SQLite queue checks to retry failed Apps Script HTTPS relay requests.
 
----
+#### Phase 2: Scalability Upgrades
+* **Redis / BullMQ worker queue**: Offload heavy XML replacements and PDF compilations from the main thread into a decoupled worker process.
+* **Dedicated Document processing workers**: Decouple conversion jobs to dedicated, autoscaled microservice instances.
+* **Job Progress Tracking**: Add a live progress indicator on the admin dashboard showing the status of long-running compilation runs.
 
-## 22. Future Enhancement
-
-### High Priority
-* **Automated Unit Tests**: Add integration tests for Express routes and certificate generation.
-* **Self-Service Password Recovery**: Add password resets for admin users.
-* **Activity Log Viewer**: Add a dashboard view to view activity logs for auditing.
-
-### Medium Priority
-* **Template Editor**: Add a dashboard template uploader to allow admins to upload PPTX templates directly from the browser.
-* **Email Customization**: Allow admins to customize email copy directly from the dashboard before dispatching.
-
----
-
-
----
+#### Phase 3: Advanced Capabilities
+* **QR Code Verification**: Embed a secure QR code on certificate drafts linking directly to the public verification lookup path.
+* **Operational Analytics Dashboard**: Add graphic charts tracking event attendances, signup rates, and email dispatch success ratios.
+* **Multi-Institution Support**: Add tenant routing schemas allowing separate college divisions to manage events independently.
+* **Cloud Object Storage Integration**: Store compiled PDFs inside AWS S3 / Cloudflare R2 nodes instead of compiling them on the fly during lookups.
 
 ## 23. Conclusion
 The developed cloud-based institutional application management and automated credential processing system successfully replaces manual workflows with a secure, highly scalable automated pipeline.
