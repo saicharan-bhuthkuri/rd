@@ -25,6 +25,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
     }
     localStorage.removeItem('csrf_token');
     localStorage.removeItem('admin_user');
+    localStorage.removeItem('admin_token');
     navigate('/admin/login');
   };
 

@@ -32,6 +32,7 @@ export const AdminLoginPage: React.FC = () => {
       }
 
       // Store auth credentials in localStorage
+      localStorage.setItem('admin_token', data.token);
       localStorage.setItem('csrf_token', data.csrfToken);
       localStorage.setItem('admin_user', JSON.stringify(data.user));
 

@@ -961,6 +961,7 @@ app.post('/api/admin/login', sensitiveLimiter, async (req, res) => {
 
     return res.status(200).json({
       success: true,
+      token,
       csrfToken,
       user: {
         username: user.username,
