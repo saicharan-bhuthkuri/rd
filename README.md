@@ -682,9 +682,9 @@ sequenceDiagram
     
     Admin->>FE: Input username & password
     FE->>BE: POST /api/admin/login
-    BE->>DB: Query user hash where username = ?
-    DB-->>BE: Hashed password + user profile details
-    BE->>BE: Compare hashes (bcryptjs.compare)
+    BE->>DB: Query user record where username = ?
+    DB-->>BE: Hashed password + unique salt + user profile details
+    BE->>BE: Prepend salt (if present) to password and compare hashes (bcryptjs.compare)
     BE->>BE: Generate admin_token & csrfToken
     BE-->>FE: Set-Cookie: admin_token (HttpOnly, SameSite=Lax)<br/>Response body: { csrfToken, user }
     FE->>FE: Store csrfToken in localStorage
@@ -977,8 +977,8 @@ Styling is managed via [`frontend/src/pages/index.css`](file:///c:/Users/bhuth/O
 ## 9. Authentication & Authorization
 
 ### Hashing & Credentials
-* Passwords are encrypted in database tables using `bcryptjs` with a work factor of 10.
-* Seeding logic inserts defaults on startup if they do not exist.
+* Passwords are encrypted using a unique, cryptographically secure 16-byte random salt generated per-user, prepended to the password, and hashed using `bcryptjs` with a work factor of 10.
+* Seeding logic inserts defaults on startup if they do not exist, and migrates existing legacy/un-salted default seeded accounts to the new salted schema.
 
 ### Default Admin Accounts (Seeded automatically)
 * **Developer Access**:
@@ -1012,6 +1012,7 @@ erDiagram
         integer id PK
         text username
         text password_hash
+        text salt
         text role
         text created_at
     }
@@ -1089,7 +1090,7 @@ erDiagram
 2. **`event_registrations`**: Student attendees. Column `status` represents actions (e.g. `'Participation'`, `'Won First Place'`). Column `certificate_sent` locks status modifications once set to 1.
 3. **`hackathon_registrations`**: Roster of hackathons. Column `members` holds a JSON string of team members.
 4. **`contact_messages`**: Public contact form messages.
-5. **`admin_users`**: Stores admin profiles. Checked via role constraints (`role IN ('developer', 'superadmin', 'admin')`).
+5. **`admin_users`**: Stores admin profiles. Includes a unique `salt` column used to secure passwords before hashing, checked via role constraints (`role IN ('developer', 'superadmin', 'admin')`).
 6. **`activity_logs`**: Logs admin actions for auditing.
 7. **`events`**: Registered events. Category can be `'Workshop'`, `'Seminar'`, `'Colloquium'`, or `'Hackathon'`.
 8. **`templates`**: Holds base64 representations of PPTX templates.
@@ -2075,7 +2076,7 @@ graph LR
 ## 20. Security
 
 ### Implemented Protections
-* **Password Hashing**: Uses `bcryptjs` with a work factor of 10 to securely hash admin passwords, preventing plain-text exposures in database breaches.
+* **Password Hashing**: Uses a unique, cryptographically secure random salt generated per-user, prepended to the password, and hashed using `bcryptjs` with a work factor of 10 to securely hash admin passwords, preventing dictionary attacks and plain-text exposures in database breaches.
 * **Session Validation**: Protects backend routes using JWT tokens with a standard HMAC-SHA256 signature and a default 8-hour expiry limit.
 * **Database Security**: Turso DB interactions use parameterized SQL statements (`db.execute({ sql, args })`) instead of raw string concatenations, protecting the application against SQL injection attacks.
 * **Input Sanitization**: Replaces special XML/HTML characters (`&` $\rightarrow$ `&amp;`, `<` $\rightarrow$ `&lt;`, `>` $\rightarrow$ `&gt;`) in PPTX replacement placeholders to prevent layout breaks and XML injection.
