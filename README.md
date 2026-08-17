@@ -747,7 +747,7 @@ sequenceDiagram
     
     Visitor->>FE: Access /verify/:id or scan QR Code
     FE->>BE: GET /api/verify-certificate/:encodedId
-    BE->>DB: Query event_registrations where certificate_id = :id
+    BE->>DB: Query event_registrations checking certificate_id suffix
     DB-->>BE: Return registration status, event details, and student name
     BE-->>FE: Return JSON status metadata (valid = true)
     FE->>Visitor: Render Verification Panel details
@@ -1087,7 +1087,7 @@ erDiagram
 
 ### Table Schema and Column Metadata
 1. **`club_applications`**: Manages recruitment entries. Status values: `'pending'`, `'approved'`, `'rejected'`. Column `offer_sent` determines if they received appointment letters (0 or 1).
-2. **`event_registrations`**: Student attendees. Column `status` represents actions (e.g. `'Participation'`, `'Won First Place'`). Column `certificate_sent` locks status modifications once set to 1.
+2. **`event_registrations`**: Student attendees. Column `status` represents actions (e.g. `'Participation'`, `'Won First Place'`). Column `certificate_id` stores a unique certificate code with a cryptographically secure random suffix to prevent ID guessing. Column `certificate_sent` locks status modifications once set to 1.
 3. **`hackathon_registrations`**: Roster of hackathons. Column `members` holds a JSON string of team members.
 4. **`contact_messages`**: Public contact form messages.
 5. **`admin_users`**: Stores admin profiles. Includes a unique `salt` column used to secure passwords before hashing, checked via role constraints (`role IN ('developer', 'superadmin', 'admin')`).
@@ -2085,6 +2085,7 @@ graph LR
 
 ### Implemented Security Enhancements & Protections
 * **Rate Limiting**: Enforces rate limiting on all API routes using `express-rate-limit`, with strict thresholds on sensitive pathways (e.g., login, forgot password, registration/application submissions, and certificate verification).
+* **Certificate ID Obfuscation**: Appends a unique, cryptographically secure 4-byte random hex suffix to certificate verification IDs (e.g. `TCEK/RD/2026/0001-A9B2E3F4`). The public verification endpoint checks and blocks brute-force sequential scanning by requiring the exact suffixed ID.
 * **HttpOnly Cookies & CSRF Protection**: Session tokens are stored in secure HTTP-only cookies, removing them from client-side `LocalStorage` to prevent XSS-based token theft. To prevent Cross-Site Request Forgery (CSRF), state-changing requests validate an `X-CSRF-Token` header containing a signed CSRF token.
 * **Automated Account Recovery**: Added a secure forgot-password and reset-password flow using short-lived signed JWT reset links sent via email.
 * **Environment-Configured Credentials**: Seeding default developer and superadmin passwords from environment variables in `.env` rather than hardcoding them in the startup source code.

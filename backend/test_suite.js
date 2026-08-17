@@ -5,7 +5,7 @@ const path = require('path');
 console.log("=== STARTING TRINITY R&D CELL BACKEND TEST SUITE ===");
 
 // Set port to 5001 to prevent conflicts with standard running instances
-const testEnv = { ...process.env, PORT: '5001' };
+const testEnv = { ...process.env, PORT: '5001', NODE_ENV: 'test' };
 const serverProcess = spawn('node', [path.join(__dirname, 'dist', 'index.js')], { env: testEnv });
 
 let testResults = [];
@@ -38,8 +38,8 @@ function logTest(name, passed, details) {
 }
 
 async function runTests() {
-  console.log("Waiting 4 seconds for server and Turso database setup to complete...");
-  await new Promise(resolve => setTimeout(resolve, 4000));
+  console.log("Waiting 15 seconds for server and Turso database setup to complete...");
+  await new Promise(resolve => setTimeout(resolve, 15000));
 
   // Test 1: Get events
   try {
@@ -111,6 +111,135 @@ async function runTests() {
     logTest("Template sync utility update_db_templates.js file exists", true);
   } catch (err) {
     logTest("Template sync utility update_db_templates.js file exists", false, err.message);
+  }
+
+  // Test 6: Verify Certificate ID Obfuscation and Suffix Enforcement
+  try {
+    const { createClient } = require('@libsql/client');
+    require('dotenv').config();
+    const dbClient = createClient({
+      url: process.env.TURSO_URL,
+      authToken: process.env.TURSO_TOKEN
+    });
+
+    // 1. Clean up any leftover test data first
+    await dbClient.execute({
+      sql: "DELETE FROM event_registrations WHERE id = 9999"
+    });
+
+    // 2. Insert a mock registration with a suffixed certificate ID
+    const mockCertId = "TCEK/RD/2026/9999-TESTOBFUSCATION";
+    await dbClient.execute({
+      sql: "INSERT INTO event_registrations (id, full_name, pin_number, email, mobile, branch, year_of_study, event_name, certificate_id, certificate_sent) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      args: [9999, 'Test Candidate', '9999', 'test@example.com', '9999999999', 'CSE', 'III', 'Deep Learning Bootcamp: PyTorch Fundamentals', mockCertId, 1]
+    });
+
+    // 3. Access certificate verification with the correct suffixed ID
+    const goodRes = await fetch(`http://localhost:5001/api/verify-certificate/${encodeURIComponent(mockCertId)}`);
+    assert.strictEqual(goodRes.status, 200);
+    const goodData = await goodRes.json();
+    assert.strictEqual(goodData.success, true);
+    assert.strictEqual(goodData.data.fullName, 'Test Candidate');
+
+    // 4. Try to access the certificate by guessing the unsuffixed legacy path (e.g. TCEK/RD/2026/9999)
+    const badRes = await fetch('http://localhost:5001/api/verify-certificate/TCEK/RD/2026/9999');
+    assert.strictEqual(badRes.status, 404); // Should be blocked and return 404
+
+    // 5. Cleanup the mock database record
+    await dbClient.execute({
+      sql: "DELETE FROM event_registrations WHERE id = 9999"
+    });
+
+    logTest("Certificate ID obfuscation and suffix enforcement works successfully", true);
+  } catch (err) {
+    // Attempt cleanup in case of failure
+    try {
+      const { createClient } = require('@libsql/client');
+      const dbClient = createClient({
+        url: process.env.TURSO_URL,
+        authToken: process.env.TURSO_TOKEN
+      });
+      await dbClient.execute({
+        sql: "DELETE FROM event_registrations WHERE id = 9999"
+      });
+    } catch (e) {}
+
+    logTest("Certificate ID obfuscation and suffix enforcement works successfully", false, err.message);
+  }
+
+  // Test 7: Verify Stateful One-Time Password Reset Token Flow
+  try {
+    const crypto = require('crypto');
+
+    // 1. Trigger the forgot password link email generation
+    const forgotRes = await fetch('http://localhost:5001/api/admin/forgot-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'recruitmentrd6@gmail.com' })
+    });
+    assert.strictEqual(forgotRes.status, 200);
+
+    // 2. Wait a moment and parse the token from the server output logs
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    const tokenMatch = serverOutput.match(/\[TEST_RESET_TOKEN\]:\s*([^\s\r\n]+)/);
+    assert.ok(tokenMatch, "Test reset token should be printed in server stdout logs");
+    const testResetToken = tokenMatch[1];
+
+    // 3. Perform a password reset. It should succeed (200 OK)
+    const resetRes = await fetch('http://localhost:5001/api/admin/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: testResetToken, newPassword: 'NewSecurePassword@123' })
+    });
+    assert.strictEqual(resetRes.status, 200);
+    const resetData = await resetRes.json();
+    assert.strictEqual(resetData.success, true);
+
+    // 4. Try to perform the reset AGAIN using the same token. It should FAIL (400 Bad Request)
+    const duplicateResetRes = await fetch('http://localhost:5001/api/admin/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: testResetToken, newPassword: 'AnotherPassword@123' })
+    });
+    assert.strictEqual(duplicateResetRes.status, 400); // Stateful check blocks reuse!
+    const duplicateData = await duplicateResetRes.json();
+    assert.ok(duplicateData.error);
+
+    // 5. Restore the default seeded password for subsequent runs/tests (Developer: charan)
+    const { createClient } = require('@libsql/client');
+    const dbClient = createClient({
+      url: process.env.TURSO_URL,
+      authToken: process.env.TURSO_TOKEN
+    });
+    const bcrypt = require('bcryptjs');
+    const defaultPassword = process.env.DEFAULT_DEV_PASSWORD || 'Bharat@8336';
+    const restoreSalt = crypto.randomBytes(16).toString('hex');
+    const restoreHash = await bcrypt.hash(restoreSalt + defaultPassword, 10);
+    await dbClient.execute({
+      sql: "UPDATE admin_users SET password = ?, salt = ? WHERE username = ?",
+      args: [restoreHash, restoreSalt, 'charan']
+    });
+
+    logTest("Stateful one-time password reset token flow and reuse blocking works successfully", true);
+  } catch (err) {
+    // Attempt to restore default password in case of test failure
+    try {
+      const { createClient } = require('@libsql/client');
+      const dbClient = createClient({
+        url: process.env.TURSO_URL,
+        authToken: process.env.TURSO_TOKEN
+      });
+      const bcrypt = require('bcryptjs');
+      const defaultPassword = process.env.DEFAULT_DEV_PASSWORD || 'Bharat@8336';
+      const restoreSalt = require('crypto').randomBytes(16).toString('hex');
+      const restoreHash = await bcrypt.hash(restoreSalt + defaultPassword, 10);
+      await dbClient.execute({
+        sql: "UPDATE admin_users SET password = ?, salt = ? WHERE username = ?",
+        args: [restoreHash, restoreSalt, 'charan']
+      });
+    } catch (e) {}
+
+    logTest("Stateful one-time password reset token flow and reuse blocking works successfully", false, err.message);
   }
 
   // Cleanup & Shutdown

@@ -51,9 +51,11 @@ const allowedOrigins = [
   process.env.FRONTEND_URL
 ].filter(Boolean) as string[];
 
+const isProd = process.env.NODE_ENV === 'production';
+
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin) || origin.startsWith('http://localhost:')) {
+    if (!origin || allowedOrigins.includes(origin) || (!isProd && origin.startsWith('http://localhost:'))) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
@@ -99,6 +101,9 @@ const db = createClient({
 });
 
 const JWT_SECRET = process.env.JWT_SECRET || 'rd_club_secret_key_2026';
+if (isProd && JWT_SECRET === 'rd_club_secret_key_2026') {
+  console.error("\x1b[31m%s\x1b[0m", "CRITICAL SECURITY WARNING: JWT_SECRET is using the default development fallback in a production environment. You MUST configure a secure JWT_SECRET in your environment variables. In-memory values might be vulnerable.");
+}
 
 // Request typing for JWT authentication
 interface AuthenticatedRequest extends express.Request {
@@ -283,6 +288,18 @@ async function setupDatabase() {
       );
     `);
 
+    // 10. Password Reset Tokens Table
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS password_reset_tokens (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL,
+        token_hash TEXT NOT NULL,
+        salt TEXT NOT NULL,
+        expires_at DATETIME NOT NULL,
+        used INTEGER DEFAULT 0
+      );
+    `);
+
     // Alter table schemas to add status columns if missing
     try {
       await db.execute(`ALTER TABLE club_applications ADD COLUMN status TEXT DEFAULT 'pending';`);
@@ -372,7 +389,11 @@ async function setupDatabase() {
     const DEFAULT_SUPERADMIN_PASSWORD = process.env.DEFAULT_SUPERADMIN_PASSWORD || 'akhya@1962';
 
     if (DEFAULT_DEV_PASSWORD === 'Bharat@8336' || DEFAULT_SUPERADMIN_PASSWORD === 'akhya@1962') {
-      console.warn("\x1b[33m%s\x1b[0m", "SECURITY WARNING: Seeding default credentials directly. Please configure DEFAULT_DEV_PASSWORD and DEFAULT_SUPERADMIN_PASSWORD in .env.");
+      if (isProd) {
+        console.error("\x1b[31m%s\x1b[0m", "CRITICAL SECURITY WARNING: Seeding default credentials in a production environment. You MUST change DEFAULT_DEV_PASSWORD and DEFAULT_SUPERADMIN_PASSWORD in your environment variables immediately to prevent unauthorized access!");
+      } else {
+        console.warn("\x1b[33m%s\x1b[0m", "SECURITY WARNING: Seeding default credentials directly. Please configure DEFAULT_DEV_PASSWORD and DEFAULT_SUPERADMIN_PASSWORD in .env.");
+      }
     }
 
     // Seeding Developer: charan
@@ -990,14 +1011,28 @@ app.post('/api/admin/forgot-password', sensitiveLimiter, async (req, res) => {
 
     if (userRes.rows.length > 0) {
       const username = userRes.rows[0].username as string;
+      const rawToken = crypto.randomBytes(32).toString('hex');
+      const tokenSalt = generateSalt();
+      const tokenHash = crypto.createHash('sha256').update(tokenSalt + rawToken).digest('hex');
+      const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 minutes
+
+      await db.execute({
+        sql: "INSERT INTO password_reset_tokens (username, token_hash, salt, expires_at) VALUES (?, ?, ?, ?)",
+        args: [username, tokenHash, tokenSalt, expiresAt]
+      });
+
       const resetToken = jwt.sign(
-        { username, purpose: 'reset-password' },
+        { username, rawToken, purpose: 'reset-password' },
         JWT_SECRET,
         { expiresIn: '15m' }
       );
 
       const origin = req.headers.origin || 'http://localhost:5173';
       const resetLink = `${origin}/admin/reset-password?token=${resetToken}`;
+
+      if (process.env.NODE_ENV === 'test') {
+        console.log(`[TEST_RESET_TOKEN]: ${resetToken}`);
+      }
 
       const subject = "R&D Club Admin Password Reset Request";
       const text = `Hello,\n\nYou are receiving this email because a password reset request was submitted for your R&D Club administrator account (${username}).\n\nPlease click on the following link, or paste it into your browser to complete the process. This link is valid for 15 minutes:\n\n${resetLink}\n\nIf you did not request a password reset, you can safely ignore this email.\n\nBest regards,\nR&D Club Admin System`;
@@ -1036,6 +1071,42 @@ app.post('/api/admin/reset-password', sensitiveLimiter, async (req, res) => {
     }
 
     const username = decoded.username;
+    const rawToken = decoded.rawToken;
+
+    // Fetch active (unused) tokens for this user
+    const tokenRes = await db.execute({
+      sql: "SELECT * FROM password_reset_tokens WHERE username = ? AND used = 0",
+      args: [username]
+    });
+
+    let validTokenRecord = null;
+    const now = new Date();
+    for (const row of tokenRes.rows) {
+      const dbSalt = row.salt as string;
+      const dbHash = row.token_hash as string;
+      const expiresAt = new Date(row.expires_at as string);
+
+      if (expiresAt < now) {
+        continue;
+      }
+
+      const computedHash = crypto.createHash('sha256').update(dbSalt + rawToken).digest('hex');
+      if (computedHash === dbHash) {
+        validTokenRecord = row;
+        break;
+      }
+    }
+
+    if (!validTokenRecord) {
+      return res.status(400).json({ error: "The reset link is invalid, expired, or has already been used." });
+    }
+
+    // Mark token as used to enforce one-time usage
+    await db.execute({
+      sql: "UPDATE password_reset_tokens SET used = 1 WHERE id = ?",
+      args: [validTokenRecord.id]
+    });
+
     const salt = generateSalt();
     const passwordHash = await bcrypt.hash(salt + newPassword, 10);
 
@@ -1947,7 +2018,8 @@ app.post('/api/admin/bulk-send/certificates', authenticateToken, async (req: Aut
       const tempPptx = path.join(process.cwd(), `Certificate_${safeName}_${id}.pptx`);
       const pdfFilename = path.join(process.cwd(), `Certificate_${safeName}_${id}.pdf`);
 
-      const certId = `TCEK/RD/2026/${String(id).padStart(4, '0')}`;
+      const uniqueSuffix = crypto.randomBytes(4).toString('hex').toUpperCase();
+      const certId = `TCEK/RD/2026/${String(id).padStart(4, '0')}-${uniqueSuffix}`;
 
       const replacements = {
         '{{PARTICIPANT NAME}}': studentName,
@@ -2252,7 +2324,8 @@ app.post('/api/admin/bulk-send/hackathon-certificates', authenticateToken, async
       const tempPptx = path.join(process.cwd(), `Hack_Cert_${safeName}_${teamId}_${roleIndex}.pptx`);
       const pdfFilename = path.join(process.cwd(), `Hack_Cert_${safeName}_${teamId}_${roleIndex}.pdf`);
 
-      const certId = `TCEK/RD/HACK/2026/${String(teamId).padStart(4, '0')}-${roleIndex}`;
+      const uniqueSuffix = crypto.randomBytes(4).toString('hex').toUpperCase();
+      const certId = `TCEK/RD/HACK/2026/${String(teamId).padStart(4, '0')}-${roleIndex}-${uniqueSuffix}`;
       const actionText = task.certificateType || certificateTypeText || 'Participation';
       const roleText = isLeader ? 'Team Leader' : 'Team Member';
 
@@ -2616,8 +2689,9 @@ app.get('/api/verify-certificate/*', sensitiveLimiter, async (req, res) => {
 
     let result;
     if (parsedId !== null) {
+      // Legacy fallback: only match by id if the database row does NOT contain a hyphen/suffix in its certificate_id
       result = await db.execute({
-        sql: "SELECT * FROM event_registrations WHERE (certificate_id = ? OR id = ?) AND certificate_sent = 1",
+        sql: "SELECT * FROM event_registrations WHERE (certificate_id = ? OR (id = ? AND (certificate_id IS NULL OR certificate_id NOT LIKE '%-%'))) AND certificate_sent = 1",
         args: [certificateId, parsedId]
       });
     } else {
