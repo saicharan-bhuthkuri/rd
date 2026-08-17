@@ -14,6 +14,13 @@ export const AdminForgotPasswordPage: React.FC = () => {
     e.preventDefault();
     setError('');
     setSuccess('');
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email || email.trim() === '' || !emailRegex.test(email.trim())) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {

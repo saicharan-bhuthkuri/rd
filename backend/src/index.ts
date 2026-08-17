@@ -1001,8 +1001,9 @@ async function sendSystemEmail(to: string, subject: string, text: string, html?:
 // Admin Forgot Password
 app.post('/api/admin/forgot-password', sensitiveLimiter, async (req, res) => {
   const { email } = req.body;
-  if (!email || email.trim() === '') {
-    return res.status(400).json({ error: "Email address is required." });
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!email || email.trim() === '' || !emailRegex.test(email.trim())) {
+    return res.status(400).json({ error: "Please enter a valid email address." });
   }
 
   try {
@@ -1011,35 +1012,38 @@ app.post('/api/admin/forgot-password', sensitiveLimiter, async (req, res) => {
       args: [email.trim()]
     });
 
-    if (userRes.rows.length > 0) {
-      const username = userRes.rows[0].username as string;
-      const rawToken = crypto.randomBytes(32).toString('hex');
-      const tokenSalt = generateSalt();
-      const tokenHash = crypto.createHash('sha256').update(tokenSalt + rawToken).digest('hex');
-      const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 minutes
+    if (userRes.rows.length === 0) {
+      return res.status(404).json({ error: "No account was found with this email address. Please check the email and try again." });
+    }
 
-      await db.execute({
-        sql: "INSERT INTO password_reset_tokens (username, token_hash, salt, expires_at) VALUES (?, ?, ?, ?)",
-        args: [username, tokenHash, tokenSalt, expiresAt]
-      });
+    const username = userRes.rows[0].username as string;
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const tokenSalt = generateSalt();
+    const tokenHash = crypto.createHash('sha256').update(tokenSalt + rawToken).digest('hex');
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 minutes
 
-      const resetToken = jwt.sign(
-        { username, rawToken, purpose: 'reset-password' },
-        JWT_SECRET,
-        { expiresIn: '15m' }
-      );
+    await db.execute({
+      sql: "INSERT INTO password_reset_tokens (username, token_hash, salt, expires_at) VALUES (?, ?, ?, ?)",
+      args: [username, tokenHash, tokenSalt, expiresAt]
+    });
 
-      const origin = req.headers.origin || process.env.FRONTEND_URL || 'https://tcek-rd.web.app';
-      const resetLink = `${origin}/admin/reset-password?token=${resetToken}`;
+    const resetToken = jwt.sign(
+      { username, rawToken, purpose: 'reset-password' },
+      JWT_SECRET,
+      { expiresIn: '15m' }
+    );
 
-      if (process.env.NODE_ENV === 'test') {
-        console.log(`[TEST_RESET_TOKEN]: ${resetToken}`);
-      }
+    const origin = req.headers.origin || process.env.FRONTEND_URL || 'https://tcek-rd.web.app';
+    const resetLink = `${origin}/admin/reset-password?token=${resetToken}`;
 
-      const subject = "R&D Club Admin Password Reset Request";
-      const text = `Hello,\n\nYou are receiving this email because a password reset request was submitted for your R&D Club administrator account (${username}).\n\nPlease click on the following link, or paste it into your browser to complete the process. This link is valid for 15 minutes:\n\n<${resetLink}>\n\nIf you did not request a password reset, you can safely ignore this email.\n\nBest regards,\nR&D Club Admin System`;
+    if (process.env.NODE_ENV === 'test') {
+      console.log(`[TEST_RESET_TOKEN]: ${resetToken}`);
+    }
 
-      const html = `<!DOCTYPE html>
+    const subject = "R&D Club Admin Password Reset Request";
+    const text = `Hello,\n\nYou are receiving this email because a password reset request was submitted for your R&D Club administrator account (${username}).\n\nPlease click on the following link, or paste it into your browser to complete the process. This link is valid for 15 minutes:\n\n<${resetLink}>\n\nIf you did not request a password reset, you can safely ignore this email.\n\nBest regards,\nR&D Club Admin System`;
+
+    const html = `<!DOCTYPE html>
 <html>
 <head>
   <style>
@@ -1155,19 +1159,17 @@ app.post('/api/admin/forgot-password', sensitiveLimiter, async (req, res) => {
 </body>
 </html>`;
 
-      await sendSystemEmail(email.trim(), subject, text, html);
+    await sendSystemEmail(email.trim(), subject, text, html);
 
-      // Log Activity
-      await db.execute({
-        sql: "INSERT INTO activity_logs (username, action, details) VALUES (?, ?, ?)",
-        args: [username, "Forgot Password", `Password reset email sent to ${email}`]
-      });
-    }
+    // Log Activity
+    await db.execute({
+      sql: "INSERT INTO activity_logs (username, action, details) VALUES (?, ?, ?)",
+      args: [username, "Forgot Password", `Password reset email sent to ${email}`]
+    });
 
-    // Always return 200/success to avoid username enumeration
     return res.status(200).json({
       success: true,
-      message: "If a matching account exists, a password reset link has been sent."
+      message: "Account found. A password reset link has been sent to your email address."
     });
   } catch (err: any) {
     console.error("Forgot password error:", err);
