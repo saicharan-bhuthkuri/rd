@@ -1,21 +1,45 @@
-# Secure Cloud-Based Institutional Application & Automated Credential Management Platform
+# 🔐 Secure Cloud-Based Institutional Application & Automated Credential Management Platform
 
 ### A full-stack institutional platform for student applications, event management, automated certificate generation, secure credential distribution, and public verification.
 
-```text
-Secure institutional platform for:
-Student Applications • Events • Hackathons • Certificate Generation • Email Distribution • Credential Verification
+<p align="center">
+  🚀 <b>Student Applications</b> • 📅 <b>Events Management</b> • 🏆 <b>Hackathons</b> <br>
+  🎓 <b>Certificate Generation</b> • 📧 <b>Email Distribution</b> • 🔍 <b>Credential Verification</b>
+</p>
 
-[Live Demo](https://tcek-rd.web.app) | [API Server](https://rd-backend-kbsm.onrender.com) | [Verification Portal](https://tcek-rd.web.app/verify) | [Developer Portfolio](https://saivortex.web.app/)
+<p align="center">
+  <a href="https://tcek-rd.web.app" target="_blank">
+    <img src="https://img.shields.io/badge/Live_Demo-🚀_tcek--rd.web.app-0052CC?style=for-the-badge&logo=google-chrome&logoColor=white" alt="Live Demo" />
+  </a>
+  <a href="https://tcek-rd.web.app/verify" target="_blank">
+    <img src="https://img.shields.io/badge/Verification_Portal-🔍_Verify_Credentials-00875A?style=for-the-badge&logo=security-scorecard&logoColor=white" alt="Verification Portal" />
+  </a>
+</p>
+<p align="center">
+  <a href="https://rd-backend-kbsm.onrender.com" target="_blank">
+    <img src="https://img.shields.io/badge/API_Server-⚡_Express_Backend-8770FF?style=for-the-badge&logo=render&logoColor=white" alt="API Server" />
+  </a>
+  <a href="https://saivortex.web.app/" target="_blank">
+    <img src="https://img.shields.io/badge/Developer_Portfolio-💻_Vortex-E05397?style=for-the-badge&logo=github&logoColor=white" alt="Developer Portfolio" />
+  </a>
+</p>
 
-Tech Stack:
-React | TypeScript | Node.js | Express | Turso SQLite | PizZip | Headless LibreOffice | Firebase | Render | SSE
+<div align="center">
 
-Status:
-Implemented • Deployed • Tested
-```
+[![React](https://img.shields.io/badge/React-19.2-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![Node.js](https://img.shields.io/badge/Node.js-20-339933?style=flat-square&logo=nodedotjs&logoColor=white)](https://nodejs.org)
+[![Express](https://img.shields.io/badge/Express-4.19-000000?style=flat-square&logo=express&logoColor=white)](https://expressjs.com)
+[![Turso SQLite](https://img.shields.io/badge/Turso_SQLite-Edge-00A3A6?style=flat-square&logo=sqlite&logoColor=white)](https://turso.tech)
+[![Firebase](https://img.shields.io/badge/Firebase_Hosting-CDN-FFCA28?style=flat-square&logo=firebase&logoColor=black)](https://firebase.google.com)
+[![Render](https://img.shields.io/badge/Render-Docker_Containers-46E3B7?style=flat-square&logo=render&logoColor=black)](https://render.com)
+[![PizZip](https://img.shields.io/badge/PizZip-XML_Editor-FF6F00?style=flat-square&logo=pnpm&logoColor=white)](https://github.com/open-xml-templating/pizzip)
+[![LibreOffice](https://img.shields.io/badge/LibreOffice-Headless_CLI-3A9B3E?style=flat-square&logo=libreoffice&logoColor=white)](https://www.libreoffice.org)
+[![SSE](https://img.shields.io/badge/SSE-Realtime_Sync-008080?style=flat-square&logo=sensu&logoColor=white)](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events)
 
-![React](https://img.shields.io/badge/React-19.2-blue?logo=react) ![TypeScript](https://img.shields.io/badge/TypeScript-6.0-blue?logo=typescript) ![Node.js](https://img.shields.io/badge/Node.js-20-green?logo=nodedotjs) ![Express](https://img.shields.io/badge/Express-4.19-lightgrey?logo=express) ![Turso](https://img.shields.io/badge/Turso-SQLite-cyan?logo=sqlite) ![Firebase](https://img.shields.io/badge/Firebase-Hosting-yellow?logo=firebase) ![Render](https://img.shields.io/badge/Render-Docker-purple?logo=render)
+[![Status](https://img.shields.io/badge/Status-Implemented%20%E2%80%A2%20Deployed%20%E2%80%A2%20Tested-2ea44f?style=for-the-badge)](https://github.com)
+
+</div>
 
 ---
 
