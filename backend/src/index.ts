@@ -407,7 +407,7 @@ async function setupDatabase() {
         const devPassHash = await bcrypt.hash(devSalt + DEFAULT_DEV_PASSWORD, 10);
         await db.execute({
           sql: `INSERT INTO admin_users (username, password, salt, role, email) VALUES (?, ?, ?, ?, ?)`,
-          args: ['charan', devPassHash, devSalt, 'developer', 'recruitmentrd6@gmail.com']
+          args: ['charan', devPassHash, devSalt, 'developer', 'SAICHARANBHUTHKURI8336@GMAIL.COM']
         });
         console.log("Seeding: Developer 'charan' created with salt.");
       } else {
@@ -423,8 +423,8 @@ async function setupDatabase() {
         }
       }
       await db.execute({
-        sql: `UPDATE admin_users SET email = ? WHERE username = ? AND email IS NULL`,
-        args: ['recruitmentrd6@gmail.com', 'charan']
+        sql: `UPDATE admin_users SET email = ? WHERE username = ?`,
+        args: ['SAICHARANBHUTHKURI8336@GMAIL.COM', 'charan']
       });
       console.log("Seeding verification: Developer 'charan' verified/seeded.");
     } catch (e) {
@@ -442,7 +442,7 @@ async function setupDatabase() {
         const superadminPassHash = await bcrypt.hash(superadminSalt + DEFAULT_SUPERADMIN_PASSWORD, 10);
         await db.execute({
           sql: `INSERT INTO admin_users (username, password, salt, role, email) VALUES (?, ?, ?, ?, ?)`,
-          args: ['akhya', superadminPassHash, superadminSalt, 'superadmin', 'recruitmentrd6@gmail.com']
+          args: ['akhya', superadminPassHash, superadminSalt, 'superadmin', 'AKHYABAIRI004@GMAIL.COM']
         });
         console.log("Seeding: Super Admin 'akhya' created with salt.");
       } else {
@@ -458,8 +458,8 @@ async function setupDatabase() {
         }
       }
       await db.execute({
-        sql: `UPDATE admin_users SET email = ? WHERE username = ? AND email IS NULL`,
-        args: ['recruitmentrd6@gmail.com', 'akhya']
+        sql: `UPDATE admin_users SET email = ? WHERE username = ?`,
+        args: ['AKHYABAIRI004@GMAIL.COM', 'akhya']
       });
       console.log("Seeding verification: Super Admin 'akhya' verified/seeded.");
     } catch (e) {
