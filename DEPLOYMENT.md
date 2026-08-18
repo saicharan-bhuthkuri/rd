@@ -1,6 +1,6 @@
 # Deployment Guide
 
-This guide outlines the step-by-step instructions to deploy the R&D Club Registration system to production.
+This guide outlines the step-by-step instructions to deploy the AwardDesk platform to production.
 
 ## 1. Backend: Deploying to Render (API Server)
 
