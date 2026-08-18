@@ -1008,7 +1008,7 @@ app.post('/api/admin/forgot-password', sensitiveLimiter, async (req, res) => {
 
   try {
     const userRes = await db.execute({
-      sql: "SELECT username FROM admin_users WHERE email = ?",
+      sql: "SELECT username FROM admin_users WHERE LOWER(email) = LOWER(?)",
       args: [email.trim()]
     });
 
