@@ -46,8 +46,8 @@ app.use(cookieParser());
 // Enable CORS with credentials support and dynamic origins
 const allowedOrigins = [
   'http://localhost:5173',
-  'https://tcek-rd.web.app',
-  'https://tcek-rd.firebaseapp.com',
+  'https://awarddesk.web.app',
+  'https://awarddesk.firebaseapp.com',
   process.env.FRONTEND_URL
 ].filter(Boolean) as string[];
 
@@ -100,8 +100,8 @@ const db = createClient({
   authToken: tursoToken,
 });
 
-const JWT_SECRET = process.env.JWT_SECRET || 'rd_club_secret_key_2026';
-if (isProd && JWT_SECRET === 'rd_club_secret_key_2026') {
+const JWT_SECRET = process.env.JWT_SECRET || 'awarddesk_secret_key_2026';
+if (isProd && JWT_SECRET === 'awarddesk_secret_key_2026') {
   console.error("\x1b[31m%s\x1b[0m", "CRITICAL SECURITY WARNING: JWT_SECRET is using the default development fallback in a production environment. You MUST configure a secure JWT_SECRET in your environment variables. In-memory values might be vulnerable.");
 }
 
@@ -1033,7 +1033,7 @@ app.post('/api/admin/forgot-password', sensitiveLimiter, async (req, res) => {
       { expiresIn: '15m' }
     );
 
-    const origin = req.headers.origin || process.env.FRONTEND_URL || 'https://tcek-rd.web.app';
+    const origin = req.headers.origin || process.env.FRONTEND_URL || 'https://awarddesk.web.app';
     const resetLink = `${origin}/admin/reset-password?token=${resetToken}`;
 
     if (process.env.NODE_ENV === 'test') {
@@ -1577,8 +1577,8 @@ app.delete('/api/admin/events/:id', authenticateToken, async (req: Authenticated
     return res.status(500).json({ error: "Failed to delete technical event.", details: err.message });
   }
 });
-const SENDER_EMAIL = process.env.SENDER_EMAIL || 'recruitmentrd6@gmail.com';
-const SENDER_PASSWORD = process.env.SENDER_PASSWORD || 'kohmtlqkeezrbewz';
+const SENDER_EMAIL = process.env.SENDER_EMAIL || 'team.awarddesk@gmail.com';
+const SENDER_PASSWORD = process.env.SENDER_PASSWORD || 'zjocgxcwkfspskco';
 
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',

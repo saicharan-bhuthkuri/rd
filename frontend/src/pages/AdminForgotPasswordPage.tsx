@@ -55,7 +55,7 @@ export const AdminForgotPasswordPage: React.FC = () => {
             <KeyRound size={28} />
           </div>
           <h2>Password Recovery</h2>
-          <p>Retrieve access to the R&D Club Console</p>
+          <p>Retrieve access to the AwardDesk Console</p>
         </div>
 
         {error && (

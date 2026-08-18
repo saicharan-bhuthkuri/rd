@@ -34,7 +34,7 @@ export const Hero: React.FC = () => {
             Pushing the Boundaries of <span className="text-gradient">Technology</span> & Research
           </h1>
           <p className="hero-description">
-            Welcome to the R&D Club. We are a community of student researchers, developers, 
+            Welcome to AwardDesk. We are a community of student researchers, developers, 
             and creators dedicated to exploring deep tech, building impactful solutions, and 
             pioneering scientific discovery.
           </p>

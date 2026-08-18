@@ -8,10 +8,10 @@
 </p>
 
 <p align="center">
-  <a href="https://tcek-rd.web.app" target="_blank">
-    <img src="https://img.shields.io/badge/Live_Demo-🚀_tcek--rd.web.app-0052CC?style=for-the-badge&logo=google-chrome&logoColor=white" alt="Live Demo" />
+  <a href="https://awarddesk.web.app" target="_blank">
+    <img src="https://img.shields.io/badge/Live_Demo-🚀_awarddesk.web.app-0052CC?style=for-the-badge&logo=google-chrome&logoColor=white" alt="Live Demo" />
   </a>
-  <a href="https://tcek-rd.web.app/verify" target="_blank">
+  <a href="https://awarddesk.web.app/verify" target="_blank">
     <img src="https://img.shields.io/badge/Verification_Portal-🔍_Verify_Credentials-00875A?style=for-the-badge&logo=security-scorecard&logoColor=white" alt="Verification Portal" />
   </a>
 </p>
@@ -118,7 +118,7 @@ For your viva presentation, the core contribution is summarized in one sentence:
 > **“We developed a secure cloud-based institutional management platform that automates student and event registration, certificate generation, bulk credential distribution, and public certificate verification.”**
 
 ### Production URLs
-* **Deployed Web Application (Client)**: [https://tcek-rd.web.app](https://tcek-rd.web.app)
+* **Deployed Web Application (Client)**: [https://awarddesk.web.app](https://awarddesk.web.app)
 * **Deployed API Server (Backend)**: [https://rd-backend-kbsm.onrender.com](https://rd-backend-kbsm.onrender.com)
 * **Designer/Developer Portfolio**: [https://saivortex.web.app/](https://saivortex.web.app/)
 
@@ -272,7 +272,7 @@ The proposed system resolves manual vulnerabilities through an automated pipelin
 * **Migrations**: Direct query schemas verified on application start (`setupDatabase()`).
 
 ### Infrastructure
-* **Frontend Host**: Firebase Hosting (`https://tcek-rd.web.app`)
+* **Frontend Host**: Firebase Hosting (`https://awarddesk.web.app`)
 * **Backend Host**: Render (Docker web service)
 * **Database Provider**: Turso DB Edge Cloud
 * **DNS and Routing**: Custom domains configured via Cloudflare or Firebase custom setups.
@@ -1875,10 +1875,10 @@ Below are the environment variables defined within [`backend/src/index.ts`](file
 | `TURSO_URL` | Cloud Turso edge SQLite endpoint. | **Yes** | `https://rd-saicharan.aws-ap.turso.io` | `@libsql/client` |
 | `TURSO_TOKEN` | Auth credential for database endpoints. | **Yes** | `eyJhbGciOiJFUzI1NiIsImt...` | `@libsql/client` |
 | `JWT_SECRET` | Secret key used to sign session cookies. | No (defaults fallback) | `super_secret_jwt_cell_key` | JWT Sign / Verification |
-| `SENDER_EMAIL` | Sender address used for email dispatches. | No (defaults fallback) | `recruitmentrd6@gmail.com` | Nodemailer & HTTP payload |
-| `SENDER_PASSWORD`| Gmail app password. | No (defaults fallback) | `kohmtlqkeezrbewz` | Nodemailer client auth |
+| `SENDER_EMAIL` | Sender address used for email dispatches. | No (defaults fallback) | `team.awarddesk@gmail.com` | Nodemailer & HTTP payload |
+| `SENDER_PASSWORD`| Gmail app password. | No (defaults fallback) | `zjocgxcwkfspskco` | Nodemailer client auth |
 | `GMAIL_HTTP_PROXY_URL`| Google Apps Script deployment URL. Bypasses Render SMTP port blocks. | **Yes (in Cloud)** | `https://script.google.com/macros/s/AKfyc...` | Express Dispatch Client |
-| `FRONTEND_URL` | The public URL of the deployed frontend web app. Used as the recovery link origin fallback. | No (defaults to `https://tcek-rd.web.app`) | `https://tcek-rd.web.app` | Forgot Password link origin |
+| `FRONTEND_URL` | The public URL of the deployed frontend web app. Used as the recovery link origin fallback. | No (defaults to `https://awarddesk.web.app`) | `https://awarddesk.web.app` | Forgot Password link origin |
 | `GROQ_MODELS` | Optional models check used in health checks. | No | `["llama3-8b"]` | `GET /api/health` |
 
 ---
@@ -2028,7 +2028,7 @@ PORT=5000
 TURSO_URL=your_turso_database_url
 TURSO_TOKEN=your_turso_auth_token
 JWT_SECRET=your_jwt_signing_key
-SENDER_EMAIL=recruitmentrd6@gmail.com
+SENDER_EMAIL=team.awarddesk@gmail.com
 SENDER_PASSWORD=your_gmail_app_password
 GMAIL_HTTP_PROXY_URL=your_google_script_deployment_url
 ```
@@ -2171,7 +2171,7 @@ cd ../frontend && npm run dev
 
 | System Area | Cloud Service Provider | Purpose | Console / Dashboard Link | Configuration Details |
 | :--- | :--- | :--- | :--- | :--- |
-| **Frontend** | Firebase Hosting | Hosting built static assets. | [Firebase Console](https://console.firebase.google.com/) | Deployed to `https://tcek-rd.web.app` (configured in `firebase.json`). |
+| **Frontend** | Firebase Hosting | Hosting built static assets. | [Firebase Console](https://console.firebase.google.com/) | Deployed to `https://awarddesk.web.app` (configured in `firebase.json`). |
 | **Backend** | Render | Docker Web Service API hosting. | [Render Dashboard](https://dashboard.render.com/) | Docker Bullseye Slim container running Express and LibreOffice. |
 | **Database** | Turso Cloud | libSQL SQLite server. | [Turso Dashboard](https://turso.tech/) | Multi-region edge database. |
 | **Email Proxy** | Google Script Proxy | Bypasses SMTP blocks. | [Google Apps Script](https://script.google.com/) | Deployed Google Apps Script forwarding Gmail API payloads. |
@@ -3108,7 +3108,7 @@ graph TD
 
 ##### 2. Supporting Evidence
 * **Live Operational URLs**:
-  * **Frontend Client Application**: [https://tcek-rd.web.app](https://tcek-rd.web.app)
+  * **Frontend Client Application**: [https://awarddesk.web.app](https://awarddesk.web.app)
   * **Backend API Server**: [https://rd-backend-kbsm.onrender.com](https://rd-backend-kbsm.onrender.com)
 * **Subsystem Integrations**:
   * **PowerPoint Customization**: The `PizZip` XML compiler runs successfully in memory, updating dynamic tags without layout corruption.
@@ -3159,7 +3159,7 @@ The following concrete metrics from the active codebase establish the IR 6 statu
     * Mapped `certificate_appreciation` template synced successfully.
     * Mapped `certificate_hackathon` template synced successfully.
 * **Sandbox Environment Operations (Pass)**:
-  * Client hosting is live at `https://tcek-rd.web.app` and API endpoints are responsive at `https://rd-backend-kbsm.onrender.com`. In-app actions (submitting applications, admin logging, branches setup, and public certificate PDF rendering) run successfully against Turso DB cloud instances.
+  * Client hosting is live at `https://awarddesk.web.app` and API endpoints are responsive at `https://rd-backend-kbsm.onrender.com`. In-app actions (submitting applications, admin logging, branches setup, and public certificate PDF rendering) run successfully against Turso DB cloud instances.
 
 ##### 3. Implementation Barriers & Technical Debt (Remaining Tasks to Reach IR 7)
 Before the system can be promoted to **IR 7 (System Ready for Transition to Operations)**, the following barriers must be cleared:

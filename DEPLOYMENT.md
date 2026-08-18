@@ -21,8 +21,8 @@ To make this seamless and failproof, we have pre-configured a **Docker-based dep
    - `TURSO_URL`: `https://rd-saicharan-bhuthkuri.aws-ap-south-1.turso.io`
    - `TURSO_TOKEN`: `YOUR_TURSO_TOKEN_HERE`
    - `JWT_SECRET`: `YOUR_SECRET_JWT_KEY_HERE`
-   - `SENDER_EMAIL`: `recruitmentrd6@gmail.com`
-   - `SENDER_PASSWORD`: `kohmtlqkeezrbewz`
+   - `SENDER_EMAIL`: `team.awarddesk@gmail.com`
+   - `SENDER_PASSWORD`: `zjocgxcwkfspskco`
 6. Click **Create Web Service**. Render will build the Docker container (which installs node, LibreOffice, and system fonts) and deploy your API server securely with HTTPS.
 7. Note down the deployed service URL (e.g. `https://rd-backend.onrender.com`).
 
