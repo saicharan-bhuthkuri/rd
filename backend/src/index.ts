@@ -46,8 +46,8 @@ app.use(cookieParser());
 // Enable CORS with credentials support and dynamic origins
 const allowedOrigins = [
   'http://localhost:5173',
-  'https://awarddesk.web.app',
-  'https://awarddesk.firebaseapp.com',
+  'https://tcek-rd.web.app',
+  'https://tcek-rd.firebaseapp.com',
   process.env.FRONTEND_URL
 ].filter(Boolean) as string[];
 
@@ -1033,7 +1033,7 @@ app.post('/api/admin/forgot-password', sensitiveLimiter, async (req, res) => {
       { expiresIn: '15m' }
     );
 
-    const origin = req.headers.origin || process.env.FRONTEND_URL || 'https://awarddesk.web.app';
+    const origin = req.headers.origin || process.env.FRONTEND_URL || 'https://tcek-rd.web.app';
     const resetLink = `${origin}/admin/reset-password?token=${resetToken}`;
 
     if (process.env.NODE_ENV === 'test') {
@@ -1577,8 +1577,8 @@ app.delete('/api/admin/events/:id', authenticateToken, async (req: Authenticated
     return res.status(500).json({ error: "Failed to delete technical event.", details: err.message });
   }
 });
-const SENDER_EMAIL = process.env.SENDER_EMAIL || 'team.awarddesk@gmail.com';
-const SENDER_PASSWORD = process.env.SENDER_PASSWORD || 'zjocgxcwkfspskco';
+const SENDER_EMAIL = process.env.SENDER_EMAIL || 'tcekrd@gmail.com';
+const SENDER_PASSWORD = process.env.SENDER_PASSWORD || 'tewheruxhrdwzqmu';
 
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
