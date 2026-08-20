@@ -52,7 +52,7 @@ export const AdminLoginPage: React.FC = () => {
             <Shield size={28} />
           </div>
           <h2>Admin Access Gate</h2>
-          <p>Sign in to manage RDCell student applications</p>
+          <p>Sign in to manage R&D Cell student applications</p>
         </div>
 
         {error && (
