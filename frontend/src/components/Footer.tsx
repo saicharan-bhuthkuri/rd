@@ -60,7 +60,7 @@ export const Footer: React.FC = () => {
             <div className="logo-icon-bg">
               <Rocket className="logo-icon" size={20} />
             </div>
-            <span className="logo-text">Award<span className="logo-text-accent">Desk</span></span>
+            <span className="logo-text">R&D <span className="logo-text-accent">Cell</span></span>
           </Link>
           <p className="brand-description">
             Pushing technological envelopes through structured scientific research and hardware prototyping. 
