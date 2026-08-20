@@ -61,7 +61,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
             <Sparkles size={20} />
           </div>
           <div>
-            <h3>AwardDesk</h3>
+            <h3>RDCell</h3>
             <span>Admin Console</span>
           </div>
           <button 
