@@ -100,8 +100,8 @@ const db = createClient({
   authToken: tursoToken,
 });
 
-const JWT_SECRET = process.env.JWT_SECRET || 'awarddesk_secret_key_2026';
-if (isProd && JWT_SECRET === 'awarddesk_secret_key_2026') {
+const JWT_SECRET = process.env.JWT_SECRET || 'rdcell_secret_key_2026';
+if (isProd && JWT_SECRET === 'rdcell_secret_key_2026') {
   console.error("\x1b[31m%s\x1b[0m", "CRITICAL SECURITY WARNING: JWT_SECRET is using the default development fallback in a production environment. You MUST configure a secure JWT_SECRET in your environment variables. In-memory values might be vulnerable.");
 }
 

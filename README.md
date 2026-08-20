@@ -130,7 +130,7 @@ For your viva presentation, the core contribution is summarized in one sentence:
 
 
 ### Project Purpose
-The Research & Development (R&D) Cell at Trinity College requires a robust infrastructure to manage student applications for club membership, organize hackathons and technical events, and issue official authenticated credentials. **AwardDesk** digitizes these operations, replacing manual certificates and spreadsheets with an automated pipeline.
+The Research & Development (R&D) Cell at Trinity College requires a robust infrastructure to manage student applications for club membership, organize hackathons and technical events, and issue official authenticated credentials. The **R&D Cell Portal** digitizes these operations, replacing manual certificates and spreadsheets with an automated pipeline.
 
 ### Problem the Project Solves
 * **Manual Data Entry & Errors**: Replaces manual formatting of certificates with automated database-driven replacement of student names, dates, and titles.
@@ -491,7 +491,7 @@ Maps structural inputs and outputs crossing system boundaries.
 graph TD
     User(["Public Candidate / Student"])
     Admin(["Club Administrator"])
-    System["AwardDesk System"]
+    System["R&D Cell System"]
     Turso[("Turso Edge Database")]
     GAS["Google Apps Script HTTP Proxy"]
     Gmail["Gmail Mailing API"]
@@ -690,7 +690,7 @@ graph TD
 
 ```mermaid
 graph TD
-    subgraph "AwardDesk Bulk Certificate Platform"
+    subgraph "R&D Cell Bulk Certificate Platform"
         App[Node.js Express API Server]
     end
 
@@ -1874,7 +1874,7 @@ Below are the environment variables defined within [`backend/src/index.ts`](file
 | `PORT` | Local and cloud server port binding. | No (defaults to 5000) | `5000` | Express Server Startup |
 | `TURSO_URL` | Cloud Turso edge SQLite endpoint. | **Yes** | `https://rd-saicharan.aws-ap.turso.io` | `@libsql/client` |
 | `TURSO_TOKEN` | Auth credential for database endpoints. | **Yes** | `eyJhbGciOiJFUzI1NiIsImt...` | `@libsql/client` |
-| `JWT_SECRET` | Secret key used to sign session cookies. | No (defaults fallback) | `awarddesk_secret_key_2026` | JWT Sign / Verification |
+| `JWT_SECRET` | Secret key used to sign session cookies. | No (defaults fallback) | `rdcell_secret_key_2026` | JWT Sign / Verification |
 | `SENDER_EMAIL` | Sender address used for email dispatches. | No (defaults fallback) | `tcekrd@gmail.com` | Nodemailer & HTTP payload |
 | `SENDER_PASSWORD`| Gmail app password. | No (defaults fallback) | `tewheruxhrdwzqmu` | Nodemailer client auth |
 | `GMAIL_HTTP_PROXY_URL`| Google Apps Script deployment URL. Bypasses Render SMTP port blocks. | **Yes (in Cloud)** | `https://script.google.com/macros/s/AKfyc...` | Express Dispatch Client |
@@ -2722,7 +2722,7 @@ Static validation was executed locally using TypeScript compilation commands and
 
 ### F. Detailed Testing & Bug-Fix Report
 
-This report outlines the lifecycle of each defect discovered during the verification phase of the AwardDesk bulk certificate platform.
+This report outlines the lifecycle of each defect discovered during the verification phase of the R&D Cell bulk certificate platform.
 
 #### Defect Debugging & Resolution Visual Workflows
 
