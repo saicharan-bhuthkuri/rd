@@ -300,6 +300,27 @@ async function setupDatabase() {
       );
     `);
 
+    // 11. Hackathon Certificates Table
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS hackathon_certificates (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        certificate_id TEXT UNIQUE NOT NULL,
+        registration_id INTEGER NOT NULL,
+        participant_name TEXT NOT NULL,
+        participant_email TEXT NOT NULL,
+        participant_phone TEXT,
+        role TEXT NOT NULL,
+        year TEXT,
+        branch TEXT,
+        institution TEXT,
+        team_name TEXT NOT NULL,
+        project_title TEXT NOT NULL,
+        hackathon_name TEXT NOT NULL,
+        certificate_type TEXT DEFAULT 'Participation',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
     // Alter table schemas to add status columns if missing
     try {
       await db.execute(`ALTER TABLE club_applications ADD COLUMN status TEXT DEFAULT 'pending';`);
@@ -2411,7 +2432,12 @@ app.post('/api/admin/bulk-send/hackathon-certificates', authenticateToken, async
         recipientEmail: team.leader_email as string,
         roleIndex: 1, // leader is 1st member
         isLeader: true,
-        certificateType: team.certificate_type || 'Participation'
+        certificateType: team.certificate_type || 'Participation',
+        participantPhone: team.leader_phone as string,
+        role: team.leader_role as string,
+        year: team.leader_year || null,
+        branch: team.leader_branch || null,
+        institution: team.leader_institution || null
       });
 
       // Add other team members tasks
@@ -2424,7 +2450,12 @@ app.post('/api/admin/bulk-send/hackathon-certificates', authenticateToken, async
           recipientEmail: m.email.trim(),
           roleIndex: idx + 2,
           isLeader: false,
-          certificateType: team.certificate_type || 'Participation'
+          certificateType: team.certificate_type || 'Participation',
+          participantPhone: m.phone || null,
+          role: m.role || 'Student',
+          year: m.year || null,
+          branch: m.branch || null,
+          institution: m.institution || null
         });
       });
     });
@@ -2557,6 +2588,29 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
         } else {
           await transporter.sendMail(mailOptions);
         }
+
+        // Save certificate to DB
+        await db.execute({
+          sql: `INSERT OR REPLACE INTO hackathon_certificates (
+                  certificate_id, registration_id, participant_name, participant_email, participant_phone,
+                  role, year, branch, institution, team_name, project_title, hackathon_name, certificate_type
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          args: [
+            certId,
+            teamId,
+            participantName,
+            recipientEmail,
+            task.participantPhone || null,
+            task.role || 'Student',
+            task.year || null,
+            task.branch || null,
+            task.institution || null,
+            teamName,
+            projectTitle,
+            hackathonName,
+            actionText
+          ]
+        });
 
         // Update sent count for this team
         teamSentCounts[teamId].sent++;
@@ -2809,31 +2863,49 @@ app.get('/api/verify-certificate/*', sensitiveLimiter, async (req, res) => {
       parsedId = parseInt(legacyMatch[1], 10);
     }
 
-    let result;
+    let reg;
+    let isHackathon = false;
     if (parsedId !== null) {
       // Legacy fallback: only match by id if the database row does NOT contain a hyphen/suffix in its certificate_id
-      result = await db.execute({
+      const evRes = await db.execute({
         sql: "SELECT * FROM event_registrations WHERE (certificate_id = ? OR (id = ? AND (certificate_id IS NULL OR certificate_id NOT LIKE '%-%'))) AND certificate_sent = 1",
         args: [certificateId, parsedId]
       });
+      if (evRes.rows.length > 0) {
+        reg = evRes.rows[0];
+      }
     } else {
-      result = await db.execute({
+      const evRes = await db.execute({
         sql: "SELECT * FROM event_registrations WHERE certificate_id = ? AND certificate_sent = 1",
         args: [certificateId]
       });
+      if (evRes.rows.length > 0) {
+        reg = evRes.rows[0];
+      }
     }
     
-    if (result.rows.length === 0) {
+    if (!reg) {
+      // Check hackathon_certificates table
+      const hackRes = await db.execute({
+        sql: "SELECT * FROM hackathon_certificates WHERE certificate_id = ?",
+        args: [certificateId]
+      });
+      if (hackRes.rows.length > 0) {
+        reg = hackRes.rows[0];
+        isHackathon = true;
+      }
+    }
+    
+    if (!reg) {
       if (isPdf) {
         return res.status(404).send("Certificate not found or not yet issued.");
       }
       return res.status(404).json({ error: "Certificate not found or not yet issued." });
     }
     
-    const reg = result.rows[0];
-    const studentName = reg.full_name as string;
-    const eventTitle = reg.event_name as string;
-    const actionText = reg.status || 'Participation';
+    const studentName = isHackathon ? (reg.participant_name as string) : (reg.full_name as string);
+    const eventTitle = isHackathon ? (reg.hackathon_name as string) : (reg.event_name as string);
+    const actionText = isHackathon ? (reg.certificate_type as string || 'Participation') : (reg.status || 'Participation');
     const id = reg.id as number;
 
     // Fetch event details to get the exact event date
@@ -2841,29 +2913,47 @@ app.get('/api/verify-certificate/*', sensitiveLimiter, async (req, res) => {
       sql: "SELECT date FROM events WHERE title = ?",
       args: [eventTitle]
     });
-    const eventDate = eventRes.rows.length > 0 ? eventRes.rows[0].date as string : '03 August 2026';
+    const eventDate = eventRes.rows.length > 0 ? eventRes.rows[0].date as string : (isHackathon ? 'September 11-13, 2026' : '03 August 2026');
 
     const certId = reg.certificate_id || `TCEK/RD/2026/${String(id).padStart(4, '0')}`;
 
     if (isPdf) {
       // Compile and stream the original PDF certificate
-      const isAppreciation = actionText !== 'Participation' && actionText !== 'participated' && actionText !== 'participation';
-
-      // Fetch template from DB
-      const templateName = isAppreciation ? "certificate_appreciation" : "certificate_participation";
-      let templateRes = await db.execute({
-        sql: "SELECT data_base64 FROM templates WHERE name = ?",
-        args: [templateName]
-      });
-      
-      if (templateRes.rows.length === 0 && !isAppreciation) {
+      let templateRes;
+      if (isHackathon) {
         templateRes = await db.execute({
           sql: "SELECT data_base64 FROM templates WHERE name = ?",
-          args: ["certificate"]
+          args: ["certificate_hackathon"]
         });
+        if (templateRes.rows.length === 0) {
+          templateRes = await db.execute({
+            sql: "SELECT data_base64 FROM templates WHERE name = ?",
+            args: ["certificate_participation"]
+          });
+        }
+        if (templateRes.rows.length === 0) {
+          templateRes = await db.execute({
+            sql: "SELECT data_base64 FROM templates WHERE name = ?",
+            args: ["certificate"]
+          });
+        }
+      } else {
+        const isAppreciation = actionText !== 'Participation' && actionText !== 'participated' && actionText !== 'participation';
+        const templateName = isAppreciation ? "certificate_appreciation" : "certificate_participation";
+        templateRes = await db.execute({
+          sql: "SELECT data_base64 FROM templates WHERE name = ?",
+          args: [templateName]
+        });
+        
+        if (templateRes.rows.length === 0 && !isAppreciation) {
+          templateRes = await db.execute({
+            sql: "SELECT data_base64 FROM templates WHERE name = ?",
+            args: ["certificate"]
+          });
+        }
       }
 
-      if (templateRes.rows.length === 0) {
+      if (!templateRes || templateRes.rows.length === 0) {
         return res.status(500).send("Certificate template not found in database.");
       }
 
@@ -2875,19 +2965,45 @@ app.get('/api/verify-certificate/*', sensitiveLimiter, async (req, res) => {
       const tempPptx = path.join(process.cwd(), `Verify_Temp_${safeName}_${id}.pptx`);
       const tempPdf = path.join(process.cwd(), `Verify_Temp_${safeName}_${id}.pdf`);
 
-      const replacements: Record<string, string> = {
-        '{{PARTICIPANT NAME}}': String(studentName),
-        '{{EVENT NAME}}': String(eventTitle),
-        '{{DATE}}': String(eventDate),
-        '{{CERTIFICATE TYPE}}': String(actionText),
-        '{{CERTIFICATE ID}}': String(certId),
-        '[[PARTICIPANT NAME]]': String(studentName),
-        '[[EVENT NAME]]': String(eventTitle),
-        '[[DATE]]': String(eventDate),
-        '[[CERTIFICATE TYPE]]': String(actionText),
-        '[[CERTIFICATE ID]]': String(certId),
-        'TCEK/RD/2026/0001': String(certId)
-      };
+      let replacements: Record<string, string>;
+      if (isHackathon) {
+        replacements = {
+          '{{PARTICIPANT NAME}}': String(studentName),
+          '{{EVENT NAME}}': String(eventTitle),
+          '{{HACKATHON NAME}}': String(eventTitle),
+          '{{DATE}}': String(eventDate),
+          '{{CERTIFICATE TYPE}}': String(actionText),
+          '{{CERTIFICATE ID}}': String(certId),
+          '{{ROLE}}': String(reg.role || 'Team Member'),
+          '{{TEAM NAME}}': String(reg.team_name || ''),
+          '{{PROJECT TITLE}}': String(reg.project_title || ''),
+          '[[PARTICIPANT NAME]]': String(studentName),
+          '[[EVENT NAME]]': String(eventTitle),
+          '[[HACKATHON NAME]]': String(eventTitle),
+          '[[DATE]]': String(eventDate),
+          '[[CERTIFICATE TYPE]]': String(actionText),
+          '[[CERTIFICATE ID]]': String(certId),
+          '[[ROLE]]': String(reg.role || 'Team Member'),
+          '[[TEAM NAME]]': String(reg.team_name || ''),
+          '[[PROJECT TITLE]]': String(reg.project_title || ''),
+          'TCEK/RD/2026/0001': String(certId),
+          'TCEK/RD/2026/H0001': String(certId)
+        };
+      } else {
+        replacements = {
+          '{{PARTICIPANT NAME}}': String(studentName),
+          '{{EVENT NAME}}': String(eventTitle),
+          '{{DATE}}': String(eventDate),
+          '{{CERTIFICATE TYPE}}': String(actionText),
+          '{{CERTIFICATE ID}}': String(certId),
+          '[[PARTICIPANT NAME]]': String(studentName),
+          '[[EVENT NAME]]': String(eventTitle),
+          '[[DATE]]': String(eventDate),
+          '[[CERTIFICATE TYPE]]': String(actionText),
+          '[[CERTIFICATE ID]]': String(certId),
+          'TCEK/RD/2026/0001': String(certId)
+        };
+      }
 
       replacePlaceholdersInPptx(templateBuffer, tempPptx, replacements);
 
@@ -2914,14 +3030,14 @@ app.get('/api/verify-certificate/*', sensitiveLimiter, async (req, res) => {
         success: true,
         data: {
           id: reg.id,
-          fullName: reg.full_name,
-          pinNumber: reg.pin_number,
-          email: reg.email,
-          branch: reg.branch,
-          yearOfStudy: reg.year_of_study,
-          section: reg.section,
-          eventName: reg.event_name,
-          status: reg.status || 'Participation',
+          fullName: isHackathon ? (reg.participant_name as string) : (reg.full_name as string),
+          pinNumber: isHackathon ? (reg.participant_phone as string || 'N/A') : (reg.pin_number as string),
+          email: reg.email || reg.participant_email,
+          branch: isHackathon ? (reg.branch as string || 'N/A') : (reg.branch as string),
+          yearOfStudy: isHackathon ? (reg.year as string || 'N/A') : (reg.year_of_study as string),
+          section: isHackathon ? `Team: ${reg.team_name}` : reg.section,
+          eventName: isHackathon ? (reg.hackathon_name as string) : (reg.event_name as string),
+          status: isHackathon ? `${reg.role} (${actionText})` : actionText,
           certificateId: certId,
           eventDate: eventDate,
           issuedAt: reg.created_at
