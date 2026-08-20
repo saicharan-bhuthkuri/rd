@@ -13,7 +13,7 @@ let serverOutput = '';
 
 serverProcess.stdout.on('data', (data) => {
   serverOutput += data.toString();
-  // console.log(`[Server]: ${data.toString().trim()}`);
+  console.log(`[Server]: ${data.toString().trim()}`);
 });
 
 serverProcess.stderr.on('data', (data) => {
@@ -38,8 +38,8 @@ function logTest(name, passed, details) {
 }
 
 async function runTests() {
-  console.log("Waiting 15 seconds for server and Turso database setup to complete...");
-  await new Promise(resolve => setTimeout(resolve, 15000));
+  console.log("Waiting 45 seconds for server and Turso database setup to complete...");
+  await new Promise(resolve => setTimeout(resolve, 45000));
 
   // Test 1: Get events
   try {
