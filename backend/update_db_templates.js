@@ -59,6 +59,21 @@ async function run() {
     });
     console.log("Successfully updated template 'certificate_appreciation'.");
 
+    // 3. Load CERTIFICATE_TEMPLATE - hackathon.pptx
+    const hackathonPath = path.join(__dirname, 'CERTIFICATE_TEMPLATE - hackathon.pptx');
+    if (fs.existsSync(hackathonPath)) {
+      console.log(`Reading ${hackathonPath}...`);
+      const hackathonData = fs.readFileSync(hackathonPath);
+      const hackathonBase64 = hackathonData.toString('base64');
+      await db.execute({
+        sql: `INSERT OR REPLACE INTO templates (name, filename, data_base64, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)`,
+        args: ["certificate_hackathon", "CERTIFICATE_TEMPLATE - hackathon.pptx", hackathonBase64]
+      });
+      console.log("Successfully updated template 'certificate_hackathon'.");
+    } else {
+      console.warn(`Warning: Hackathon template not found at ${hackathonPath}`);
+    }
+
     console.log("All templates updated successfully!");
   } catch (error) {
     console.error("Failed to update database templates:", error);
