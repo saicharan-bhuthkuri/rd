@@ -43,6 +43,7 @@ COPY package*.json ./
 RUN npm install
 
 COPY . .
+RUN cp fonts/*.ttf /usr/share/fonts/truetype/custom/ && fc-cache -fv
 RUN npm run build
 
 EXPOSE 5000

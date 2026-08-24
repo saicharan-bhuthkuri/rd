@@ -1631,8 +1631,10 @@ function replacePlaceholdersInPptx(templateBuffer: Buffer, outputPath: string, r
             let modifiedShape = spMatch.replace(/<a:spAutoFit\/>/g, '<a:noAutofit/>');
             return modifiedShape;
           }
-          // Keep wrapping for the description paragraph shape
-          if (spMatch.includes('participat') || spMatch.includes('congratulat') || spMatch.includes('appreciat') || spMatch.includes('CERTIFICATE TYPE')) {
+          // Keep wrapping for the description paragraph shapes (stripping XML tags to handle split placeholders)
+          const plainText = spMatch.replace(/<[^>]+>/g, '');
+          const keepWrap = /participat|congratulat|appreciat|successfully|member|team|role|hackathon|project|certificate type/i.test(plainText);
+          if (keepWrap) {
             return spMatch;
           }
           // Also keep wrapping for the approval info text box to let it wrap on exactly two lines
