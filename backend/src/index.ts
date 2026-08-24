@@ -1657,6 +1657,9 @@ function replacePlaceholdersInPptx(templateBuffer: Buffer, outputPath: string, r
           });
         });
 
+        // Clean up character spacing (spc) attribute on runs containing placeholders to prevent spacing artifacts (like "Certifi cate")
+        slideXml = slideXml.replace(/(<a:r\b[^>]*>(?:(?!<\/a:r>).)*?<a:rPr\b[^>]*)\bspc="[^"]*"([^>]*>(?:(?!<\/a:r>).)*?<a:t>[^<]*?(?:\{\{|\[\[|TCEK)[^<]*?<\/a:t>.*?<\/a:r>)/gs, '$1$2');
+
         // Perform placeholder replacements
         Object.entries(replacements).forEach(([key, val]) => {
           // Escaping HTML/XML special characters
@@ -1697,6 +1700,10 @@ function replacePlaceholdersInPptx(templateBuffer: Buffer, outputPath: string, r
         // Force font family mappings to match Linux system font registration names
         slideXml = slideXml.replace(/typeface=["']Bebas\s+Neue\s+Bold["']/gi, 'typeface="Bebas Neue"');
         slideXml = slideXml.replace(/typeface=["']Cardo\s+Bold["']/gi, 'typeface="Cardo"');
+        slideXml = slideXml.replace(/typeface=["']Cormorant\s+Garamond\s+Bold["']/gi, 'typeface="Cormorant Garamond"');
+        slideXml = slideXml.replace(/typeface=["']Caladea\s+Bold["']/gi, 'typeface="Caladea"');
+        slideXml = slideXml.replace(/typeface=["']Inria\s+Serif\s+Bold["']/gi, 'typeface="Inria Serif"');
+        slideXml = slideXml.replace(/typeface=["']Palatino\s+Bold["']/gi, 'typeface="Palatino"');
 
         zip.file(filename, slideXml);
       }
