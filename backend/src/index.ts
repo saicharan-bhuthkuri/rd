@@ -1736,7 +1736,10 @@ async function convertPptxToPdf(inputPptxPath: string, outputPdfPath: string): P
       `;
 
       await execPromise(`powershell -Command "${psCommand.replace(/\n/g, ' ')}"`);
-      return;
+      if (fs.existsSync(absOutput)) {
+        return;
+      }
+      throw new Error("PowerPoint COM completed but PDF file was not created.");
     } catch (err: any) {
       console.warn("PowerPoint COM conversion failed. Falling back to LibreOffice...", err.message);
     } finally {
