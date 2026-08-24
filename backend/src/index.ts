@@ -2673,12 +2673,15 @@ app.get('/api/debug-fonts', authenticateToken, async (req, res) => {
     const { execSync } = require('child_process');
     let output = '';
     output += '=== fc-list custom fonts ===\n';
-    output += execSync('fc-list : file family style weight | grep -E "Bebas|Cardo" | sort').toString() + '\n';
+    output += execSync('fc-list : file family style weight | grep -E "Bebas|Cardo|Cormorant|Vibes|Caladea|Inria|Palatino" | sort').toString() + '\n';
     output += '=== fc-match tests ===\n';
     output += 'Bebas Neue Match: ' + execSync('fc-match "Bebas Neue"').toString().trim() + '\n';
-    output += 'Bebas Neue Bold Match: ' + execSync('fc-match "Bebas Neue:weight=bold"').toString().trim() + '\n';
     output += 'Cardo Match: ' + execSync('fc-match "Cardo"').toString().trim() + '\n';
-    output += 'Cardo Bold Match: ' + execSync('fc-match "Cardo:weight=bold"').toString().trim() + '\n';
+    output += 'Cormorant Garamond Match: ' + execSync('fc-match "Cormorant Garamond"').toString().trim() + '\n';
+    output += 'Great Vibes Match: ' + execSync('fc-match "Great Vibes"').toString().trim() + '\n';
+    output += 'Caladea Match: ' + execSync('fc-match "Caladea"').toString().trim() + '\n';
+    output += 'Inria Serif Match: ' + execSync('fc-match "Inria Serif"').toString().trim() + '\n';
+    output += 'Palatino Match: ' + execSync('fc-match "Palatino"').toString().trim() + '\n';
     res.type('text/plain').send(output);
   } catch (err: any) {
     res.status(500).send("Error listing fonts: " + err.message);
