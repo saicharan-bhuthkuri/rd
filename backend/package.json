@@ -1,6 +1,6 @@
 {
   "name": "backend",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "R&D Club Turso Database Backend API Node Express server",
   "main": "dist/index.js",
   "scripts": {

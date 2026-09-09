@@ -39,6 +39,7 @@ dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 5000;
+console.log("R&D Backend API Server v1.0.1 (Docker container) starting...");
 
 // Enable cookie parsing
 app.use(cookieParser());
