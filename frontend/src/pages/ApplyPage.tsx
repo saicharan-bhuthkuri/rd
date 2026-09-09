@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useParams, useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '../config';
 import { ArrowLeft, User, Mail, Phone, GraduationCap, Calendar, Sparkles, Check, Loader2, Code, Users, Server, ChevronDown, Plus, Trash2, AlertTriangle } from 'lucide-react';
 
@@ -182,9 +182,28 @@ const CustomSelect: React.FC<CustomSelectProps> = ({
   );
 };
 
+const getFormTypeFromParam = (param?: string): FormType => {
+  if (!param) return 'none';
+  const clean = param.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (clean.includes('hackathon')) return 'hackathon';
+  if (clean.includes('club') || clean.includes('membership') || clean.includes('join')) return 'join-club';
+  if (clean.includes('event')) return 'event';
+  return 'none';
+};
+
 export const ApplyPage: React.FC = () => {
   const [searchParams] = useSearchParams();
-  const [formType, setFormType] = useState<FormType>('none');
+  const { registrationType } = useParams<{ registrationType?: string }>();
+  const navigate = useNavigate();
+
+  const [formType, setFormType] = useState<FormType>(() => {
+    const routeType = getFormTypeFromParam(registrationType);
+    if (routeType !== 'none') return routeType;
+    const queryType = getFormTypeFromParam(searchParams.get('type') || '');
+    if (queryType !== 'none') return queryType;
+    if (searchParams.get('event')) return 'event';
+    return 'none';
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
@@ -240,8 +259,39 @@ export const ApplyPage: React.FC = () => {
   const [branchesList, setBranchesList] = useState<string[]>([]);
 
   const handleBackToHome = () => {
-    window.location.href = '/';
+    navigate('/');
   };
+
+  useEffect(() => {
+    const typeFromRoute = getFormTypeFromParam(registrationType);
+    if (typeFromRoute !== 'none') {
+      setFormType(typeFromRoute);
+      setIsSuccess(false);
+    } else {
+      const typeFromQuery = getFormTypeFromParam(searchParams.get('type') || '');
+      if (typeFromQuery !== 'none') {
+        setFormType(typeFromQuery);
+        setIsSuccess(false);
+      } else if (searchParams.get('event')) {
+        setFormType('event');
+        setIsSuccess(false);
+      } else {
+        setFormType('none');
+      }
+    }
+  }, [registrationType, searchParams]);
+
+  useEffect(() => {
+    if (formType === 'hackathon') {
+      document.title = 'Hackathon Registration | R&D Club';
+    } else if (formType === 'join-club') {
+      document.title = 'Club Membership Application | R&D Club';
+    } else if (formType === 'event') {
+      document.title = 'Event Registration | R&D Club';
+    } else {
+      document.title = 'Application Portal | R&D Club';
+    }
+  }, [formType]);
 
   useEffect(() => {
     const fetchEvents = async () => {
@@ -260,13 +310,17 @@ export const ApplyPage: React.FC = () => {
           setHackathonsList(hackathons);
           
           if (hackathons.length > 0) {
-            setSelectedHackathonName(hackathons[0]);
+            const hackathonParam = searchParams.get('hackathon');
+            if (hackathonParam && hackathons.includes(hackathonParam)) {
+              setSelectedHackathonName(hackathonParam);
+            } else {
+              setSelectedHackathonName(hackathons[0]);
+            }
           }
 
           // Pre-select the query parameter event if present
           const eventParam = searchParams.get('event');
           if (eventParam && titles.includes(eventParam)) {
-            setFormType('event');
             setEventName(eventParam);
           } else if (titles.length > 0) {
             setEventName(titles[0]);
@@ -308,9 +362,7 @@ export const ApplyPage: React.FC = () => {
     return () => window.removeEventListener('app-sync', handleSync);
   }, [searchParams]);
 
-  const handleFormSelect = (type: FormType) => {
-    setFormType(type);
-    setIsSuccess(false);
+  const resetFormFields = () => {
     // Reset all form inputs
     setFullName('');
     setPinNumber('');
@@ -335,6 +387,21 @@ export const ApplyPage: React.FC = () => {
     setLeaderCompany('');
     setLeaderJobTitle('');
     setMembers([]);
+    setHackathonConfirmed(false);
+  };
+
+  const handleFormSelect = (type: FormType) => {
+    setIsSuccess(false);
+    resetFormFields();
+    if (type === 'hackathon') {
+      navigate('/apply/HackathonRegistration');
+    } else if (type === 'join-club') {
+      navigate('/apply/ClubRegistration');
+    } else if (type === 'event') {
+      navigate('/apply/EventRegistration');
+    } else {
+      navigate('/apply');
+    }
   };
 
   const handleAddMember = () => {

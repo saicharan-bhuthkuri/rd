@@ -196,6 +196,7 @@ function App() {
           <Route path="/faqs" element={<FAQPage />} />
           <Route path="/contact" element={<ContactPage />} />
           <Route path="/apply" element={<ApplyPage />} />
+          <Route path="/apply/:registrationType" element={<ApplyPage />} />
           <Route path="/verify" element={<VerifyCertificatePage />} />
 
           {/* Admin Routes */}
