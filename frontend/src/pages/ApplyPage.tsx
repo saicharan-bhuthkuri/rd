@@ -208,9 +208,6 @@ export const ApplyPage: React.FC = () => {
 
   // Hackathon specific fields state
   const [teamName, setTeamName] = useState('');
-  const [projectTitle, setProjectTitle] = useState('');
-  const [projectDescription, setProjectDescription] = useState('');
-  const [problemStatement, setProblemStatement] = useState('');
   const [selectedHackathonName, setSelectedHackathonName] = useState('');
   const [hackathonsList, setHackathonsList] = useState<string[]>([]);
   const [hackathonConfirmed, setHackathonConfirmed] = useState(false);
@@ -330,9 +327,6 @@ export const ApplyPage: React.FC = () => {
     
     // Hackathon reset
     setTeamName('');
-    setProjectTitle('');
-    setProjectDescription('');
-    setProblemStatement('');
     setSelectedHackathonName(hackathonsList.length > 0 ? hackathonsList[0] : '');
     setLeaderRole('Student');
     setLeaderYear('');
@@ -493,18 +487,6 @@ export const ApplyPage: React.FC = () => {
         }
       }
 
-      if (!projectTitle.trim()) {
-        alert("Please enter the Project Title.");
-        return;
-      }
-      if (!projectDescription.trim()) {
-        alert("Please enter the Project Description.");
-        return;
-      }
-      if (!problemStatement.trim()) {
-        alert("Please enter the Problem Statement.");
-        return;
-      }
       if (!hackathonConfirmed) {
         alert("Please confirm the details check box at the bottom before submitting.");
         return;
@@ -537,9 +519,6 @@ export const ApplyPage: React.FC = () => {
     } : {
       hackathonName: selectedHackathonName,
       teamName,
-      projectTitle,
-      projectDescription,
-      problemStatement,
       leaderName: fullName,
       leaderEmail: email,
       leaderPhone: mobile,
@@ -1279,70 +1258,6 @@ export const ApplyPage: React.FC = () => {
                       >
                         <Plus size={16} /> + Add Member
                       </button>
-
-                      {/* Hackathon Project Details */}
-                      <div className="form-section-title" style={{ marginTop: '1.5rem' }}>Hackathon Project Details</div>
-                      
-                      <div className="form-group">
-                        <label htmlFor="projectTitle">Project Title <span className="req">*</span></label>
-                        <div className="input-with-icon">
-                          <Code size={16} />
-                          <input
-                            type="text"
-                            id="projectTitle"
-                            required
-                            placeholder="e.g. AI-based Attendance System"
-                            value={projectTitle}
-                            onChange={(e) => setProjectTitle(e.target.value)}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="form-group">
-                        <label htmlFor="projectDescription">Project Description <span className="req">*</span></label>
-                        <textarea
-                          id="projectDescription"
-                          required
-                          rows={4}
-                          placeholder="Provide a high-level explanation of your project and what it does..."
-                          value={projectDescription}
-                          onChange={(e) => setProjectDescription(e.target.value.slice(0, 1000))}
-                          maxLength={1000}
-                        />
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.25rem', fontSize: '0.75rem' }}>
-                          {projectDescription.length === 1000 ? (
-                            <span style={{ color: '#dc2626', fontWeight: 500 }}>Maximum limit of 1,000 characters reached</span>
-                          ) : (
-                            <span />
-                          )}
-                          <span style={{ color: projectDescription.length === 1000 ? '#dc2626' : 'var(--text-secondary)' }}>
-                            {projectDescription.length} / 1,000
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="form-group">
-                        <label htmlFor="problemStatement">Problem Statement <span className="req">*</span></label>
-                        <textarea
-                          id="problemStatement"
-                          required
-                          rows={3}
-                          placeholder="What specific problem does your project solve?"
-                          value={problemStatement}
-                          onChange={(e) => setProblemStatement(e.target.value.slice(0, 1000))}
-                          maxLength={1000}
-                        />
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.25rem', fontSize: '0.75rem' }}>
-                          {problemStatement.length === 1000 ? (
-                            <span style={{ color: '#dc2626', fontWeight: 500 }}>Maximum limit of 1,000 characters reached</span>
-                          ) : (
-                            <span />
-                          )}
-                          <span style={{ color: problemStatement.length === 1000 ? '#dc2626' : 'var(--text-secondary)' }}>
-                            {problemStatement.length} / 1,000
-                          </span>
-                        </div>
-                      </div>
 
                       <div className="form-group" style={{ 
                         marginTop: '2rem', 

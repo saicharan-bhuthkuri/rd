@@ -532,7 +532,7 @@ export const AdminDashboardPage: React.FC = () => {
   const filteredHackathonRegs = hackathonRegs.filter(reg => {
     const matchesSearch = reg.leader_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           reg.team_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          reg.project_title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (reg.project_title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                           reg.leader_email.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || reg.status === statusFilter;
     const matchesBranch = branchFilter === 'all' || 
@@ -654,9 +654,9 @@ export const AdminDashboardPage: React.FC = () => {
           reg.id.toString(),
           reg.hackathon_name || 'R&D AlphaQuest Hackathon',
           reg.team_name,
-          reg.project_title,
-          reg.project_description.replace(/\n/g, ' '),
-          reg.problem_statement.replace(/\n/g, ' '),
+          reg.project_title || 'N/A',
+          (reg.project_description || '').replace(/\n/g, ' '),
+          (reg.problem_statement || '').replace(/\n/g, ' '),
           reg.leader_name,
           reg.leader_email,
           reg.leader_phone,
@@ -1171,13 +1171,17 @@ export const AdminDashboardPage: React.FC = () => {
                           </div>
                         </td>
                         <td>
-                          <strong style={{ display: 'block', fontSize: '0.875rem', color: 'var(--primary)' }}>{reg.project_title}</strong>
-                          <div style={{ maxHeight: '60px', overflowY: 'auto', fontSize: '0.8125rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-                            {reg.project_description}
-                          </div>
+                          {reg.project_title ? (
+                            <strong style={{ display: 'block', fontSize: '0.875rem', color: 'var(--primary)' }}>{reg.project_title}</strong>
+                          ) : null}
+                          {reg.project_description ? (
+                            <div style={{ maxHeight: '60px', overflowY: 'auto', fontSize: '0.8125rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                              {reg.project_description}
+                            </div>
+                          ) : (!reg.project_title ? <span style={{ color: 'var(--text-muted)' }}>—</span> : null)}
                         </td>
                         <td style={{ maxWidth: '250px', fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
-                          <div style={{ maxHeight: '60px', overflowY: 'auto' }}>{reg.problem_statement}</div>
+                          <div style={{ maxHeight: '60px', overflowY: 'auto' }}>{reg.problem_statement || '—'}</div>
                         </td>
                         <td>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', alignItems: 'flex-start' }}>
@@ -1606,48 +1610,58 @@ export const AdminDashboardPage: React.FC = () => {
                 gap: '1.75rem',
                 flex: 1
               }}>
-                {/* Project Details Section */}
-                <div>
-                  <h4 style={{ 
-                    fontSize: '0.9375rem', 
-                    fontWeight: 700, 
-                    textTransform: 'uppercase', 
-                    letterSpacing: '0.05em', 
-                    marginBottom: '0.75rem', 
-                    color: 'var(--text-main)', 
-                    borderBottom: '2px solid var(--border)', 
-                    paddingBottom: '0.375rem' 
-                  }}>
-                    Project Details
-                  </h4>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.875rem' }}>
-                    <div><strong>Project Title:</strong> {selectedHackathon.project_title}</div>
-                    <div><strong>Project Description:</strong></div>
-                    <div style={{ 
-                      padding: '0.875rem 1rem', 
-                      backgroundColor: 'var(--bg-main)', 
-                      borderRadius: 'var(--radius-md)', 
-                      whiteSpace: 'pre-wrap', 
-                      color: 'var(--text-secondary)',
-                      lineHeight: 1.5,
-                      border: '1px solid var(--border)'
+                {/* Project Details */}
+                {(selectedHackathon.project_title || selectedHackathon.project_description || selectedHackathon.problem_statement) && (
+                  <div>
+                    <h4 style={{ 
+                      fontSize: '0.9375rem', 
+                      fontWeight: 600, 
+                      color: 'var(--text-primary)', 
+                      marginBottom: '0.75rem',
+                      borderBottom: '1px solid var(--border)',
+                      paddingBottom: '0.5rem'
                     }}>
-                      {selectedHackathon.project_description}
-                    </div>
-                    <div><strong>Problem Statement:</strong></div>
-                    <div style={{ 
-                      padding: '0.875rem 1rem', 
-                      backgroundColor: 'var(--bg-main)', 
-                      borderRadius: 'var(--radius-md)', 
-                      whiteSpace: 'pre-wrap', 
-                      color: 'var(--text-secondary)',
-                      lineHeight: 1.5,
-                      border: '1px solid var(--border)'
-                    }}>
-                      {selectedHackathon.problem_statement}
+                      Project Details
+                    </h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.875rem' }}>
+                      {selectedHackathon.project_title && (
+                        <div><strong>Project Title:</strong> {selectedHackathon.project_title}</div>
+                      )}
+                      {selectedHackathon.project_description && (
+                        <>
+                          <div><strong>Project Description:</strong></div>
+                          <div style={{ 
+                            padding: '0.875rem 1rem', 
+                            backgroundColor: 'var(--bg-main)', 
+                            borderRadius: 'var(--radius-md)', 
+                            whiteSpace: 'pre-wrap', 
+                            color: 'var(--text-secondary)',
+                            lineHeight: 1.5,
+                            border: '1px solid var(--border)'
+                          }}>
+                            {selectedHackathon.project_description}
+                          </div>
+                        </>
+                      )}
+                      {selectedHackathon.problem_statement && (
+                        <>
+                          <div><strong>Problem Statement:</strong></div>
+                          <div style={{ 
+                            padding: '0.875rem 1rem', 
+                            backgroundColor: 'var(--bg-main)', 
+                            borderRadius: 'var(--radius-md)', 
+                            whiteSpace: 'pre-wrap', 
+                            color: 'var(--text-secondary)',
+                            lineHeight: 1.5,
+                            border: '1px solid var(--border)'
+                          }}>
+                            {selectedHackathon.problem_statement}
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
-                </div>
+                )}
 
                 {/* Team Leader Section */}
                 <div>

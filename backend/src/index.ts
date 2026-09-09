@@ -810,7 +810,7 @@ app.post('/api/apply/hackathon', sensitiveLimiter, async (req, res) => {
   } = req.body;
 
   // Simple validation
-  if (!teamName || !projectTitle || !projectDescription || !problemStatement ||
+  if (!teamName ||
       !leaderName || !leaderEmail || !leaderPhone || !leaderRole || !members) {
     return res.status(400).json({ error: "Missing required fields." });
   }
@@ -826,9 +826,9 @@ app.post('/api/apply/hackathon', sensitiveLimiter, async (req, res) => {
       args: [
         hackathonName || 'R&D AlphaQuest Hackathon',
         teamName,
-        projectTitle,
-        projectDescription,
-        problemStatement,
+        projectTitle || '',
+        projectDescription || '',
+        problemStatement || '',
         leaderName,
         leaderEmail,
         leaderPhone,
@@ -2551,7 +2551,7 @@ app.post('/api/admin/bulk-send/hackathon-certificates', authenticateToken, async
         
 Thank you for your enthusiastic participation in the ${hackathonName} held on ${hackathonDate} organized by the Research & Development (R&D) Cell of Trinity College of Engineering and Technology, Peddapalli.
 
-Please find attached your official Certificate of Participation (Certificate_${safeName}.pdf). We appreciate your innovative ideas, outstanding team efforts, and technical presentation in Team "${teamName}" for the project "${projectTitle}".
+Please find attached your official Certificate of Participation (Certificate_${safeName}.pdf). We appreciate your innovative ideas, outstanding team efforts, and technical presentation in Team "${teamName}"${projectTitle ? ` for the project "${projectTitle}"` : ''}.
 
 We wish you continued success in all your future endeavors.
 
