@@ -119,6 +119,11 @@ For your viva presentation, the core contribution is summarized in one sentence:
 
 ### Production URLs
 * **Deployed Web Application (Client)**: [https://tcek-rd.web.app](https://tcek-rd.web.app)
+* **Application Portal (Overview)**: [https://tcek-rd.web.app/apply](https://tcek-rd.web.app/apply)
+  * **Hackathon Registration**: [https://tcek-rd.web.app/apply/HackathonRegistration](https://tcek-rd.web.app/apply/HackathonRegistration)
+  * **Club Membership Application**: [https://tcek-rd.web.app/apply/ClubRegistration](https://tcek-rd.web.app/apply/ClubRegistration)
+  * **Event Registration**: [https://tcek-rd.web.app/apply/EventRegistration](https://tcek-rd.web.app/apply/EventRegistration)
+* **Public Certificate Verification**: [https://tcek-rd.web.app/verify](https://tcek-rd.web.app/verify)
 * **Deployed API Server (Backend)**: [https://rd-backend-kbsm.onrender.com](https://rd-backend-kbsm.onrender.com)
 * **Designer/Developer Portfolio**: [https://saivortex.web.app/](https://saivortex.web.app/)
 
@@ -929,9 +934,9 @@ erDiagram
 The proposed institutional system is structured into 7 core functional modules:
 
 ### Module 1 — Student Application Management
-* **Description**: Consists of public-facing enrollment portals and registration sheets.
+* **Description**: Consists of public-facing enrollment portals, dedicated registration routes, and registration sheets.
 * **Code Components**: `ApplyPage.tsx`, recruitment signup sheets, event attendee registry forms.
-* **Functionality**: Dynamically renders input rows for team signups (hackathons), collects candidate files, branches, sections, and interest descriptions, and handles rate-limited signups.
+* **Functionality**: Dynamically renders input rows for team signups (hackathons), collects candidate details, branches, sections, and interest descriptions, and handles rate-limited signups. Supports direct dedicated registration routes (`/apply/HackathonRegistration`, `/apply/ClubRegistration`, `/apply/EventRegistration`) with automatic route normalization. Hackathon registration streamlines onboarding by removing mandatory upfront project disclosures.
 
 ### Module 2 — Administrator Management
 * **Description**: Controls administrative dashboard consoles and supervisor actions.
@@ -1652,7 +1657,11 @@ Styling is managed via [`frontend/src/index.css`](file:///c:/Users/bhuth/OneDriv
 | URL Route | Access Level | Primary Components | API Calls | Description |
 | :--- | :--- | :--- | :--- | :--- |
 | `/` | Public | Header, Hero, About, ResearchDomains, Events, Benefits, Team, FAQ, Contact, Footer | `GET /api/events` | R&D Cell home portal containing sections. |
-| `/apply` | Public | ApplyPage | `GET /api/events`, `GET /api/branches`, `POST /api/apply/club`, `POST /api/apply/event`, `POST /api/apply/hackathon` | Dynamic signup page supporting recruitment, event attendance, or hackathon registrations. |
+| `/apply` | Public | ApplyPage | `GET /api/events`, `GET /api/branches`, `POST /api/apply/club`, `POST /api/apply/event`, `POST /api/apply/hackathon` | Centralized application portal with choice cards for Club, Event, and Hackathon registration. |
+| `/apply/HackathonRegistration` | Public | ApplyPage | `GET /api/events`, `POST /api/apply/hackathon` | Direct dedicated Hackathon team registration form (supports alias `/apply/hackathon`). |
+| `/apply/ClubRegistration` | Public | ApplyPage | `GET /api/branches`, `POST /api/apply/club` | Direct dedicated R&D Club membership application form (supports alias `/apply/club`). |
+| `/apply/EventRegistration` | Public | ApplyPage | `GET /api/events`, `GET /api/branches`, `POST /api/apply/event` | Direct dedicated technical event/workshop registration form (supports alias `/apply/event`). |
+| `/apply/:registrationType` | Public | ApplyPage | Dynamic | Route parameter handler matching all registration types with case-insensitive normalization. |
 | `/verify` | Public | VerifyCertificatePage | `GET /api/verify-certificate/*` | Authenticates certificates and renders PDF. |
 | `/admin/login` | Public | AdminLoginPage | `POST /api/admin/login` | Authentication portal generating JWT session token. |
 | `/admin/club` | Admin/Dev | AdminLayout, AdminDashboardPage | `GET /api/admin/applications`, `POST /api/admin/applications/status`, `POST /api/admin/bulk-send/offers` | Recruitment tracker, status changes, and dispatch of offer letters. |
@@ -1758,6 +1767,7 @@ Styling is managed via [`frontend/src/index.css`](file:///c:/Users/bhuth/OneDriv
     ]
   }
   ```
+  > **Note**: `projectTitle`, `projectDescription`, and `problemStatement` are optional (defaulting to empty string when not provided) to accommodate streamlined team registrations.
 * **Success Response (201 Created)**:
   ```json
   {
