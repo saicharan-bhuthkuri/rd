@@ -65,7 +65,8 @@ app.use(cors({
   credentials: true
 }));
 
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Configure Rate Limiters
 const globalLimiter = rateLimit({
@@ -362,6 +363,33 @@ async function setupDatabase() {
         status TEXT DEFAULT 'pending',
         certificate_sent INTEGER DEFAULT 0,
         certificate_id TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // 14. Project Submissions Table (Hackathon & Event Project Submissions)
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS project_submissions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        hackathon_registration_id INTEGER,
+        event_name TEXT NOT NULL,
+        team_name TEXT NOT NULL,
+        leader_name TEXT NOT NULL,
+        leader_email TEXT NOT NULL,
+        leader_phone TEXT,
+        institution TEXT,
+        members TEXT,
+        project_title TEXT NOT NULL,
+        project_info TEXT NOT NULL,
+        problem_statement TEXT NOT NULL,
+        drive_file_id TEXT,
+        drive_file_url TEXT,
+        drive_folder_id TEXT,
+        drive_folder_url TEXT,
+        file_name TEXT,
+        file_size INTEGER,
+        mime_type TEXT,
+        status TEXT DEFAULT 'submitted',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
     `);
@@ -1117,6 +1145,322 @@ app.post('/api/apply/volunteer', sensitiveLimiter, async (req, res) => {
   }
 });
 
+// 2.8 Project Submission Endpoints
+// Fetch events eligible for project submission
+app.get('/api/project-submission/events', async (req, res) => {
+  try {
+    const hackathonsRes = await db.execute(`
+      SELECT DISTINCT hackathon_name FROM hackathon_registrations 
+      WHERE hackathon_name IS NOT NULL AND hackathon_name != ''
+    `);
+    const eventsRes = await db.execute(`
+      SELECT title FROM events ORDER BY id DESC
+    `);
+
+    const eventSet = new Set<string>();
+    hackathonsRes.rows.forEach(r => {
+      if (r.hackathon_name) eventSet.add(String(r.hackathon_name).trim());
+    });
+    eventsRes.rows.forEach(r => {
+      if (r.title) eventSet.add(String(r.title).trim());
+    });
+
+    if (eventSet.size === 0) {
+      eventSet.add('Msme 6.0 Hackathon');
+      eventSet.add('SIH 2026 Internal Hackathon');
+    }
+
+    return res.json({
+      success: true,
+      events: Array.from(eventSet)
+    });
+  } catch (err: any) {
+    console.error("Error fetching submission events:", err);
+    return res.status(500).json({ error: "Failed to fetch submission events." });
+  }
+});
+
+// Verify registered team by event & team name
+app.get('/api/project-submission/verify-team', sensitiveLimiter, async (req, res) => {
+  const { eventName, teamName } = req.query;
+
+  if (!eventName || !teamName) {
+    return res.status(400).json({ error: "Both Event Name and Team Name are required." });
+  }
+
+  const trimmedEvent = String(eventName).trim().toLowerCase();
+  const trimmedTeam = String(teamName).trim().toLowerCase();
+
+  try {
+    // 1. Exact match on both event and team name
+    let teamRes = await db.execute({
+      sql: `SELECT * FROM hackathon_registrations 
+            WHERE LOWER(TRIM(COALESCE(hackathon_name, ''))) = ? 
+              AND LOWER(TRIM(team_name)) = ?
+            ORDER BY id DESC LIMIT 1`,
+      args: [trimmedEvent, trimmedTeam]
+    });
+
+    // 2. Fallback: match by team name, then match event loosely
+    if (teamRes.rows.length === 0) {
+      const candidatesRes = await db.execute({
+        sql: `SELECT * FROM hackathon_registrations 
+              WHERE LOWER(TRIM(team_name)) = ?
+              ORDER BY id DESC`,
+        args: [trimmedTeam]
+      });
+
+      for (const row of candidatesRes.rows) {
+        const ev = String(row.hackathon_name || '').toLowerCase();
+        if (ev.includes(trimmedEvent) || trimmedEvent.includes(ev) || ev === '') {
+          teamRes = { rows: [row] } as any;
+          break;
+        }
+      }
+    }
+
+    if (teamRes.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        verified: false,
+        message: `No registered team found matching "${teamName}" for event "${eventName}". Please ensure the team name matches your exact registration.`
+      });
+    }
+
+    const reg = teamRes.rows[0];
+    let parsedMembers: any[] = [];
+    try {
+      if (typeof reg.members === 'string') {
+        parsedMembers = JSON.parse(reg.members || '[]');
+      } else if (Array.isArray(reg.members)) {
+        parsedMembers = reg.members;
+      }
+    } catch {
+      parsedMembers = [];
+    }
+
+    return res.json({
+      success: true,
+      verified: true,
+      team: {
+        id: reg.id,
+        teamName: reg.team_name,
+        eventName: reg.hackathon_name || eventName,
+        leaderName: reg.leader_name,
+        leaderEmail: reg.leader_email,
+        leaderPhone: reg.leader_phone,
+        leaderRole: reg.leader_role,
+        leaderYear: reg.leader_year,
+        leaderBranch: reg.leader_branch,
+        institution: reg.leader_institution || 'Trinity College of Engineering and Technology, Peddapalli',
+        projectTitle: reg.project_title || '',
+        projectDescription: reg.project_description || '',
+        problemStatement: reg.problem_statement || '',
+        members: parsedMembers,
+        status: reg.status
+      }
+    });
+  } catch (err: any) {
+    console.error("Error verifying team:", err);
+    return res.status(500).json({ error: "Failed to verify team registration." });
+  }
+});
+
+// Submit Project Presentation & Documentation
+app.post('/api/project-submission/submit', sensitiveLimiter, async (req, res) => {
+  const {
+    eventName,
+    teamName,
+    projectTitle,
+    projectInfo,
+    problemStatement,
+    fileName,
+    fileBase64,
+    mimeType,
+    fileSize
+  } = req.body;
+
+  // 1. Validation
+  if (!eventName || !teamName || !projectTitle || !projectInfo || !problemStatement || !fileName || !fileBase64) {
+    return res.status(400).json({ error: "All fields and presentation file are required." });
+  }
+
+  // Word count helper
+  const countWords = (str: string) => (str || '').trim().split(/\s+/).filter(Boolean).length;
+  const projectInfoWords = countWords(projectInfo);
+  const problemStatementWords = countWords(problemStatement);
+
+  if (projectInfoWords > 1500) {
+    return res.status(400).json({ error: `Project Info exceeds the maximum limit of 1,500 words (Current: ${projectInfoWords} words).` });
+  }
+
+  if (problemStatementWords > 1000) {
+    return res.status(400).json({ error: `Problem Statement exceeds the maximum limit of 1,000 words (Current: ${problemStatementWords} words).` });
+  }
+
+  // File extension validation
+  const ext = path.extname(fileName).toLowerCase();
+  if (!['.ppt', '.pptx', '.pdf'].includes(ext)) {
+    return res.status(400).json({ error: "Presentation must be a PPT, PPTX, or PDF file." });
+  }
+
+  try {
+    // 2. Lookup registered team
+    const trimmedTeam = String(teamName).trim().toLowerCase();
+
+    const regRes = await db.execute({
+      sql: `SELECT * FROM hackathon_registrations 
+            WHERE LOWER(TRIM(team_name)) = ?
+            ORDER BY id DESC LIMIT 1`,
+      args: [trimmedTeam]
+    });
+
+    const reg = regRes.rows.length > 0 ? regRes.rows[0] : null;
+    const teamId = reg ? (reg.id as number) : 1;
+    const teamLeaderName = reg ? (reg.leader_name as string) : 'Team Leader';
+    const teamLeaderEmail = reg ? (reg.leader_email as string) : '';
+    const teamLeaderPhone = reg ? (reg.leader_phone as string) : '';
+    const institution = reg ? ((reg.leader_institution as string) || 'Trinity College of Engineering and Technology') : 'Trinity College of Engineering and Technology';
+    const members = reg ? (typeof reg.members === 'string' ? reg.members : JSON.stringify(reg.members || [])) : '[]';
+
+    // Format team folder name: e.g. "Team 01 – Tech Twins"
+    const paddedNum = String(teamId).padStart(2, '0');
+    const teamFolderName = `Team ${paddedNum} – ${String(teamName).trim()}`;
+
+    // 3. Upload to Google Drive via Google Apps Script Proxy
+    let driveFileId = '';
+    let driveFileUrl = '';
+    let driveFolderId = '';
+    let driveFolderUrl = '';
+
+    if (process.env.GMAIL_HTTP_PROXY_URL) {
+      try {
+        const cleanBase64 = String(fileBase64).indexOf('base64,') > -1 
+          ? String(fileBase64).split('base64,')[1] 
+          : String(fileBase64);
+
+        const drivePayload = {
+          action: 'upload_presentation',
+          eventName: String(eventName).trim(),
+          teamFolderName: teamFolderName,
+          fileName: fileName,
+          fileBase64: cleanBase64,
+          mimeType: mimeType || (ext === '.pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.presentationml.presentation')
+        };
+
+        const driveRes = await postToAppsScript(process.env.GMAIL_HTTP_PROXY_URL, drivePayload, 2);
+        if (driveRes && driveRes.success) {
+          driveFileId = driveRes.fileId || '';
+          driveFileUrl = driveRes.fileUrl || '';
+          driveFolderId = driveRes.folderId || '';
+          driveFolderUrl = driveRes.folderUrl || '';
+        } else {
+          console.warn("[Project Submission] Drive upload returned notice:", driveRes?.error);
+        }
+      } catch (proxyErr: any) {
+        console.error("[Project Submission] Drive upload proxy error:", proxyErr.message);
+      }
+    }
+
+    // Fallback URL if Google Apps Script is not yet updated or returns no URL
+    if (!driveFileUrl) {
+      driveFileUrl = `https://drive.google.com/drive/search?q=${encodeURIComponent(fileName)}`;
+      driveFolderUrl = `https://drive.google.com/drive/search?q=${encodeURIComponent(eventName)}`;
+    }
+
+    // 4. Save metadata in database (NO file binary/base64 stored)
+    const result = await db.execute({
+      sql: `INSERT INTO project_submissions (
+              hackathon_registration_id, event_name, team_name,
+              leader_name, leader_email, leader_phone, institution, members,
+              project_title, project_info, problem_statement,
+              drive_file_id, drive_file_url, drive_folder_id, drive_folder_url,
+              file_name, file_size, mime_type, status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'submitted')`,
+      args: [
+        teamId,
+        String(eventName).trim(),
+        String(teamName).trim(),
+        teamLeaderName,
+        teamLeaderEmail,
+        teamLeaderPhone,
+        institution,
+        members,
+        String(projectTitle).trim(),
+        String(projectInfo).trim(),
+        String(problemStatement).trim(),
+        driveFileId,
+        driveFileUrl,
+        driveFolderId,
+        driveFolderUrl,
+        fileName,
+        fileSize || 0,
+        mimeType || ext,
+      ]
+    });
+
+    const submissionId = Number(result.lastInsertRowid);
+    const refNumber = `TCEK/SUB/2026/${String(submissionId).padStart(4, '0')}`;
+
+    // 5. Send confirmation email to Team Leader if email exists
+    if (teamLeaderEmail) {
+      const emailSubject = `Project Submission Confirmation | ${teamName} – ${eventName}`;
+      const emailText = `Dear ${teamLeaderName},
+
+Thank you for submitting your project documentation and presentation for ${eventName}.
+
+Submission Summary:
+- Submission ID: ${refNumber}
+- Team Name: ${teamName}
+- Project Title: ${projectTitle}
+- File Uploaded: ${fileName}
+- Presentation Drive Reference: ${driveFileUrl}
+
+Your presentation has been registered in the official Google Drive repository for ${eventName}.
+
+With best wishes,
+
+Research & Development (R&D) Cell
+Trinity College of Engineering & Technology (Autonomous), Peddapalli`;
+
+      try {
+        if (process.env.GMAIL_HTTP_PROXY_URL) {
+          await postToAppsScript(process.env.GMAIL_HTTP_PROXY_URL, {
+            to: teamLeaderEmail,
+            subject: emailSubject,
+            text: emailText
+          }, 1);
+        } else {
+          await transporter.sendMail({
+            from: SENDER_EMAIL,
+            to: teamLeaderEmail,
+            subject: emailSubject,
+            text: emailText
+          });
+        }
+      } catch (mailErr) {
+        console.warn("Could not dispatch submission receipt email:", mailErr);
+      }
+    }
+
+    notifySyncClients("REFRESH_SUBMISSIONS");
+
+    return res.status(201).json({
+      success: true,
+      submissionId,
+      referenceNumber: refNumber,
+      teamName,
+      eventName,
+      driveFileUrl,
+      driveFolderUrl,
+      message: "Project presentation and documentation submitted successfully."
+    });
+  } catch (err: any) {
+    console.error("Project submission error:", err);
+    return res.status(500).json({ error: "Failed to submit project.", details: err.message });
+  }
+});
+
 // 3. Contact/Enquiry feedback endpoint
 app.post('/api/contact', sensitiveLimiter, async (req, res) => {
   const { name, email, subject, message } = req.body;
@@ -1552,13 +1896,15 @@ app.get('/api/admin/applications', authenticateToken, async (req: AuthenticatedR
     const hackathonRes = await db.execute("SELECT * FROM hackathon_registrations ORDER BY created_at DESC");
     const recognitionRes = await db.execute("SELECT * FROM recognition_applications ORDER BY created_at DESC");
     const volunteerRes = await db.execute("SELECT * FROM volunteer_applications ORDER BY created_at DESC");
+    const submissionRes = await db.execute("SELECT * FROM project_submissions ORDER BY created_at DESC");
 
     return res.status(200).json({
       clubApplications: clubRes.rows,
       eventRegistrations: eventRes.rows,
       hackathonRegistrations: hackathonRes.rows,
       recognitionApplications: recognitionRes.rows,
-      volunteerApplications: volunteerRes.rows
+      volunteerApplications: volunteerRes.rows,
+      projectSubmissions: submissionRes.rows
     });
   } catch (err: any) {
     console.error("Error fetching applications:", err);
@@ -1573,8 +1919,8 @@ app.post('/api/admin/applications/status', authenticateToken, async (req: Authen
     return res.status(400).json({ error: "Type, ID, and status are required." });
   }
 
-  if (type === 'club' || type === 'hackathon' || type === 'recognition' || type === 'volunteer') {
-    if (status !== 'approved' && status !== 'rejected' && status !== 'pending') {
+  if (type === 'club' || type === 'hackathon' || type === 'recognition' || type === 'volunteer' || type === 'project-submission') {
+    if (status !== 'approved' && status !== 'rejected' && status !== 'pending' && status !== 'submitted') {
       return res.status(400).json({ error: "Invalid status state." });
     }
   }
@@ -1584,9 +1930,10 @@ app.post('/api/admin/applications/status', authenticateToken, async (req: Authen
   if (type === 'hackathon' || type === 'hackathon-certificate-type') tableName = 'hackathon_registrations';
   if (type === 'recognition') tableName = 'recognition_applications';
   if (type === 'volunteer') tableName = 'volunteer_applications';
+  if (type === 'project-submission') tableName = 'project_submissions';
 
   try {
-    const nameField = (type === 'hackathon' || type === 'hackathon-certificate-type') ? 'leader_name' : 'full_name';
+    const nameField = (type === 'hackathon' || type === 'hackathon-certificate-type' || type === 'project-submission') ? 'leader_name' : 'full_name';
     const checkRes = await db.execute({
       sql: `SELECT ${nameField} AS name FROM ${tableName} WHERE id = ?`,
       args: [id]
@@ -1621,7 +1968,9 @@ app.post('/api/admin/applications/status', authenticateToken, async (req: Authen
             ? 'Judge Recognition'
             : type === 'volunteer'
               ? 'Volunteer Registration'
-              : 'Hackathon Registration';
+              : type === 'project-submission'
+                ? 'Project Submission'
+                : 'Hackathon Registration';
 
     await db.execute({
       sql: "INSERT INTO activity_logs (username, action, details) VALUES (?, ?, ?)",

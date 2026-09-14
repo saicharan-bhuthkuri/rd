@@ -2,7 +2,31 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { API_BASE_URL } from '../config';
 import { AdminLayout } from '../components/AdminLayout';
-import { Download, Check, X, Layers, Calendar, Mail, Loader2, Eye, Award, HeartHandshake } from 'lucide-react';
+import { Download, Check, X, Layers, Calendar, Mail, Loader2, Eye, Award, HeartHandshake, FolderUp, ExternalLink, FileText } from 'lucide-react';
+
+interface ProjectSubmission {
+  id: number;
+  hackathon_registration_id?: number;
+  event_name: string;
+  team_name: string;
+  leader_name: string;
+  leader_email: string;
+  leader_phone: string;
+  institution?: string;
+  members?: string;
+  project_title: string;
+  project_info: string;
+  problem_statement: string;
+  drive_file_id?: string;
+  drive_file_url?: string;
+  drive_folder_id?: string;
+  drive_folder_url?: string;
+  file_name?: string;
+  file_size?: number;
+  mime_type?: string;
+  status: 'pending' | 'approved' | 'rejected' | 'submitted';
+  created_at: string;
+}
 
 interface VolunteerApplication {
   id: number;
@@ -106,15 +130,18 @@ export const AdminDashboardPage: React.FC = () => {
     : location.pathname.includes('/hackathons') ? 'hackathon' 
     : location.pathname.includes('/recognition') ? 'recognition' 
     : location.pathname.includes('/volunteers') ? 'volunteer'
+    : (location.pathname.includes('/submissions') || location.pathname.includes('/project-submissions')) ? 'submission'
     : 'club';
   const [clubApps, setClubApps] = useState<ClubApplication[]>([]);
   const [eventRegs, setEventRegs] = useState<EventRegistration[]>([]);
   const [hackathonRegs, setHackathonRegs] = useState<HackathonRegistration[]>([]);
   const [recognitionApps, setRecognitionApps] = useState<RecognitionApplication[]>([]);
   const [volunteerApps, setVolunteerApps] = useState<VolunteerApplication[]>([]);
+  const [projectSubs, setProjectSubs] = useState<ProjectSubmission[]>([]);
   const [selectedHackathon, setSelectedHackathon] = useState<HackathonRegistration | null>(null);
   const [selectedRecognition, setSelectedRecognition] = useState<RecognitionApplication | null>(null);
   const [selectedVolunteer, setSelectedVolunteer] = useState<VolunteerApplication | null>(null);
+  const [selectedSubmission, setSelectedSubmission] = useState<ProjectSubmission | null>(null);
   
   // Filtering & Search states
   const [searchTerm, setSearchTerm] = useState('');
@@ -160,6 +187,7 @@ export const AdminDashboardPage: React.FC = () => {
       setHackathonRegs(data.hackathonRegistrations || []);
       setRecognitionApps(data.recognitionApplications || []);
       setVolunteerApps(data.volunteerApplications || []);
+      setProjectSubs(data.projectSubmissions || []);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -172,7 +200,7 @@ export const AdminDashboardPage: React.FC = () => {
 
     const handleSync = (e: Event) => {
       const eventType = (e as CustomEvent).detail;
-      if (eventType === 'REFRESH_APPLICATIONS') {
+      if (eventType === 'REFRESH_APPLICATIONS' || eventType === 'REFRESH_SUBMISSIONS') {
         fetchApplications();
       }
     };
@@ -679,7 +707,7 @@ export const AdminDashboardPage: React.FC = () => {
   };
 
   // Update status action
-  const handleUpdateStatus = async (type: 'club' | 'event' | 'hackathon' | 'hackathon-certificate-type' | 'recognition' | 'volunteer', id: number, status: string) => {
+  const handleUpdateStatus = async (type: 'club' | 'event' | 'hackathon' | 'hackathon-certificate-type' | 'recognition' | 'volunteer' | 'project-submission', id: number, status: string) => {
     const token = localStorage.getItem('admin_token');
     try {
       const response = await fetch(`${API_BASE_URL}/api/admin/applications/status`, {
@@ -749,6 +777,13 @@ export const AdminDashboardPage: React.FC = () => {
     return Array.from(hackathons);
   };
 
+  // Get distinct events for project submissions
+  const getSubmissionEvents = () => {
+    const events = new Set<string>();
+    projectSubs.forEach(sub => events.add(sub.event_name));
+    return Array.from(events);
+  };
+
   // Apply filters
   const filteredClubApps = clubApps.filter(app => {
     const matchesSearch = app.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -813,6 +848,21 @@ export const AdminDashboardPage: React.FC = () => {
       (certSentFilter === 'sent' && app.certificate_sent === 1) ||
       (certSentFilter === 'pending' && (!app.certificate_sent || app.certificate_sent === 0));
     return matchesSearch && matchesStatus && matchesBranch && matchesRole && matchesCertSent;
+  });
+
+  const filteredProjectSubs = projectSubs.filter(sub => {
+    const matchesSearch = sub.team_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          sub.project_title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          sub.leader_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          sub.leader_email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (sub.problem_statement || '').toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === 'all' 
+      ? true 
+      : (statusFilter === 'pending' || statusFilter === 'submitted')
+        ? (sub.status === 'submitted' || sub.status === 'pending')
+        : sub.status === statusFilter;
+    const matchesEvent = eventFilter === 'all' || sub.event_name === eventFilter;
+    return matchesSearch && matchesStatus && matchesEvent;
   });
 
   // Calculate quick metrics
@@ -881,6 +931,22 @@ export const AdminDashboardPage: React.FC = () => {
         unsent,
         sentLabel: "Certificates Sent",
         unsentLabel: "Certificates Pending"
+      };
+    } else if (activeTab === 'submission') {
+      const targetSubs = eventFilter === 'all'
+        ? projectSubs
+        : projectSubs.filter(s => s.event_name === eventFilter);
+
+      const approved = targetSubs.filter(s => s.status === 'approved');
+      return {
+        total: targetSubs.length,
+        pending: targetSubs.filter(s => s.status === 'pending' || s.status === 'submitted').length,
+        approved: approved.length,
+        rejected: targetSubs.filter(s => s.status === 'rejected').length,
+        sent: 0,
+        unsent: 0,
+        sentLabel: "Evaluated",
+        unsentLabel: "Pending"
       };
     } else {
       // Hackathons
@@ -989,6 +1055,25 @@ export const AdminDashboardPage: React.FC = () => {
         app.certificate_id || 'N/A',
         new Date(app.created_at).toLocaleString()
       ]);
+    } else if (activeTab === 'submission') {
+      filename = 'RD_Club_Project_Submissions.csv';
+      headers = ['ID', 'Event Name', 'Team Name', 'Leader Name', 'Leader Email', 'Leader Phone', 'Institution', 'Project Title', 'Project Info', 'Problem Statement', 'File Name', 'Drive URL', 'Status', 'Submitted At'];
+      rows = filteredProjectSubs.map(sub => [
+        sub.id.toString(),
+        sub.event_name,
+        sub.team_name,
+        sub.leader_name,
+        sub.leader_email,
+        sub.leader_phone,
+        sub.institution || 'N/A',
+        sub.project_title,
+        (sub.project_info || '').replace(/\n/g, ' '),
+        (sub.problem_statement || '').replace(/\n/g, ' '),
+        sub.file_name || 'N/A',
+        sub.drive_file_url || 'N/A',
+        sub.status,
+        new Date(sub.created_at).toLocaleString()
+      ]);
     } else {
       filename = 'RD_Club_Hackathon_Registrations.csv';
       headers = ['ID', 'Hackathon Event', 'Team Name', 'Project Title', 'Project Description', 'Problem Statement', 'Leader Name', 'Leader Email', 'Leader Phone', 'Leader Role', 'Leader Year', 'Leader Branch', 'Leader Institution', 'Leader Company', 'Leader Job Title', 'Members Count', 'Status', 'Registered At'];
@@ -1063,7 +1148,7 @@ export const AdminDashboardPage: React.FC = () => {
 
         <div className="admin-stat-card">
           <div className="admin-stat-info">
-            <span>{activeTab === 'hackathon' ? 'Approved Teams' : activeTab === 'recognition' ? 'Approved Judges' : activeTab === 'volunteer' ? 'Approved Volunteers' : 'Approved Seats'}</span>
+            <span>{activeTab === 'hackathon' ? 'Approved Teams' : activeTab === 'recognition' ? 'Approved Judges' : activeTab === 'volunteer' ? 'Approved Volunteers' : activeTab === 'submission' ? 'Approved Submissions' : 'Approved Seats'}</span>
             <h2>{stats.approved}</h2>
           </div>
           <div className="admin-stat-icon approved">
@@ -1073,7 +1158,7 @@ export const AdminDashboardPage: React.FC = () => {
 
         <div className="admin-stat-card">
           <div className="admin-stat-info">
-            <span>Rejected Applications</span>
+            <span>{activeTab === 'submission' ? 'Rejected Submissions' : 'Rejected Applications'}</span>
             <h2>{stats.rejected}</h2>
           </div>
           <div className="admin-stat-icon rejected">
@@ -1081,7 +1166,7 @@ export const AdminDashboardPage: React.FC = () => {
           </div>
         </div>
 
-        {activeTab !== 'hackathon' && (
+        {activeTab !== 'hackathon' && activeTab !== 'submission' && (
           <>
             <div className="admin-stat-card">
               <div className="admin-stat-info">
@@ -1117,13 +1202,14 @@ export const AdminDashboardPage: React.FC = () => {
               activeTab === 'hackathon' ? "Search team, leader, project..." 
               : activeTab === 'recognition' ? "Search judge, organization, email..."
               : activeTab === 'volunteer' ? "Search volunteer, PIN, skills..."
+              : activeTab === 'submission' ? "Search team, project, leader, topic..."
               : "Search student, email, or PIN..."
             }
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
 
-          {activeTab === 'club' || activeTab === 'hackathon' || activeTab === 'recognition' || activeTab === 'volunteer' ? (
+          {activeTab === 'club' || activeTab === 'hackathon' || activeTab === 'recognition' || activeTab === 'volunteer' || activeTab === 'submission' ? (
             <select
               className="admin-filter-select"
               value={statusFilter}
@@ -1158,7 +1244,7 @@ export const AdminDashboardPage: React.FC = () => {
             </select>
           )}
 
-          {activeTab !== 'recognition' && (
+          {activeTab !== 'recognition' && activeTab !== 'submission' && (
             <select
               className="admin-filter-select"
               value={branchFilter}
@@ -1192,6 +1278,19 @@ export const AdminDashboardPage: React.FC = () => {
             >
               <option value="all">All Events</option>
               {(activeTab === 'recognition' ? getRecognitionEvents() : getEvents()).map((evt, idx) => (
+                <option key={idx} value={evt}>{evt}</option>
+              ))}
+            </select>
+          )}
+
+          {activeTab === 'submission' && (
+            <select
+              className="admin-filter-select"
+              value={eventFilter}
+              onChange={(e) => setEventFilter(e.target.value)}
+            >
+              <option value="all">All Events / Hackathons</option>
+              {getSubmissionEvents().map((evt, idx) => (
                 <option key={idx} value={evt}>{evt}</option>
               ))}
             </select>
@@ -1391,6 +1490,15 @@ export const AdminDashboardPage: React.FC = () => {
                   <th>Skills & Availability</th>
                   <th>Status</th>
                   <th colSpan={2}>Volunteer Certificate & Actions</th>
+                </tr>
+              ) : activeTab === 'submission' ? (
+                <tr>
+                  <th>Submission Ref & Event</th>
+                  <th>Team & Leader</th>
+                  <th>Project Details</th>
+                  <th>Presentation (Drive)</th>
+                  <th>Status</th>
+                  <th>Actions</th>
                 </tr>
               ) : (
                 <tr>
@@ -1869,6 +1977,171 @@ export const AdminDashboardPage: React.FC = () => {
                       </td>
                     </tr>
                   ))
+                )
+              ) : activeTab === 'submission' ? (
+                filteredProjectSubs.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--text-muted)' }}>
+                      No project submissions match the filter criteria.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredProjectSubs.map(sub => {
+                    let membersCount = 1;
+                    try {
+                      const parsed = JSON.parse(sub.members || '[]');
+                      membersCount = parsed.length + 1;
+                    } catch (e) {}
+
+                    const refNum = `TCEK/SUB/2026/${String(sub.id).padStart(4, '0')}`;
+                    const wordCountInfo = (sub.project_info || '').trim().split(/\s+/).filter(Boolean).length;
+                    const wordCountProblem = (sub.problem_statement || '').trim().split(/\s+/).filter(Boolean).length;
+
+                    return (
+                      <tr key={sub.id}>
+                        <td>
+                          <span style={{
+                            fontSize: '0.6875rem',
+                            fontWeight: 700,
+                            color: '#0891b2',
+                            backgroundColor: '#cffafe',
+                            padding: '0.125rem 0.375rem',
+                            borderRadius: '4px',
+                            fontFamily: 'monospace',
+                            display: 'inline-block',
+                            marginBottom: '0.25rem'
+                          }}>{refNum}</span>
+                          <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--primary)' }}>
+                            {sub.event_name}
+                          </div>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                            {new Date(sub.created_at).toLocaleDateString()} {new Date(sub.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', flexWrap: 'wrap' }}>
+                            <strong style={{ fontSize: '0.9375rem', color: 'var(--text-main)' }}>{sub.team_name}</strong>
+                            <span style={{
+                              fontSize: '0.6875rem',
+                              fontWeight: 600,
+                              color: '#6366f1',
+                              backgroundColor: '#eef2ff',
+                              padding: '0.1rem 0.35rem',
+                              borderRadius: '4px'
+                            }}>{membersCount} Members</span>
+                          </div>
+                          <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                            Leader: {sub.leader_name}
+                          </div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                            {sub.leader_email} | {sub.leader_phone}
+                          </div>
+                          {sub.institution && (
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                              Inst: {sub.institution}
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ maxWidth: '300px' }}>
+                          <strong style={{ display: 'block', fontSize: '0.875rem', color: 'var(--primary)', marginBottom: '0.25rem' }}>
+                            {sub.project_title}
+                          </strong>
+                          <div style={{ fontSize: '0.75rem', display: 'flex', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                            <span style={{ color: '#059669', backgroundColor: '#ecfdf5', padding: '0.1rem 0.35rem', borderRadius: '4px', fontWeight: 600 }}>
+                              Info: {wordCountInfo}/1500w
+                            </span>
+                            <span style={{ color: '#0284c7', backgroundColor: '#e0f2fe', padding: '0.1rem 0.35rem', borderRadius: '4px', fontWeight: 600 }}>
+                              Problem: {wordCountProblem}/1000w
+                            </span>
+                          </div>
+                          <div style={{ maxHeight: '48px', overflowY: 'auto', fontSize: '0.775rem', color: 'var(--text-secondary)' }}>
+                            {sub.problem_statement}
+                          </div>
+                          <button
+                            onClick={() => setSelectedSubmission(sub)}
+                            className="btn btn-secondary btn-sm"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.2rem 0.5rem', fontSize: '0.72rem', marginTop: '0.35rem', cursor: 'pointer' }}
+                          >
+                            <FileText size={11} /> View Full Submission
+                          </button>
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem', alignItems: 'flex-start' }}>
+                            <span style={{
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              color: 'var(--text-main)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.25rem'
+                            }}>
+                              <FolderUp size={13} color="#4f46e5" />
+                              {sub.file_name || 'Presentation File'}
+                            </span>
+                            {sub.file_size ? (
+                              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                                {(sub.file_size / (1024 * 1024)).toFixed(2)} MB
+                              </span>
+                            ) : null}
+                            {sub.drive_file_url ? (
+                              <a
+                                href={sub.drive_file_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="btn btn-primary btn-sm"
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.25rem',
+                                  fontSize: '0.72rem',
+                                  padding: '0.25rem 0.5rem',
+                                  textDecoration: 'none',
+                                  borderRadius: '4px'
+                                }}
+                              >
+                                <ExternalLink size={12} /> Open in Drive
+                              </a>
+                            ) : (
+                              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>No Drive link</span>
+                            )}
+                          </div>
+                        </td>
+                        <td>
+                          <span className={`status-pill status-${sub.status}`}>{sub.status}</span>
+                        </td>
+                        <td>
+                          <div className="actions-cell">
+                            {(sub.status === 'pending' || sub.status === 'submitted') ? (
+                              <>
+                                <button
+                                  onClick={() => handleUpdateStatus('project-submission', sub.id, 'approved')}
+                                  className="btn-action approve"
+                                  title="Approve Submission"
+                                >
+                                  <Check size={14} />
+                                </button>
+                                <button
+                                  onClick={() => handleUpdateStatus('project-submission', sub.id, 'rejected')}
+                                  className="btn-action reject"
+                                  title="Reject Submission"
+                                >
+                                  <X size={14} />
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                onClick={() => handleUpdateStatus('project-submission', sub.id, sub.status === 'approved' ? 'rejected' : 'approved')}
+                                className="btn btn-secondary btn-sm"
+                                style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+                              >
+                                {sub.status === 'approved' ? 'Mark Rejected' : 'Re-Approve'}
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )
               ) : (
                 filteredHackathonRegs.length === 0 ? (
@@ -2797,6 +3070,266 @@ export const AdminDashboardPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Project Submission Full Details Modal */}
+      {selectedSubmission && (() => {
+        let membersList: any[] = [];
+        try {
+          membersList = JSON.parse(selectedSubmission.members || '[]');
+        } catch (e) {}
+
+        const infoWords = (selectedSubmission.project_info || '').trim().split(/\s+/).filter(Boolean).length;
+        const problemWords = (selectedSubmission.problem_statement || '').trim().split(/\s+/).filter(Boolean).length;
+
+        return (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.4)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 1100,
+            padding: '1.5rem'
+          }}>
+            <div style={{
+              width: '100%',
+              maxWidth: '760px',
+              boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)',
+              borderRadius: '0.75rem',
+              border: '1px solid var(--border)',
+              background: '#fff',
+              display: 'flex',
+              flexDirection: 'column',
+              maxHeight: '90vh',
+              overflow: 'hidden'
+            }}>
+              {/* Modal Header */}
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'flex-start', 
+                borderBottom: '1px solid var(--border)', 
+                padding: '1.25rem 1.75rem',
+                backgroundColor: '#fff'
+              }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ 
+                      fontSize: '0.75rem', 
+                      fontWeight: 700, 
+                      color: '#0891b2', 
+                      backgroundColor: '#cffafe', 
+                      padding: '0.125rem 0.5rem', 
+                      borderRadius: '4px', 
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em'
+                    }}>
+                      TCEK/SUB/2026/{String(selectedSubmission.id).padStart(4, '0')}
+                    </span>
+                    <span style={{
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      color: '#4f46e5',
+                      backgroundColor: '#eef2ff',
+                      padding: '0.125rem 0.5rem',
+                      borderRadius: '4px',
+                      textTransform: 'uppercase'
+                    }}>
+                      {selectedSubmission.event_name}
+                    </span>
+                  </div>
+                  <h3 style={{ margin: '0.35rem 0 0', fontSize: '1.25rem', fontWeight: 700, color: 'var(--primary)' }}>
+                    {selectedSubmission.project_title}
+                  </h3>
+                </div>
+                <button 
+                  onClick={() => setSelectedSubmission(null)} 
+                  className="btn btn-secondary btn-sm"
+                  style={{ padding: '0.375rem 0.75rem', fontSize: '0.8125rem', cursor: 'pointer', borderRadius: '0.375rem' }}
+                >
+                  Close
+                </button>
+              </div>
+
+              {/* Modal Content */}
+              <div style={{
+                padding: '1.75rem',
+                overflowY: 'auto',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '1.5rem',
+                flex: 1
+              }}>
+                {/* Team & Leadership Profile */}
+                <div>
+                  <h4 style={{ fontSize: '0.875rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '0.75rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.25rem' }}>
+                    Team & Leadership Profile
+                  </h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem', fontSize: '0.875rem' }}>
+                    <div><strong>Team Name:</strong> {selectedSubmission.team_name}</div>
+                    <div><strong>Team Leader:</strong> {selectedSubmission.leader_name}</div>
+                    <div><strong>Leader Email:</strong> <a href={`mailto:${selectedSubmission.leader_email}`} style={{ color: 'var(--primary)', textDecoration: 'none' }}>{selectedSubmission.leader_email}</a></div>
+                    <div><strong>Leader Phone:</strong> {selectedSubmission.leader_phone}</div>
+                    {selectedSubmission.institution && (
+                      <div style={{ gridColumn: 'span 2' }}><strong>College / Institution:</strong> {selectedSubmission.institution}</div>
+                    )}
+                  </div>
+
+                  {membersList.length > 0 && (
+                    <div style={{ marginTop: '0.75rem' }}>
+                      <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Registered Members ({membersList.length}):</span>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginTop: '0.35rem' }}>
+                        {membersList.map((m: any, idx: number) => (
+                          <span key={idx} style={{
+                            fontSize: '0.75rem',
+                            padding: '0.2rem 0.5rem',
+                            backgroundColor: '#f1f5f9',
+                            border: '1px solid #e2e8f0',
+                            borderRadius: '4px',
+                            color: 'var(--text-main)'
+                          }}>
+                            {m.fullName || m.name || `Member ${idx + 1}`} {m.role ? `(${m.role})` : ''}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Google Drive Presentation Storage */}
+                <div style={{
+                  padding: '1rem 1.25rem',
+                  backgroundColor: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 'var(--radius-md)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.75rem'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    <div>
+                      <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: 700, color: '#64748b' }}>
+                        Google Drive File Repository
+                      </div>
+                      <div style={{ fontWeight: 600, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.2rem' }}>
+                        <FolderUp size={16} color="#4f46e5" />
+                        {selectedSubmission.file_name || 'Presentation Document'}
+                        {selectedSubmission.file_size ? (
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 400 }}>
+                            ({(selectedSubmission.file_size / (1024 * 1024)).toFixed(2)} MB)
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                    {selectedSubmission.drive_file_url && (
+                      <a
+                        href={selectedSubmission.drive_file_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn btn-primary btn-sm"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8125rem', padding: '0.35rem 0.75rem', textDecoration: 'none' }}
+                      >
+                        <ExternalLink size={14} /> Open Presentation in Drive
+                      </a>
+                    )}
+                  </div>
+                  {selectedSubmission.drive_folder_url && (
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                      Folder: <a href={selectedSubmission.drive_folder_url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)', textDecoration: 'underline' }}>{selectedSubmission.team_name} Event Folder</a>
+                    </div>
+                  )}
+                </div>
+
+                {/* Project Info Section */}
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.25rem' }}>
+                    <h4 style={{ fontSize: '0.875rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', margin: 0 }}>
+                      Project Information
+                    </h4>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#059669', backgroundColor: '#ecfdf5', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>
+                      {infoWords} / 1500 words
+                    </span>
+                  </div>
+                  <div style={{
+                    padding: '1rem',
+                    backgroundColor: 'var(--bg-main)',
+                    borderRadius: 'var(--radius-md)',
+                    whiteSpace: 'pre-wrap',
+                    color: 'var(--text-secondary)',
+                    lineHeight: 1.6,
+                    border: '1px solid var(--border)',
+                    fontSize: '0.875rem',
+                    maxHeight: '220px',
+                    overflowY: 'auto'
+                  }}>
+                    {selectedSubmission.project_info}
+                  </div>
+                </div>
+
+                {/* Problem Statement Section */}
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.25rem' }}>
+                    <h4 style={{ fontSize: '0.875rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', margin: 0 }}>
+                      Problem Statement
+                    </h4>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#0284c7', backgroundColor: '#e0f2fe', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>
+                      {problemWords} / 1000 words
+                    </span>
+                  </div>
+                  <div style={{
+                    padding: '1rem',
+                    backgroundColor: 'var(--bg-main)',
+                    borderRadius: 'var(--radius-md)',
+                    whiteSpace: 'pre-wrap',
+                    color: 'var(--text-secondary)',
+                    lineHeight: 1.6,
+                    border: '1px solid var(--border)',
+                    fontSize: '0.875rem',
+                    maxHeight: '200px',
+                    overflowY: 'auto'
+                  }}>
+                    {selectedSubmission.problem_statement}
+                  </div>
+                </div>
+
+                {/* Submission Metadata & Status Controls */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.5rem', borderTop: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: '0.775rem', color: 'var(--text-muted)' }}>
+                    Submitted: {new Date(selectedSubmission.created_at).toLocaleString()} | Current Status: <span className={`status-pill status-${selectedSubmission.status}`}>{selectedSubmission.status}</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button
+                      onClick={() => {
+                        handleUpdateStatus('project-submission', selectedSubmission.id, 'approved');
+                        setSelectedSubmission(prev => prev ? { ...prev, status: 'approved' } : null);
+                      }}
+                      className="btn btn-primary btn-sm"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', backgroundColor: '#059669', borderColor: '#059669' }}
+                    >
+                      <Check size={14} /> Approve Submission
+                    </button>
+                    <button
+                      onClick={() => {
+                        handleUpdateStatus('project-submission', selectedSubmission.id, 'rejected');
+                        setSelectedSubmission(prev => prev ? { ...prev, status: 'rejected' } : null);
+                      }}
+                      className="btn btn-secondary btn-sm"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', color: '#dc2626' }}
+                    >
+                      <X size={14} /> Reject Submission
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Custom Alert/Confirm Modal Dialog */}
       {dialogConfig.isOpen && (

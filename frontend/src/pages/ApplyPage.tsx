@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useParams, useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '../config';
-import { ArrowLeft, User, Mail, Phone, GraduationCap, Calendar, Sparkles, Check, CheckCircle2, Loader2, Code, Users, Server, ChevronDown, Plus, Trash2, AlertTriangle, Award, Briefcase, Building2, HeartHandshake } from 'lucide-react';
+import { ArrowLeft, User, Mail, Phone, GraduationCap, Calendar, Sparkles, Check, CheckCircle2, Loader2, Code, Users, Server, ChevronDown, Plus, Trash2, AlertTriangle, Award, Briefcase, Building2, HeartHandshake, FolderUp, FileText, UploadCloud, ExternalLink, ShieldCheck } from 'lucide-react';
 
-type FormType = 'none' | 'join-club' | 'event' | 'hackathon' | 'recognition' | 'volunteer';
+type FormType = 'none' | 'join-club' | 'event' | 'hackathon' | 'recognition' | 'volunteer' | 'submission';
 
 interface CustomSelectProps {
   id: string;
@@ -683,6 +683,7 @@ export const CountryPhoneInput: React.FC<CountryPhoneInputProps> = ({
 const getFormTypeFromParam = (param?: string): FormType => {
   if (!param) return 'none';
   const clean = param.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (clean.includes('submission') || clean.includes('project')) return 'submission';
   if (clean.includes('recognition') || clean.includes('judge') || clean.includes('evaluator')) return 'recognition';
   if (clean.includes('hackathon')) return 'hackathon';
   if (clean.includes('club') || clean.includes('membership') || clean.includes('join')) return 'join-club';
@@ -759,6 +760,27 @@ export const ApplyPage: React.FC = () => {
   const [leaderCompany, setLeaderCompany] = useState('');
   const [leaderJobTitle, setLeaderJobTitle] = useState('');
 
+  // Project Submission specific fields state
+  const [submissionEvent, setSubmissionEvent] = useState('');
+  const [submissionEventsList, setSubmissionEventsList] = useState<string[]>([]);
+  const [submissionTeamName, setSubmissionTeamName] = useState('');
+  const [isVerifyingTeam, setIsVerifyingTeam] = useState(false);
+  const [verifiedTeam, setVerifiedTeam] = useState<any | null>(null);
+  const [teamVerifyError, setTeamVerifyError] = useState('');
+  const [submissionProjectTitle, setSubmissionProjectTitle] = useState('');
+  const [submissionProjectInfo, setSubmissionProjectInfo] = useState('');
+  const [submissionProblemStatement, setSubmissionProblemStatement] = useState('');
+  const [submissionFile, setSubmissionFile] = useState<File | null>(null);
+  const [submissionFileBase64, setSubmissionFileBase64] = useState('');
+  const [submissionSuccessData, setSubmissionSuccessData] = useState<{
+    referenceNumber: string;
+    submissionId: number;
+    teamName: string;
+    eventName: string;
+    driveFileUrl: string;
+    driveFolderUrl: string;
+  } | null>(null);
+
   interface Member {
     id: string;
     fullName: string;
@@ -816,6 +838,8 @@ export const ApplyPage: React.FC = () => {
       document.title = 'Judge Recognition Registration | R&D Club';
     } else if (formType === 'volunteer') {
       document.title = 'Volunteer Registration | R&D Club';
+    } else if (formType === 'submission') {
+      document.title = 'Project Submission | R&D Club';
     } else {
       document.title = 'Application Portal | R&D Club';
     }
@@ -868,6 +892,34 @@ export const ApplyPage: React.FC = () => {
             const initialJudgeEvt = eventParam && allList.includes(eventParam) ? eventParam : allList[0];
             setJudgeEventName(initialJudgeEvt);
             setJudgeEventDate(dates[initialJudgeEvt] || '');
+          }
+
+          // Fetch project submission events
+          try {
+            const subRes = await fetch(`${API_BASE_URL}/api/project-submission/events`);
+            if (subRes.ok) {
+              const subData = await subRes.json();
+              if (Array.isArray(subData) && subData.length > 0) {
+                setSubmissionEventsList(subData);
+                const subParam = searchParams.get('event');
+                if (subParam && subData.includes(subParam)) {
+                  setSubmissionEvent(subParam);
+                } else {
+                  setSubmissionEvent(subData[0]);
+                }
+              } else if (allList.length > 0) {
+                setSubmissionEventsList(allList);
+                setSubmissionEvent(allList[0]);
+              }
+            } else if (allList.length > 0) {
+              setSubmissionEventsList(allList);
+              setSubmissionEvent(allList[0]);
+            }
+          } catch (e) {
+            if (allList.length > 0) {
+              setSubmissionEventsList(allList);
+              setSubmissionEvent(allList[0]);
+            }
           }
         }
       } catch (err) {
@@ -957,6 +1009,18 @@ export const ApplyPage: React.FC = () => {
     setLeaderJobTitle('');
     setMembers([]);
     setHackathonConfirmed(false);
+
+    // Project submission reset
+    setSubmissionTeamName('');
+    setIsVerifyingTeam(false);
+    setVerifiedTeam(null);
+    setTeamVerifyError('');
+    setSubmissionProjectTitle('');
+    setSubmissionProjectInfo('');
+    setSubmissionProblemStatement('');
+    setSubmissionFile(null);
+    setSubmissionFileBase64('');
+    setSubmissionSuccessData(null);
   };
 
   const handleFormSelect = (type: FormType) => {
@@ -972,6 +1036,8 @@ export const ApplyPage: React.FC = () => {
       navigate('/apply/RecognitionRegistration');
     } else if (type === 'volunteer') {
       navigate('/apply/VolunteerRegistration');
+    } else if (type === 'submission') {
+      navigate('/apply/ProjectSubmission');
     } else {
       navigate('/apply');
     }
@@ -1010,6 +1076,157 @@ export const ApplyPage: React.FC = () => {
       }
       return m;
     }));
+  };
+
+  const countWords = (text: string): number => {
+    if (!text) return 0;
+    return text.trim().split(/\s+/).filter(Boolean).length;
+  };
+
+  const handleVerifyTeam = async () => {
+    if (!submissionEvent) {
+      setTeamVerifyError('Please select an event first before verifying team.');
+      return;
+    }
+    if (!submissionTeamName.trim()) {
+      setTeamVerifyError('Please enter your registered Team Name.');
+      return;
+    }
+
+    setIsVerifyingTeam(true);
+    setTeamVerifyError('');
+    setVerifiedTeam(null);
+
+    try {
+      const queryParams = new URLSearchParams({
+        eventName: submissionEvent,
+        teamName: submissionTeamName.trim()
+      });
+      const res = await fetch(`${API_BASE_URL}/api/project-submission/verify-team?${queryParams.toString()}`);
+      const data = await res.json();
+      if (res.ok && data.success && data.team) {
+        setVerifiedTeam(data.team);
+        if (data.team.projectTitle && !submissionProjectTitle) {
+          setSubmissionProjectTitle(data.team.projectTitle);
+        }
+        if (data.team.problemStatement && !submissionProblemStatement) {
+          setSubmissionProblemStatement(data.team.problemStatement);
+        }
+      } else {
+        setTeamVerifyError(data.message || data.error || `No registered team found matching "${submissionTeamName.trim()}" for event "${submissionEvent}". Please ensure the team name matches your exact registration.`);
+      }
+    } catch (err: any) {
+      setTeamVerifyError('Network error while verifying team. Please check your connection and try again.');
+    } finally {
+      setIsVerifyingTeam(false);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const allowedExtensions = ['.ppt', '.pptx', '.pdf'];
+    const fileName = file.name.toLowerCase();
+    const isAllowed = allowedExtensions.some(ext => fileName.endsWith(ext));
+
+    if (!isAllowed) {
+      alert('Only PPT, PPTX, or PDF files are accepted for presentation upload.');
+      e.target.value = '';
+      return;
+    }
+
+    const maxSizeInMB = 35;
+    if (file.size > maxSizeInMB * 1024 * 1024) {
+      alert(`File size exceeds the ${maxSizeInMB}MB limit. Please upload a smaller file.`);
+      e.target.value = '';
+      return;
+    }
+
+    setSubmissionFile(file);
+    const reader = new FileReader();
+    reader.onload = () => {
+      setSubmissionFileBase64(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSubmitProject = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!submissionEvent) {
+      alert('Please select an event.');
+      return;
+    }
+    if (!verifiedTeam) {
+      alert('Please enter and verify your registered Team Name first.');
+      return;
+    }
+    if (!submissionProjectTitle.trim()) {
+      alert('Please enter your Project Title.');
+      return;
+    }
+    if (!submissionProjectInfo.trim()) {
+      alert('Please provide your Project Info.');
+      return;
+    }
+    if (countWords(submissionProjectInfo) > 1500) {
+      alert(`Project Info cannot exceed 1,500 words (Current: ${countWords(submissionProjectInfo)} words).`);
+      return;
+    }
+    if (!submissionProblemStatement.trim()) {
+      alert('Please provide your Problem Statement.');
+      return;
+    }
+    if (countWords(submissionProblemStatement) > 1000) {
+      alert(`Problem Statement cannot exceed 1,000 words (Current: ${countWords(submissionProblemStatement)} words).`);
+      return;
+    }
+    if (!submissionFile || !submissionFileBase64) {
+      alert('Please upload your PPT/PPTX or PDF presentation file.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const payload = {
+        eventName: submissionEvent,
+        teamName: verifiedTeam.teamName,
+        projectTitle: submissionProjectTitle.trim(),
+        projectInfo: submissionProjectInfo.trim(),
+        problemStatement: submissionProblemStatement.trim(),
+        fileName: submissionFile.name,
+        fileBase64: submissionFileBase64,
+        mimeType: submissionFile.type || 'application/octet-stream',
+        fileSize: submissionFile.size
+      };
+
+      const res = await fetch(`${API_BASE_URL}/api/project-submission/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setSubmissionSuccessData({
+          referenceNumber: data.referenceNumber,
+          submissionId: data.submissionId,
+          teamName: data.teamName || verifiedTeam.teamName,
+          eventName: data.eventName || submissionEvent,
+          driveFileUrl: data.driveFileUrl,
+          driveFolderUrl: data.driveFolderUrl
+        });
+        setIsSuccess(true);
+      } else {
+        alert(data.error || 'Failed to submit project. Please try again.');
+      }
+    } catch (err: any) {
+      console.error('Project submission error:', err);
+      alert('Network or server error occurred while uploading your presentation. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -1385,6 +1602,17 @@ export const ApplyPage: React.FC = () => {
               </p>
               <button className="btn btn-primary btn-sm">Apply as Volunteer</button>
             </div>
+
+            <div className="apply-option-card card hover-lift" onClick={() => handleFormSelect('submission')}>
+              <div className="apply-icon-wrapper submission-icon">
+                <FolderUp size={28} />
+              </div>
+              <h3>Project Submission</h3>
+              <p>
+                Submit your project info, problem statement, and presentation (PPT/PDF).
+              </p>
+              <button className="btn btn-primary btn-sm">Submit Project</button>
+            </div>
           </div>
         </div>
       ) : (
@@ -1394,13 +1622,27 @@ export const ApplyPage: React.FC = () => {
           {/* Left Column: Branding panel */}
           <div className="apply-info-panel">
             <span className="badge">
-              {formType === 'recognition' ? 'Honoring Excellence' : formType === 'volunteer' ? 'Support & Lead' : 'Join the Pioneers'}
+              {formType === 'submission'
+                ? 'Project Submission'
+                : formType === 'recognition'
+                ? 'Honoring Excellence'
+                : formType === 'volunteer'
+                ? 'Support & Lead'
+                : 'Join the Pioneers'}
             </span>
             <h1 className="apply-panel-title">
-              {formType === 'recognition' ? 'Distinguished Judges & Evaluators' : formType === 'volunteer' ? 'Become a Core Event Volunteer' : 'Shape the Future With R&D Club'}
+              {formType === 'submission'
+                ? 'Showcase Your Innovation'
+                : formType === 'recognition'
+                ? 'Distinguished Judges & Evaluators'
+                : formType === 'volunteer'
+                ? 'Become a Core Event Volunteer'
+                : 'Shape the Future With R&D Club'}
             </h1>
             <p className="apply-panel-desc">
-              {formType === 'recognition'
+              {formType === 'submission'
+                ? 'Submit your registered team\'s project presentation, detailed technical explanation, and problem statement directly to our Google Drive evaluation repository.'
+                : formType === 'recognition'
                 ? 'We express our deepest gratitude to industry leaders, eminent academicians, and technical experts whose fair evaluations guide and inspire our student innovators.'
                 : formType === 'volunteer'
                 ? 'Be the backbone of major hackathons, technical symposiums, and R&D Club operations. Gain hands-on leadership experience, event management skills, and verified volunteer certificates.'
@@ -1410,31 +1652,31 @@ export const ApplyPage: React.FC = () => {
             <div className="apply-features-list">
               <div className="apply-feature-item">
                 <div className="feature-icon-box">
-                  {formType === 'recognition' ? <Award size={18} /> : formType === 'volunteer' ? <HeartHandshake size={18} /> : <Code size={18} />}
+                  {formType === 'submission' ? <FolderUp size={18} /> : formType === 'recognition' ? <Award size={18} /> : formType === 'volunteer' ? <HeartHandshake size={18} /> : <Code size={18} />}
                 </div>
                 <div className="feature-item-text">
-                  <h4>{formType === 'recognition' ? 'Institutional Recognition' : formType === 'volunteer' ? 'Leadership & Networking' : 'Real-World Experience'}</h4>
-                  <p>{formType === 'recognition' ? 'Receive an official, tamper-proof Certificate of Recognition verified by institutional leadership.' : formType === 'volunteer' ? 'Work closely with faculty, industry judges, and guest speakers while leading high-impact initiatives.' : 'Work directly on modern software/hardware codebases and write peer-reviewed scientific papers.'}</p>
+                  <h4>{formType === 'submission' ? 'Google Drive Cloud Storage' : formType === 'recognition' ? 'Institutional Recognition' : formType === 'volunteer' ? 'Leadership & Networking' : 'Real-World Experience'}</h4>
+                  <p>{formType === 'submission' ? 'Presentations are organized automatically into dedicated event and team folders in Google Drive.' : formType === 'recognition' ? 'Receive an official, tamper-proof Certificate of Recognition verified by institutional leadership.' : formType === 'volunteer' ? 'Work closely with faculty, industry judges, and guest speakers while leading high-impact initiatives.' : 'Work directly on modern software/hardware codebases and write peer-reviewed scientific papers.'}</p>
                 </div>
               </div>
 
               <div className="apply-feature-item">
                 <div className="feature-icon-box text-emerald">
-                  <Users size={18} />
+                  {formType === 'submission' ? <ShieldCheck size={18} /> : <Users size={18} />}
                 </div>
                 <div className="feature-item-text">
-                  <h4>{formType === 'recognition' ? 'Academic Leadership' : formType === 'volunteer' ? 'Team Coordination' : 'Mentorship & Growth'}</h4>
-                  <p>{formType === 'recognition' ? 'Guide students through real-world problem statements and identify promising engineering talent.' : formType === 'volunteer' ? 'Coordinate stage management, registration desks, hackathon logistics, and participant mentoring.' : 'Get guided by experienced senior researchers and faculty advisors with regular code reviews.'}</p>
+                  <h4>{formType === 'submission' ? 'Automated Team Verification' : formType === 'recognition' ? 'Academic Leadership' : formType === 'volunteer' ? 'Team Coordination' : 'Mentorship & Growth'}</h4>
+                  <p>{formType === 'submission' ? 'System matches your registered team name and automatically loads leader and member details.' : formType === 'recognition' ? 'Guide students through real-world problem statements and identify promising engineering talent.' : formType === 'volunteer' ? 'Coordinate stage management, registration desks, hackathon logistics, and participant mentoring.' : 'Get guided by experienced senior researchers and faculty advisors with regular code reviews.'}</p>
                 </div>
               </div>
 
               <div className="apply-feature-item">
                 <div className="feature-icon-box text-indigo">
-                  <Sparkles size={18} />
+                  {formType === 'submission' ? <FileText size={18} /> : <Sparkles size={18} />}
                 </div>
                 <div className="feature-item-text">
-                  <h4>{formType === 'recognition' ? 'Verifiable Credential' : formType === 'volunteer' ? 'Volunteer Certification' : 'HPC Compute & Resources'}</h4>
-                  <p>{formType === 'recognition' ? 'Indexed with a permanent verification ID accessible to academic institutions and organizations globally.' : formType === 'volunteer' ? 'Receive an official, verifiable Certificate of Appreciation acknowledging your dedication and service.' : 'Get priority access to high-performance A100/H100 clusters and electronics testing labs.'}</p>
+                  <h4>{formType === 'submission' ? 'Evaluation Documentation' : formType === 'recognition' ? 'Verifiable Credential' : formType === 'volunteer' ? 'Volunteer Certification' : 'HPC Compute & Resources'}</h4>
+                  <p>{formType === 'submission' ? 'Structured project info up to 1,500 words and problem statement up to 1,000 words for judges.' : formType === 'recognition' ? 'Indexed with a permanent verification ID accessible to academic institutions and organizations globally.' : formType === 'volunteer' ? 'Receive an official, verifiable Certificate of Appreciation acknowledging your dedication and service.' : 'Get priority access to high-performance A100/H100 clusters and electronics testing labs.'}</p>
                 </div>
               </div>
             </div>
@@ -1445,7 +1687,19 @@ export const ApplyPage: React.FC = () => {
             <div className="form-container-card card">
               <div className="form-header-row">
                 <div>
-                  <h2>{formType === 'join-club' ? 'Membership Application' : formType === 'event' ? 'Event Registration' : formType === 'recognition' ? 'Judge & Dignitary Recognition' : formType === 'volunteer' ? 'Volunteer Registration' : 'Hackathon Registration'}</h2>
+                  <h2>
+                    {formType === 'submission'
+                      ? 'Project Submission Portal'
+                      : formType === 'join-club'
+                      ? 'Membership Application'
+                      : formType === 'event'
+                      ? 'Event Registration'
+                      : formType === 'recognition'
+                      ? 'Judge & Dignitary Recognition'
+                      : formType === 'volunteer'
+                      ? 'Volunteer Registration'
+                      : 'Hackathon Registration'}
+                  </h2>
                   <p style={{ color: 'var(--text-secondary)', fontSize: '0.8125rem', marginTop: '0.25rem' }}>
                     Fields marked with <span className="req">*</span> are required.
                   </p>
@@ -1460,20 +1714,52 @@ export const ApplyPage: React.FC = () => {
                   <div className="success-icon-wrapper">
                     <Check size={48} />
                   </div>
-                  <h3>{formType === 'recognition' ? 'Recognition Details Recorded!' : formType === 'volunteer' ? 'Volunteer Application Submitted!' : 'Application Submitted!'}</h3>
+                  <h3>
+                    {formType === 'submission'
+                      ? 'Project Submitted Successfully!'
+                      : formType === 'recognition'
+                      ? 'Recognition Details Recorded!'
+                      : formType === 'volunteer'
+                      ? 'Volunteer Application Submitted!'
+                      : 'Application Submitted!'}
+                  </h3>
                   <p>
-                    {formType === 'recognition'
+                    {formType === 'submission' ? (
+                      <>
+                        Your project presentation and documentation have been securely saved and uploaded directly to Google Drive.
+                        {submissionSuccessData?.referenceNumber && (
+                          <div style={{ marginTop: '0.75rem', fontWeight: 600, color: 'var(--primary)', fontSize: '0.9375rem' }}>
+                            Submission Reference: {submissionSuccessData.referenceNumber}
+                          </div>
+                        )}
+                      </>
+                    ) : formType === 'recognition'
                       ? 'Thank you for your valuable contribution. Your information has been saved. Your official Certificate of Recognition will be issued by the administration.'
                       : formType === 'volunteer'
                       ? 'Thank you for stepping forward! Your volunteer application has been submitted. Our organizing committee will review your profile and contact you soon.'
                       : 'Your request has been saved. An email confirmation has been sent to your university address.'}
                   </p>
-                  <button onClick={() => handleFormSelect('none')} className="btn btn-secondary btn-sm">
+
+                  {formType === 'submission' && submissionSuccessData?.driveFileUrl && (
+                    <div style={{ marginTop: '1rem', display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                      <a
+                        href={submissionSuccessData.driveFileUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="btn btn-primary btn-sm"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
+                      >
+                        <ExternalLink size={15} /> View in Google Drive
+                      </a>
+                    </div>
+                  )}
+
+                  <button onClick={() => handleFormSelect('none')} className="btn btn-secondary btn-sm" style={{ marginTop: '1.25rem' }}>
                     Back to Options
                   </button>
                 </div>
               ) : (
-                <form onSubmit={handleSubmit} className="apply-detailed-form">
+                <form onSubmit={formType === 'submission' ? handleSubmitProject : handleSubmit} className="apply-detailed-form">
                   {/* Academic & Contact Section */}
                   {(formType === 'join-club' || formType === 'event') && (
                     <>
@@ -2397,10 +2683,268 @@ export const ApplyPage: React.FC = () => {
                     </>
                   )}
 
-                  <button type="submit" disabled={isSubmitting} className="btn btn-primary form-submit-btn" style={{ marginTop: '1rem' }}>
+                  {formType === 'submission' && (
+                    <>
+                      <div className="alert-notice-box" style={{ 
+                        backgroundColor: '#eff6ff', 
+                        border: '1px solid #dbeafe', 
+                        borderRadius: '8px', 
+                        padding: '1.25rem', 
+                        marginBottom: '1.75rem',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.5rem',
+                        boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, color: '#1d4ed8', fontSize: '0.9375rem' }}>
+                          <FolderUp size={18} />
+                          <span>Google Drive Project Submission:</span>
+                        </div>
+                        <p style={{ margin: 0, fontSize: '0.875rem', color: '#1e40af', lineHeight: 1.6 }}>
+                          Please select your event and enter your registered team name. Once your team is verified, upload your presentation file (.ppt, .pptx, or .pdf). All files will be automatically created and organized inside dedicated Google Drive folders.
+                        </p>
+                      </div>
+
+                      {/* 1. Select Event */}
+                      <div className="form-section-title">1. Select Event</div>
+                      <div className="form-group">
+                        <label htmlFor="submissionEvent">Registered Event / Hackathon <span className="req">*</span></label>
+                        <CustomSelect
+                          id="submissionEvent"
+                          required
+                          value={submissionEvent}
+                          onChange={(val) => {
+                            setSubmissionEvent(val);
+                            setVerifiedTeam(null);
+                            setTeamVerifyError('');
+                          }}
+                          options={submissionEventsList.length > 0 ? submissionEventsList : (allEventsList.length > 0 ? allEventsList : ['Smart India Hackathon 2026', 'R&D Annual TechFest'])}
+                          placeholder="Select Event"
+                          icon={<Calendar size={16} />}
+                        />
+                      </div>
+
+                      {/* 2. Enter Team Name */}
+                      <div className="form-section-title" style={{ marginTop: '1.5rem' }}>2. Enter Team Name</div>
+                      <div className="form-group">
+                        <label htmlFor="submissionTeamName">Team Name (as registered) <span className="req">*</span></label>
+                        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
+                          <div className="input-with-icon" style={{ flex: 1 }}>
+                            <Users size={16} />
+                            <input
+                              type="text"
+                              id="submissionTeamName"
+                              required
+                              placeholder="e.g. Code Pioneers"
+                              value={submissionTeamName}
+                              onChange={(e) => {
+                                setSubmissionTeamName(e.target.value);
+                                if (verifiedTeam) {
+                                  setVerifiedTeam(null);
+                                }
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  handleVerifyTeam();
+                                }
+                              }}
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            className="btn btn-primary"
+                            onClick={handleVerifyTeam}
+                            disabled={isVerifyingTeam || !submissionTeamName.trim() || !submissionEvent}
+                            style={{ whiteSpace: 'nowrap', minHeight: '44px', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                          >
+                            {isVerifyingTeam ? (
+                              <>
+                                <Loader2 size={15} className="spinner-icon" /> Verifying...
+                              </>
+                            ) : (
+                              <>
+                                <ShieldCheck size={15} /> Verify Team
+                              </>
+                            )}
+                          </button>
+                        </div>
+                        {teamVerifyError && (
+                          <div className="field-hint-error" style={{ marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                            <AlertTriangle size={14} /> {teamVerifyError}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Verified Team Details Card */}
+                      {verifiedTeam && (
+                        <div className="submission-verified-card">
+                          <div className="submission-verified-header">
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#16a34a', fontWeight: 600, fontSize: '0.9375rem' }}>
+                              <CheckCircle2 size={18} />
+                              <span>Registered Team Verified</span>
+                            </div>
+                            <span className="badge" style={{ backgroundColor: 'rgba(22, 163, 74, 0.1)', color: '#16a34a', border: '1px solid rgba(22, 163, 74, 0.2)' }}>
+                              Verified
+                            </span>
+                          </div>
+                          
+                          <div className="submission-team-grid">
+                            <div className="team-meta-item">
+                              <span className="meta-label">Team Name:</span>
+                              <span className="meta-value font-semibold">{verifiedTeam.teamName}</span>
+                            </div>
+                            <div className="team-meta-item">
+                              <span className="meta-label">Event:</span>
+                              <span className="meta-value">{verifiedTeam.eventName}</span>
+                            </div>
+                            <div className="team-meta-item">
+                              <span className="meta-label">Team Leader:</span>
+                              <span className="meta-value">{verifiedTeam.leaderName} ({verifiedTeam.leaderEmail} • {verifiedTeam.leaderPhone})</span>
+                            </div>
+                            <div className="team-meta-item">
+                              <span className="meta-label">College / Institution:</span>
+                              <span className="meta-value">{verifiedTeam.institution}</span>
+                            </div>
+                            {verifiedTeam.members && verifiedTeam.members.length > 0 && (
+                              <div className="team-meta-item full-width">
+                                <span className="meta-label">Team Members ({verifiedTeam.members.length}):</span>
+                                <div className="team-members-chips">
+                                  {verifiedTeam.members.map((m: any, idx: number) => (
+                                    <span key={idx} className="member-chip">
+                                      {m.fullName || m.name || `Member ${idx + 1}`} ({m.role || 'Member'})
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 3. Project Information */}
+                      <div className="form-section-title" style={{ marginTop: '1.75rem' }}>3. Project Information</div>
+
+                      <div className="form-group">
+                        <label htmlFor="submissionProjectTitle">Project Title <span className="req">*</span></label>
+                        <div className="input-with-icon">
+                          <FileText size={16} />
+                          <input
+                            type="text"
+                            id="submissionProjectTitle"
+                            required
+                            placeholder="e.g. AI-Powered Autonomous Crop Monitoring System"
+                            value={submissionProjectTitle}
+                            onChange={(e) => setSubmissionProjectTitle(e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="form-group">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.375rem' }}>
+                          <label htmlFor="submissionProjectInfo" style={{ margin: 0 }}>
+                            Project Info <span className="req">*</span>
+                          </label>
+                          <span className={`word-counter-pill ${countWords(submissionProjectInfo) > 1500 ? 'counter-danger' : countWords(submissionProjectInfo) > 1350 ? 'counter-warning' : 'counter-normal'}`}>
+                            {countWords(submissionProjectInfo)} / 1,500 words
+                          </span>
+                        </div>
+                        <textarea
+                          id="submissionProjectInfo"
+                          rows={6}
+                          required
+                          placeholder="Provide detailed project explanation: system architecture, technology stack, operational workflow, core features, and experimental results (maximum 1,500 words)..."
+                          value={submissionProjectInfo}
+                          onChange={(e) => setSubmissionProjectInfo(e.target.value)}
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.375rem' }}>
+                          <label htmlFor="submissionProblemStatement" style={{ margin: 0 }}>
+                            Problem Statement <span className="req">*</span>
+                          </label>
+                          <span className={`word-counter-pill ${countWords(submissionProblemStatement) > 1000 ? 'counter-danger' : countWords(submissionProblemStatement) > 900 ? 'counter-warning' : 'counter-normal'}`}>
+                            {countWords(submissionProblemStatement)} / 1,000 words
+                          </span>
+                        </div>
+                        <textarea
+                          id="submissionProblemStatement"
+                          rows={5}
+                          required
+                          placeholder="Explain the real-world problem statement, societal/industrial relevance, current constraints, and proposed innovative solution (maximum 1,000 words)..."
+                          value={submissionProblemStatement}
+                          onChange={(e) => setSubmissionProblemStatement(e.target.value)}
+                        />
+                      </div>
+
+                      {/* 4. Upload Presentation */}
+                      <div className="form-section-title" style={{ marginTop: '1.75rem' }}>4. Upload Presentation</div>
+                      
+                      <div className="form-group">
+                        <label>Presentation File (PPT / PPTX / PDF) <span className="req">*</span></label>
+                        <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>
+                          Uploaded presentations are transferred and saved directly to <strong>Google Drive</strong> inside dedicated event and team folders. Presentation files are not stored in the database.
+                        </p>
+
+                        {!submissionFile ? (
+                          <div className="file-upload-dropzone">
+                            <input
+                              type="file"
+                              id="submissionFileInput"
+                              accept=".ppt,.pptx,.pdf,application/pdf,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                              onChange={handleFileChange}
+                              style={{ display: 'none' }}
+                            />
+                            <label htmlFor="submissionFileInput" className="dropzone-label">
+                              <UploadCloud size={36} className="dropzone-icon" />
+                              <span className="dropzone-title">Click or Drag to Upload Presentation</span>
+                              <span className="dropzone-subtitle">Supported formats: PPT, PPTX, PDF (Max 35MB)</span>
+                            </label>
+                          </div>
+                        ) : (
+                          <div className="selected-file-card">
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                              <div className="file-icon-badge">
+                                <FileText size={24} />
+                              </div>
+                              <div>
+                                <div className="file-name-text">{submissionFile.name}</div>
+                                <div className="file-size-text">{(submissionFile.size / (1024 * 1024)).toFixed(2)} MB • Ready for Google Drive upload</div>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => {
+                                setSubmissionFile(null);
+                                setSubmissionFileBase64('');
+                              }}
+                              title="Remove file and choose another"
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                            >
+                              <Trash2 size={14} /> Remove
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={isSubmitting || (formType === 'submission' && (!verifiedTeam || !submissionFile))}
+                    className="btn btn-primary form-submit-btn"
+                    style={{ marginTop: '1.5rem' }}
+                  >
                     {isSubmitting ? (
                       <>
-                        <Loader2 className="spinner-icon" size={16} /> Submitting...
+                        <Loader2 className="spinner-icon" size={16} />
+                        {formType === 'submission' ? 'Uploading to Drive & Submitting...' : 'Submitting...'}
+                      </>
+                    ) : formType === 'submission' ? (
+                      <>
+                        <UploadCloud size={16} /> Submit Project Presentation
                       </>
                     ) : (
                       'Submit Application'

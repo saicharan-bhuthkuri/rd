@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Users, ArrowLeft, LogOut, Sparkles, Calendar, ClipboardList, Layers, Menu, X, Code, Award, HeartHandshake } from 'lucide-react';
+import { Users, ArrowLeft, LogOut, Sparkles, Calendar, ClipboardList, Layers, Menu, X, Code, Award, HeartHandshake, FolderUp } from 'lucide-react';
 import { API_BASE_URL } from '../config';
 
 interface AdminLayoutProps {
@@ -95,6 +95,11 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
           <Link to="/admin/volunteers" className={`admin-nav-item ${isActive('/admin/volunteers')}`}>
             <HeartHandshake size={18} />
             <span>Volunteers</span>
+          </Link>
+
+          <Link to="/admin/submissions" className={`admin-nav-item ${isActive('/admin/submissions')}`}>
+            <FolderUp size={18} />
+            <span>Project Submissions</span>
           </Link>
 
           <Link to="/admin/events/manage" className={`admin-nav-item ${isActive('/admin/events/manage')}`}>

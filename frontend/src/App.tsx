@@ -255,6 +255,24 @@ function App() {
           />
 
           <Route
+            path="/admin/submissions"
+            element={
+              <ProtectedRoute>
+                <AdminDashboardPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin/project-submissions"
+            element={
+              <ProtectedRoute>
+                <AdminDashboardPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
             path="/admin/users"
             element={
               <ProtectedRoute allowedRoles={['developer', 'superadmin']}>
