@@ -2202,13 +2202,11 @@ cd ../frontend && npm run dev
 * Passwords are encrypted using a unique, cryptographically secure 16-byte random salt generated per-user, prepended to the password, and hashed using `bcryptjs` with a work factor of 10.
 * Seeding logic inserts defaults on startup if they do not exist, and migrates existing legacy/un-salted default seeded accounts to the new salted schema.
 
-### Default Admin Accounts (Seeded automatically)
+### Default Admin Accounts (Configured via secure setup)
 * **Developer Access**:
   * Username: `charan`
-  * Password: `Bharat@8336`
 * **Superadmin Access**:
   * Username: `akhya`
-  * Password: `akhya@1962`
 
 ### Role-Based Access Control (RBAC)
 * **`developer`**: Can perform any dashboard action and create or delete other developers, superadmins, or admins.

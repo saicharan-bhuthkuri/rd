@@ -406,17 +406,9 @@ async function setupDatabase() {
       // Column already exists, ignore
     }
 
-    // Seed Default accounts
-    const DEFAULT_DEV_PASSWORD = process.env.DEFAULT_DEV_PASSWORD || 'Bharat@8336';
-    const DEFAULT_SUPERADMIN_PASSWORD = process.env.DEFAULT_SUPERADMIN_PASSWORD || 'akhya@1962';
-
-    if (DEFAULT_DEV_PASSWORD === 'Bharat@8336' || DEFAULT_SUPERADMIN_PASSWORD === 'akhya@1962') {
-      if (isProd) {
-        console.error("\x1b[31m%s\x1b[0m", "CRITICAL SECURITY WARNING: Seeding default credentials in a production environment. You MUST change DEFAULT_DEV_PASSWORD and DEFAULT_SUPERADMIN_PASSWORD in your environment variables immediately to prevent unauthorized access!");
-      } else {
-        console.warn("\x1b[33m%s\x1b[0m", "SECURITY WARNING: Seeding default credentials directly. Please configure DEFAULT_DEV_PASSWORD and DEFAULT_SUPERADMIN_PASSWORD in .env.");
-      }
-    }
+    // Initial admin seeding (only executed if explicitly defined via environment variables and accounts do not exist)
+    const DEFAULT_DEV_PASSWORD = process.env.DEFAULT_DEV_PASSWORD;
+    const DEFAULT_SUPERADMIN_PASSWORD = process.env.DEFAULT_SUPERADMIN_PASSWORD;
 
     // Seeding Developer: charan
     try {
@@ -425,16 +417,20 @@ async function setupDatabase() {
         args: ['charan']
       });
       if (devCheck.rows.length === 0) {
-        const devSalt = generateSalt();
-        const devPassHash = await bcrypt.hash(devSalt + DEFAULT_DEV_PASSWORD, 10);
-        await db.execute({
-          sql: `INSERT INTO admin_users (username, password, salt, role, email) VALUES (?, ?, ?, ?, ?)`,
-          args: ['charan', devPassHash, devSalt, 'developer', 'SAICHARANBHUTHKURI8336@GMAIL.COM']
-        });
-        console.log("Seeding: Developer 'charan' created with salt.");
+        if (DEFAULT_DEV_PASSWORD) {
+          const devSalt = generateSalt();
+          const devPassHash = await bcrypt.hash(devSalt + DEFAULT_DEV_PASSWORD, 10);
+          await db.execute({
+            sql: `INSERT INTO admin_users (username, password, salt, role, email) VALUES (?, ?, ?, ?, ?)`,
+            args: ['charan', devPassHash, devSalt, 'developer', 'SAICHARANBHUTHKURI8336@GMAIL.COM']
+          });
+          console.log("Seeding: Developer 'charan' created with salt.");
+        } else {
+          console.log("Seeding: Developer 'charan' does not exist and DEFAULT_DEV_PASSWORD is not set. Skipping automatic creation.");
+        }
       } else {
         const user = devCheck.rows[0];
-        if (user.salt === null || user.salt === undefined) {
+        if ((user.salt === null || user.salt === undefined) && DEFAULT_DEV_PASSWORD) {
           const devSalt = generateSalt();
           const devPassHash = await bcrypt.hash(devSalt + DEFAULT_DEV_PASSWORD, 10);
           await db.execute({
@@ -460,16 +456,20 @@ async function setupDatabase() {
         args: ['akhya']
       });
       if (superadminCheck.rows.length === 0) {
-        const superadminSalt = generateSalt();
-        const superadminPassHash = await bcrypt.hash(superadminSalt + DEFAULT_SUPERADMIN_PASSWORD, 10);
-        await db.execute({
-          sql: `INSERT INTO admin_users (username, password, salt, role, email) VALUES (?, ?, ?, ?, ?)`,
-          args: ['akhya', superadminPassHash, superadminSalt, 'superadmin', 'AKHYABAIRI004@GMAIL.COM']
-        });
-        console.log("Seeding: Super Admin 'akhya' created with salt.");
+        if (DEFAULT_SUPERADMIN_PASSWORD) {
+          const superadminSalt = generateSalt();
+          const superadminPassHash = await bcrypt.hash(superadminSalt + DEFAULT_SUPERADMIN_PASSWORD, 10);
+          await db.execute({
+            sql: `INSERT INTO admin_users (username, password, salt, role, email) VALUES (?, ?, ?, ?, ?)`,
+            args: ['akhya', superadminPassHash, superadminSalt, 'superadmin', 'AKHYABAIRI004@GMAIL.COM']
+          });
+          console.log("Seeding: Super Admin 'akhya' created with salt.");
+        } else {
+          console.log("Seeding: Super Admin 'akhya' does not exist and DEFAULT_SUPERADMIN_PASSWORD is not set. Skipping automatic creation.");
+        }
       } else {
         const user = superadminCheck.rows[0];
-        if (user.salt === null || user.salt === undefined) {
+        if ((user.salt === null || user.salt === undefined) && DEFAULT_SUPERADMIN_PASSWORD) {
           const superadminSalt = generateSalt();
           const superadminPassHash = await bcrypt.hash(superadminSalt + DEFAULT_SUPERADMIN_PASSWORD, 10);
           await db.execute({
@@ -1599,8 +1599,8 @@ app.delete('/api/admin/events/:id', authenticateToken, async (req: Authenticated
     return res.status(500).json({ error: "Failed to delete technical event.", details: err.message });
   }
 });
-const SENDER_EMAIL = process.env.SENDER_EMAIL || 'tcekrd@gmail.com';
-const SENDER_PASSWORD = process.env.SENDER_PASSWORD || 'tewheruxhrdwzqmu';
+const SENDER_EMAIL = process.env.SENDER_EMAIL || 'tcekrdcell@gmail.com';
+const SENDER_PASSWORD = process.env.SENDER_PASSWORD || 'qtptqrywkyctekzo';
 
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
