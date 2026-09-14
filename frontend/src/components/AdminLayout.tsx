@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Users, ArrowLeft, LogOut, Sparkles, Calendar, ClipboardList, Layers, Menu, X, Code, Award } from 'lucide-react';
+import { Users, ArrowLeft, LogOut, Sparkles, Calendar, ClipboardList, Layers, Menu, X, Code, Award, HeartHandshake } from 'lucide-react';
 import { API_BASE_URL } from '../config';
 
 interface AdminLayoutProps {
@@ -19,23 +19,25 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
 
   const handleLogout = async () => {
     try {
-      await fetch(`${API_BASE_URL}/api/admin/logout`, { method: 'POST' });
+      const token = localStorage.getItem('admin_token');
+      if (token) {
+        await fetch(`${API_BASE_URL}/api/admin/logout`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+      }
     } catch (err) {
       console.error("Logout request failed:", err);
+    } finally {
+      localStorage.removeItem('admin_token');
+      localStorage.removeItem('admin_user');
+      navigate('/admin/login');
     }
-    localStorage.removeItem('csrf_token');
-    localStorage.removeItem('admin_user');
-    localStorage.removeItem('admin_token');
-    navigate('/admin/login');
   };
 
   const isActive = (path: string) => {
-    if (path === '/admin/users') {
-      return location.pathname.startsWith('/admin/users') ? 'active' : '';
-    }
-    if (path === '/admin/events/manage') {
-      return (location.pathname === '/admin/events/manage' || location.pathname === '/admin/events/create') ? 'active' : '';
-    }
     return location.pathname === path ? 'active' : '';
   };
 
@@ -46,28 +48,24 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
 
   return (
     <div className="admin-container">
-      {/* Mobile Sidebar Overlay */}
+      {/* Mobile Backdrop */}
       {isSidebarOpen && (
         <div 
-          className="admin-sidebar-overlay" 
+          className="mobile-sidebar-backdrop"
           onClick={() => setIsSidebarOpen(false)}
         />
       )}
 
       {/* Sidebar */}
       <aside className={`admin-sidebar ${isSidebarOpen ? 'open' : ''}`}>
-        <div className="admin-brand">
-          <div className="brand-logo">
-            <Sparkles size={20} />
-          </div>
-          <div>
-            <h3>R&D Cell</h3>
+        <div className="admin-sidebar-header">
+          <div className="admin-brand">
+            <span className="brand-dot"></span>
             <span>Admin Console</span>
           </div>
           <button 
             className="mobile-sidebar-close" 
             onClick={() => setIsSidebarOpen(false)}
-            aria-label="Close menu"
           >
             <X size={20} />
           </button>
@@ -92,6 +90,11 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
           <Link to="/admin/recognition" className={`admin-nav-item ${isActive('/admin/recognition')}`}>
             <Award size={18} />
             <span>Judge Recognition</span>
+          </Link>
+
+          <Link to="/admin/volunteers" className={`admin-nav-item ${isActive('/admin/volunteers')}`}>
+            <HeartHandshake size={18} />
+            <span>Volunteers</span>
           </Link>
 
           <Link to="/admin/events/manage" className={`admin-nav-item ${isActive('/admin/events/manage')}`}>
@@ -157,6 +160,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
                   ? 'Hackathon Team Registrations'
                   : location.pathname === '/admin/recognition'
                   ? 'Judge & Dignitary Recognition Applications'
+                  : location.pathname === '/admin/volunteers'
+                  ? 'Volunteer Applications'
                   : location.pathname === '/admin/events/manage'
                   ? 'Manage Technical Events'
                   : location.pathname === '/admin/events/create'

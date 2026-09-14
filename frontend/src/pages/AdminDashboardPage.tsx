@@ -2,7 +2,27 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { API_BASE_URL } from '../config';
 import { AdminLayout } from '../components/AdminLayout';
-import { Download, Check, X, Layers, Calendar, Mail, Loader2, Eye, Award } from 'lucide-react';
+import { Download, Check, X, Layers, Calendar, Mail, Loader2, Eye, Award, HeartHandshake } from 'lucide-react';
+
+interface VolunteerApplication {
+  id: number;
+  full_name: string;
+  pin_number: string;
+  email: string;
+  mobile: string;
+  branch: string;
+  year_of_study: string;
+  event_name: string;
+  volunteer_role: string;
+  skills: string;
+  past_experience?: string;
+  availability: string;
+  notes?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  certificate_sent?: number;
+  certificate_id?: string;
+  created_at: string;
+}
 
 interface RecognitionApplication {
   id: number;
@@ -85,13 +105,16 @@ export const AdminDashboardPage: React.FC = () => {
   const activeTab = location.pathname.includes('/events') ? 'event' 
     : location.pathname.includes('/hackathons') ? 'hackathon' 
     : location.pathname.includes('/recognition') ? 'recognition' 
+    : location.pathname.includes('/volunteers') ? 'volunteer'
     : 'club';
   const [clubApps, setClubApps] = useState<ClubApplication[]>([]);
   const [eventRegs, setEventRegs] = useState<EventRegistration[]>([]);
   const [hackathonRegs, setHackathonRegs] = useState<HackathonRegistration[]>([]);
   const [recognitionApps, setRecognitionApps] = useState<RecognitionApplication[]>([]);
+  const [volunteerApps, setVolunteerApps] = useState<VolunteerApplication[]>([]);
   const [selectedHackathon, setSelectedHackathon] = useState<HackathonRegistration | null>(null);
   const [selectedRecognition, setSelectedRecognition] = useState<RecognitionApplication | null>(null);
+  const [selectedVolunteer, setSelectedVolunteer] = useState<VolunteerApplication | null>(null);
   
   // Filtering & Search states
   const [searchTerm, setSearchTerm] = useState('');
@@ -100,6 +123,7 @@ export const AdminDashboardPage: React.FC = () => {
   const [eventFilter, setEventFilter] = useState('all');
   const [hackathonFilter, setHackathonFilter] = useState('all');
   const [certSentFilter, setCertSentFilter] = useState<'all' | 'sent' | 'pending'>('all');
+  const [volunteerRoleFilter, setVolunteerRoleFilter] = useState('all');
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -135,6 +159,7 @@ export const AdminDashboardPage: React.FC = () => {
       setEventRegs(data.eventRegistrations || []);
       setHackathonRegs(data.hackathonRegistrations || []);
       setRecognitionApps(data.recognitionApplications || []);
+      setVolunteerApps(data.volunteerApplications || []);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -569,7 +594,7 @@ export const AdminDashboardPage: React.FC = () => {
   };
 
   // Update status action
-  const handleUpdateStatus = async (type: 'club' | 'event' | 'hackathon' | 'hackathon-certificate-type' | 'recognition', id: number, status: string) => {
+  const handleUpdateStatus = async (type: 'club' | 'event' | 'hackathon' | 'hackathon-certificate-type' | 'recognition' | 'volunteer', id: number, status: string) => {
     const token = localStorage.getItem('admin_token');
     try {
       const response = await fetch(`${API_BASE_URL}/api/admin/applications/status`, {
@@ -598,12 +623,22 @@ export const AdminDashboardPage: React.FC = () => {
     const branches = new Set<string>();
     clubApps.forEach(app => branches.add(app.branch.toUpperCase()));
     eventRegs.forEach(reg => branches.add(reg.branch.toUpperCase()));
+    volunteerApps.forEach(app => branches.add(app.branch.toUpperCase()));
     hackathonRegs.forEach(reg => {
       if (reg.leader_branch) {
         branches.add(reg.leader_branch.toUpperCase());
       }
     });
     return Array.from(branches);
+  };
+
+  // Get distinct volunteer roles for filter dropdown
+  const getVolunteerRoles = () => {
+    const roles = new Set<string>();
+    volunteerApps.forEach(app => {
+      if (app.volunteer_role) roles.add(app.volunteer_role);
+    });
+    return Array.from(roles);
   };
 
   // Get distinct events for filter dropdown
@@ -679,6 +714,19 @@ export const AdminDashboardPage: React.FC = () => {
     return matchesSearch && matchesStatus && matchesEvent && matchesCertSent;
   });
 
+  const filteredVolunteerApps = volunteerApps.filter(app => {
+    const matchesSearch = app.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          app.pin_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          app.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (app.skills || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (app.event_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          app.mobile.includes(searchTerm);
+    const matchesStatus = statusFilter === 'all' || app.status === statusFilter;
+    const matchesBranch = branchFilter === 'all' || app.branch.toUpperCase() === branchFilter.toUpperCase();
+    const matchesRole = volunteerRoleFilter === 'all' || app.volunteer_role === volunteerRoleFilter;
+    return matchesSearch && matchesStatus && matchesBranch && matchesRole;
+  });
+
   // Calculate quick metrics
   const getStats = () => {
     if (activeTab === 'club') {
@@ -727,6 +775,20 @@ export const AdminDashboardPage: React.FC = () => {
         pending: targetApps.filter(a => a.status === 'pending').length,
         approved: approved.length,
         rejected: targetApps.filter(a => a.status === 'rejected').length,
+        sent,
+        unsent,
+        sentLabel: "Certificates Sent",
+        unsentLabel: "Certificates Pending"
+      };
+    } else if (activeTab === 'volunteer') {
+      const approved = volunteerApps.filter(a => a.status === 'approved');
+      const sent = approved.filter(a => a.certificate_sent === 1).length;
+      const unsent = approved.filter(a => !a.certificate_sent || a.certificate_sent === 0).length;
+      return {
+        total: volunteerApps.length,
+        pending: volunteerApps.filter(a => a.status === 'pending').length,
+        approved: approved.length,
+        rejected: volunteerApps.filter(a => a.status === 'rejected').length,
         sent,
         unsent,
         sentLabel: "Certificates Sent",
@@ -817,6 +879,28 @@ export const AdminDashboardPage: React.FC = () => {
         app.certificate_id || 'N/A',
         new Date(app.created_at).toLocaleString()
       ]);
+    } else if (activeTab === 'volunteer') {
+      filename = 'RD_Club_Volunteer_Applications.csv';
+      headers = ['ID', 'Full Name', 'PIN Number', 'Email', 'Mobile', 'Branch', 'Year of Study', 'Target Event', 'Volunteer Role', 'Key Skills', 'Past Experience', 'Availability', 'Notes', 'Status', 'Certificate Sent', 'Certificate ID', 'Applied At'];
+      rows = filteredVolunteerApps.map(app => [
+        app.id.toString(),
+        app.full_name,
+        app.pin_number,
+        app.email,
+        app.mobile,
+        app.branch,
+        app.year_of_study,
+        app.event_name,
+        app.volunteer_role,
+        (app.skills || '').replace(/\n/g, ' '),
+        (app.past_experience || 'N/A').replace(/\n/g, ' '),
+        app.availability,
+        (app.notes || 'N/A').replace(/\n/g, ' '),
+        app.status,
+        app.certificate_sent === 1 ? 'Sent' : 'Pending',
+        app.certificate_id || 'N/A',
+        new Date(app.created_at).toLocaleString()
+      ]);
     } else {
       filename = 'RD_Club_Hackathon_Registrations.csv';
       headers = ['ID', 'Hackathon Event', 'Team Name', 'Project Title', 'Project Description', 'Problem Statement', 'Leader Name', 'Leader Email', 'Leader Phone', 'Leader Role', 'Leader Year', 'Leader Branch', 'Leader Institution', 'Leader Company', 'Leader Job Title', 'Members Count', 'Status', 'Registered At'];
@@ -891,7 +975,7 @@ export const AdminDashboardPage: React.FC = () => {
 
         <div className="admin-stat-card">
           <div className="admin-stat-info">
-            <span>{activeTab === 'hackathon' ? 'Approved Teams' : activeTab === 'recognition' ? 'Approved Judges' : 'Approved Seats'}</span>
+            <span>{activeTab === 'hackathon' ? 'Approved Teams' : activeTab === 'recognition' ? 'Approved Judges' : activeTab === 'volunteer' ? 'Approved Volunteers' : 'Approved Seats'}</span>
             <h2>{stats.approved}</h2>
           </div>
           <div className="admin-stat-icon approved">
@@ -944,13 +1028,14 @@ export const AdminDashboardPage: React.FC = () => {
             placeholder={
               activeTab === 'hackathon' ? "Search team, leader, project..." 
               : activeTab === 'recognition' ? "Search judge, organization, email..."
+              : activeTab === 'volunteer' ? "Search volunteer, PIN, skills..."
               : "Search student, email, or PIN..."
             }
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
 
-          {activeTab === 'club' || activeTab === 'hackathon' || activeTab === 'recognition' ? (
+          {activeTab === 'club' || activeTab === 'hackathon' || activeTab === 'recognition' || activeTab === 'volunteer' ? (
             <select
               className="admin-filter-select"
               value={statusFilter}
@@ -994,6 +1079,19 @@ export const AdminDashboardPage: React.FC = () => {
               <option value="all">All Branches</option>
               {getBranches().map((br, idx) => (
                 <option key={idx} value={br}>{br}</option>
+              ))}
+            </select>
+          )}
+
+          {activeTab === 'volunteer' && (
+            <select
+              className="admin-filter-select"
+              value={volunteerRoleFilter}
+              onChange={(e) => setVolunteerRoleFilter(e.target.value)}
+            >
+              <option value="all">All Volunteer Tracks</option>
+              {getVolunteerRoles().map((role, idx) => (
+                <option key={idx} value={role}>{role}</option>
               ))}
             </select>
           )}
@@ -1169,6 +1267,15 @@ export const AdminDashboardPage: React.FC = () => {
                   <th>Expertise & Citation</th>
                   <th>Status</th>
                   <th colSpan={2}>Recognition Certificate & Actions</th>
+                </tr>
+              ) : activeTab === 'volunteer' ? (
+                <tr>
+                  <th>Volunteer Info</th>
+                  <th>Academic Details</th>
+                  <th>Role & Event Track</th>
+                  <th>Skills & Availability</th>
+                  <th>Status</th>
+                  <th>Actions</th>
                 </tr>
               ) : (
                 <tr>
@@ -1493,6 +1600,91 @@ export const AdminDashboardPage: React.FC = () => {
                             Approval Required
                           </span>
                         )}
+                      </td>
+                    </tr>
+                  ))
+                )
+              ) : activeTab === 'volunteer' ? (
+                filteredVolunteerApps.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--text-muted)' }}>
+                      No volunteer applications match the filter criteria.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredVolunteerApps.map(app => (
+                    <tr key={app.id}>
+                      <td>
+                        <strong>{app.full_name}</strong>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.125rem' }}>
+                          PIN: {app.pin_number} | {app.email}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                          Phone: {app.mobile}
+                        </div>
+                      </td>
+                      <td>
+                        <strong style={{ fontSize: '0.875rem' }}>{app.branch}</strong>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                          Year: {app.year_of_study}
+                        </div>
+                      </td>
+                      <td>
+                        <span style={{
+                          fontSize: '0.6875rem',
+                          fontWeight: 700,
+                          color: '#059669',
+                          backgroundColor: '#ecfdf5',
+                          padding: '0.125rem 0.375rem',
+                          borderRadius: '4px',
+                          display: 'inline-block',
+                          marginBottom: '0.25rem'
+                        }}>
+                          {app.volunteer_role}
+                        </span>
+                        <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--primary)' }}>
+                          {app.event_name}
+                        </div>
+                      </td>
+                      <td style={{ maxWidth: '250px', fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
+                        <div style={{ maxHeight: '40px', overflowY: 'auto' }}>
+                          <strong>Skills:</strong> {app.skills}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                          Commitment: {app.availability}
+                        </div>
+                        <button
+                          onClick={() => setSelectedVolunteer(app)}
+                          className="btn btn-secondary btn-sm"
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.2rem 0.5rem', fontSize: '0.72rem', marginTop: '0.35rem', cursor: 'pointer' }}
+                        >
+                          <Eye size={11} /> View Details
+                        </button>
+                      </td>
+                      <td>
+                        <span className={`status-pill status-${app.status}`}>{app.status}</span>
+                      </td>
+                      <td>
+                        <div className="actions-cell">
+                          {app.status === 'pending' ? (
+                            <>
+                              <button onClick={() => handleUpdateStatus('volunteer', app.id, 'approved')} className="btn-action approve" title="Approve Volunteer">
+                                <Check size={14} />
+                              </button>
+                              <button onClick={() => handleUpdateStatus('volunteer', app.id, 'rejected')} className="btn-action reject" title="Reject Application">
+                                <X size={14} />
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              onClick={() => handleUpdateStatus('volunteer', app.id, app.status === 'approved' ? 'rejected' : 'approved')}
+                              className="btn btn-secondary btn-sm"
+                              style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+                            >
+                              {app.status === 'approved' ? 'Revoke' : 'Re-Approve'}
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -2267,6 +2459,144 @@ export const AdminDashboardPage: React.FC = () => {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Volunteer Details Modal */}
+      {selectedVolunteer && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.4)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1100,
+          padding: '1.5rem'
+        }}>
+          <div style={{
+            width: '100%',
+            maxWidth: '620px',
+            boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)',
+            borderRadius: '0.75rem',
+            border: '1px solid var(--border)',
+            background: '#fff',
+            display: 'flex',
+            flexDirection: 'column',
+            maxHeight: '85vh',
+            overflow: 'hidden'
+          }}>
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center', 
+              borderBottom: '1px solid var(--border)', 
+              padding: '1.25rem 1.75rem',
+              backgroundColor: '#fff'
+            }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                <span style={{ 
+                  fontSize: '0.75rem', 
+                  fontWeight: 700, 
+                  color: '#059669', 
+                  backgroundColor: '#ecfdf5', 
+                  padding: '0.125rem 0.5rem', 
+                  borderRadius: '4px', 
+                  alignSelf: 'flex-start', 
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem'
+                }}>
+                  <HeartHandshake size={14} /> Official Volunteer Record
+                </span>
+                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'var(--primary)' }}>
+                  {selectedVolunteer.full_name}
+                </h3>
+              </div>
+              <button 
+                onClick={() => setSelectedVolunteer(null)} 
+                className="btn btn-secondary btn-sm"
+                style={{ padding: '0.375rem 0.75rem', fontSize: '0.8125rem', cursor: 'pointer', borderRadius: '0.375rem' }}
+              >
+                Close
+              </button>
+            </div>
+
+            <div style={{
+              padding: '1.75rem',
+              overflowY: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1.25rem',
+              flex: 1
+            }}>
+              <div>
+                <h4 style={{ fontSize: '0.875rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '0.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.25rem' }}>
+                  Academic & Contact Profile
+                </h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem', fontSize: '0.875rem' }}>
+                  <div><strong>Student PIN / Roll:</strong> {selectedVolunteer.pin_number}</div>
+                  <div><strong>Branch:</strong> {selectedVolunteer.branch}</div>
+                  <div><strong>Year of Study:</strong> {selectedVolunteer.year_of_study}</div>
+                  <div><strong>Email:</strong> <a href={`mailto:${selectedVolunteer.email}`} style={{ color: 'var(--primary)', textDecoration: 'none' }}>{selectedVolunteer.email}</a></div>
+                  <div><strong>Mobile:</strong> {selectedVolunteer.mobile}</div>
+                  <div><strong>Status:</strong> <span className={`status-pill status-${selectedVolunteer.status}`}>{selectedVolunteer.status}</span></div>
+                </div>
+              </div>
+
+              <div>
+                <h4 style={{ fontSize: '0.875rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '0.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.25rem' }}>
+                  Role & Assignment Preferences
+                </h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem', fontSize: '0.875rem' }}>
+                  <div><strong>Volunteer Track:</strong> {selectedVolunteer.volunteer_role}</div>
+                  <div><strong>Target Event:</strong> {selectedVolunteer.event_name}</div>
+                  <div style={{ gridColumn: 'span 2' }}><strong>Availability Commitment:</strong> {selectedVolunteer.availability}</div>
+                </div>
+              </div>
+
+              <div>
+                <h4 style={{ fontSize: '0.875rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '0.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.25rem' }}>
+                  Skills & Past Experience
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.875rem' }}>
+                  <div>
+                    <strong>Key Skills:</strong>
+                    <p style={{ margin: '0.25rem 0 0', color: 'var(--text-secondary)' }}>{selectedVolunteer.skills}</p>
+                  </div>
+                  {selectedVolunteer.past_experience && (
+                    <div>
+                      <strong>Previous Volunteering / Organizing:</strong>
+                      <p style={{ margin: '0.25rem 0 0', color: 'var(--text-secondary)' }}>{selectedVolunteer.past_experience}</p>
+                    </div>
+                  )}
+                  {selectedVolunteer.notes && (
+                    <div>
+                      <strong>Motivation / Notes:</strong>
+                      <div style={{ 
+                        padding: '0.875rem 1rem', 
+                        backgroundColor: 'var(--bg-main)', 
+                        borderRadius: 'var(--radius-md)', 
+                        whiteSpace: 'pre-wrap', 
+                        color: 'var(--text-secondary)',
+                        lineHeight: 1.5,
+                        border: '1px solid var(--border)',
+                        marginTop: '0.25rem'
+                      }}>
+                        {selectedVolunteer.notes}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </div>

@@ -343,6 +343,29 @@ async function setupDatabase() {
       );
     `);
 
+    // 13. Volunteer Applications Table
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS volunteer_applications (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        full_name TEXT NOT NULL,
+        pin_number TEXT NOT NULL,
+        email TEXT NOT NULL,
+        mobile TEXT NOT NULL,
+        branch TEXT NOT NULL,
+        year_of_study TEXT NOT NULL,
+        event_name TEXT,
+        volunteer_role TEXT NOT NULL,
+        skills TEXT NOT NULL,
+        past_experience TEXT,
+        availability TEXT,
+        notes TEXT,
+        status TEXT DEFAULT 'pending',
+        certificate_sent INTEGER DEFAULT 0,
+        certificate_id TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
     // Alter table schemas to add status columns if missing
     try {
       await db.execute(`ALTER TABLE club_applications ADD COLUMN status TEXT DEFAULT 'pending';`);
@@ -1024,6 +1047,61 @@ app.post('/api/apply/recognition', sensitiveLimiter, async (req, res) => {
   }
 });
 
+// 2.7 Volunteer Application endpoint
+app.post('/api/apply/volunteer', sensitiveLimiter, async (req, res) => {
+  const {
+    fullName,
+    pinNumber,
+    email,
+    mobile,
+    branch,
+    yearOfStudy,
+    eventName,
+    volunteerRole,
+    skills,
+    pastExperience,
+    availability,
+    notes
+  } = req.body;
+
+  if (!fullName || !pinNumber || !email || !mobile || !branch || !yearOfStudy || !volunteerRole || !skills) {
+    return res.status(400).json({ error: "Missing required fields for Volunteer registration." });
+  }
+
+  try {
+    const result = await db.execute({
+      sql: `INSERT INTO volunteer_applications (
+              full_name, pin_number, email, mobile, branch, year_of_study,
+              event_name, volunteer_role, skills, past_experience, availability, notes, status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+      args: [
+        fullName.trim(),
+        pinNumber.trim(),
+        email.trim().toLowerCase(),
+        mobile.trim(),
+        branch.trim(),
+        yearOfStudy.trim(),
+        eventName ? eventName.trim() : 'General / All Events',
+        volunteerRole.trim(),
+        skills.trim(),
+        pastExperience ? pastExperience.trim() : null,
+        availability ? availability.trim() : 'Flexible / Event Days',
+        notes ? notes.trim() : null
+      ]
+    });
+
+    notifySyncClients("REFRESH_APPLICATIONS");
+    return res.status(201).json({
+      success: true,
+      message: "Volunteer application submitted successfully.",
+      id: Number(result.lastInsertRowid)
+    });
+  } catch (error: any) {
+    console.error("Error inserting volunteer application:", error);
+    return res.status(500).json({ error: "Failed to submit volunteer application.", details: error.message });
+  }
+});
+
 // 3. Contact/Enquiry feedback endpoint
 app.post('/api/contact', sensitiveLimiter, async (req, res) => {
   const { name, email, subject, message } = req.body;
@@ -1458,12 +1536,14 @@ app.get('/api/admin/applications', authenticateToken, async (req: AuthenticatedR
     const eventRes = await db.execute("SELECT * FROM event_registrations ORDER BY created_at DESC");
     const hackathonRes = await db.execute("SELECT * FROM hackathon_registrations ORDER BY created_at DESC");
     const recognitionRes = await db.execute("SELECT * FROM recognition_applications ORDER BY created_at DESC");
+    const volunteerRes = await db.execute("SELECT * FROM volunteer_applications ORDER BY created_at DESC");
 
     return res.status(200).json({
       clubApplications: clubRes.rows,
       eventRegistrations: eventRes.rows,
       hackathonRegistrations: hackathonRes.rows,
-      recognitionApplications: recognitionRes.rows
+      recognitionApplications: recognitionRes.rows,
+      volunteerApplications: volunteerRes.rows
     });
   } catch (err: any) {
     console.error("Error fetching applications:", err);
@@ -1478,7 +1558,7 @@ app.post('/api/admin/applications/status', authenticateToken, async (req: Authen
     return res.status(400).json({ error: "Type, ID, and status are required." });
   }
 
-  if (type === 'club' || type === 'hackathon' || type === 'recognition') {
+  if (type === 'club' || type === 'hackathon' || type === 'recognition' || type === 'volunteer') {
     if (status !== 'approved' && status !== 'rejected' && status !== 'pending') {
       return res.status(400).json({ error: "Invalid status state." });
     }
@@ -1488,6 +1568,7 @@ app.post('/api/admin/applications/status', authenticateToken, async (req: Authen
   if (type === 'event') tableName = 'event_registrations';
   if (type === 'hackathon' || type === 'hackathon-certificate-type') tableName = 'hackathon_registrations';
   if (type === 'recognition') tableName = 'recognition_applications';
+  if (type === 'volunteer') tableName = 'volunteer_applications';
 
   try {
     const nameField = (type === 'hackathon' || type === 'hackathon-certificate-type') ? 'leader_name' : 'full_name';
@@ -1523,7 +1604,9 @@ app.post('/api/admin/applications/status', authenticateToken, async (req: Authen
           ? 'Hackathon Certificate Type'
           : type === 'recognition'
             ? 'Judge Recognition'
-            : 'Hackathon Registration';
+            : type === 'volunteer'
+              ? 'Volunteer Registration'
+              : 'Hackathon Registration';
 
     await db.execute({
       sql: "INSERT INTO activity_logs (username, action, details) VALUES (?, ?, ?)",

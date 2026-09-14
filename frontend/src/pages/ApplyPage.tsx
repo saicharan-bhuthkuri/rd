@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useParams, useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '../config';
-import { ArrowLeft, User, Mail, Phone, GraduationCap, Calendar, Sparkles, Check, CheckCircle2, Loader2, Code, Users, Server, ChevronDown, Plus, Trash2, AlertTriangle, Award, Briefcase, Building2 } from 'lucide-react';
+import { ArrowLeft, User, Mail, Phone, GraduationCap, Calendar, Sparkles, Check, CheckCircle2, Loader2, Code, Users, Server, ChevronDown, Plus, Trash2, AlertTriangle, Award, Briefcase, Building2, HeartHandshake } from 'lucide-react';
 
-type FormType = 'none' | 'join-club' | 'event' | 'hackathon' | 'recognition';
+type FormType = 'none' | 'join-club' | 'event' | 'hackathon' | 'recognition' | 'volunteer';
 
 interface CustomSelectProps {
   id: string;
@@ -687,6 +687,7 @@ const getFormTypeFromParam = (param?: string): FormType => {
   if (clean.includes('hackathon')) return 'hackathon';
   if (clean.includes('club') || clean.includes('membership') || clean.includes('join')) return 'join-club';
   if (clean.includes('event')) return 'event';
+  if (clean.includes('volunteer')) return 'volunteer';
   return 'none';
 };
 
@@ -735,6 +736,14 @@ export const ApplyPage: React.FC = () => {
   const [judgeExperience, setJudgeExperience] = useState('');
   const [judgeNotes, setJudgeNotes] = useState('');
   const [recognitionConfirmed, setRecognitionConfirmed] = useState(false);
+
+  // Volunteer specific fields state
+  const [volunteerRole, setVolunteerRole] = useState('Event Operations & Logistics');
+  const [volunteerSkills, setVolunteerSkills] = useState('');
+  const [volunteerExperience, setVolunteerExperience] = useState('');
+  const [volunteerAvailability, setVolunteerAvailability] = useState('All Days & Event Days (Full Commitment)');
+  const [volunteerNotes, setVolunteerNotes] = useState('');
+  const [volunteerEvent, setVolunteerEvent] = useState('General / All Upcoming Events');
 
   // Hackathon specific fields state
   const [teamName, setTeamName] = useState('');
@@ -805,6 +814,8 @@ export const ApplyPage: React.FC = () => {
       document.title = 'Event Registration | R&D Club';
     } else if (formType === 'recognition') {
       document.title = 'Judge Recognition Registration | R&D Club';
+    } else if (formType === 'volunteer') {
+      document.title = 'Volunteer Registration | R&D Club';
     } else {
       document.title = 'Application Portal | R&D Club';
     }
@@ -927,6 +938,14 @@ export const ApplyPage: React.FC = () => {
     setJudgeNotes('');
     setRecognitionConfirmed(false);
 
+    // Volunteer reset
+    setVolunteerRole('Event Operations & Logistics');
+    setVolunteerSkills('');
+    setVolunteerExperience('');
+    setVolunteerAvailability('All Days & Event Days (Full Commitment)');
+    setVolunteerNotes('');
+    setVolunteerEvent('General / All Upcoming Events');
+
     // Hackathon reset
     setTeamName('');
     setSelectedHackathonName(hackathonsList.length > 0 ? hackathonsList[0] : '');
@@ -951,6 +970,8 @@ export const ApplyPage: React.FC = () => {
       navigate('/apply/EventRegistration');
     } else if (type === 'recognition') {
       navigate('/apply/RecognitionRegistration');
+    } else if (type === 'volunteer') {
+      navigate('/apply/VolunteerRegistration');
     } else {
       navigate('/apply');
     }
@@ -1053,6 +1074,24 @@ export const ApplyPage: React.FC = () => {
       }
       if (!recognitionConfirmed) {
         alert("Please confirm the verification checkbox at the bottom before submitting.");
+        return;
+      }
+    } else if (formType === 'volunteer') {
+      if (!fullName.trim() || !pinNumber.trim() || !email.trim() || !mobile.trim() || !branch || !yearOfStudy || !volunteerRole || !volunteerSkills.trim()) {
+        alert("Please fill in all required fields (Full Name, Roll Number, Email, Mobile, Branch, Year, Volunteer Role, and Skills).");
+        return;
+      }
+      if (!emailRegex.test(email.trim())) {
+        alert("Please enter a valid Email Address.");
+        return;
+      }
+      if (!isEmailVerified) {
+        alert("Please verify your email address. Click 'Send OTP' next to the Email Address field and enter the 6-digit verification code sent to your email.");
+        return;
+      }
+      const phoneValidation = validatePhone(mobile, countryCode);
+      if (!phoneValidation.isValid) {
+        alert(phoneValidation.message);
         return;
       }
     } else if (formType === 'hackathon') {
@@ -1217,6 +1256,19 @@ export const ApplyPage: React.FC = () => {
       domainExpertise: judgeDomain,
       experienceYears: judgeExperience,
       notes: judgeNotes
+    } : formType === 'volunteer' ? {
+      fullName,
+      pinNumber,
+      email,
+      mobile: formattedFullMobile,
+      branch,
+      yearOfStudy,
+      eventName: volunteerEvent || 'General / All Upcoming Events',
+      volunteerRole,
+      skills: volunteerSkills,
+      pastExperience: volunteerExperience,
+      availability: volunteerAvailability,
+      notes: volunteerNotes
     } : {
       hackathonName: selectedHackathonName,
       teamName,
@@ -1235,7 +1287,7 @@ export const ApplyPage: React.FC = () => {
       }))
     };
 
-    const endpoint = formType === 'join-club' ? 'club' : formType === 'event' ? 'event' : formType === 'recognition' ? 'recognition' : 'hackathon';
+    const endpoint = formType === 'join-club' ? 'club' : formType === 'event' ? 'event' : formType === 'recognition' ? 'recognition' : formType === 'volunteer' ? 'volunteer' : 'hackathon';
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/apply/${endpoint}`, {
@@ -1322,6 +1374,17 @@ export const ApplyPage: React.FC = () => {
               </p>
               <button className="btn btn-primary btn-sm">Register for Recognition</button>
             </div>
+
+            <div className="apply-option-card card hover-lift" onClick={() => handleFormSelect('volunteer')}>
+              <div className="apply-icon-wrapper volunteer-icon">
+                <HeartHandshake size={28} />
+              </div>
+              <h3>Join as Volunteer</h3>
+              <p>
+                Contribute to event operations, management, and technical logistics.
+              </p>
+              <button className="btn btn-primary btn-sm">Apply as Volunteer</button>
+            </div>
           </div>
         </div>
       ) : (
@@ -1331,25 +1394,27 @@ export const ApplyPage: React.FC = () => {
           {/* Left Column: Branding panel */}
           <div className="apply-info-panel">
             <span className="badge">
-              {formType === 'recognition' ? 'Honoring Excellence' : 'Join the Pioneers'}
+              {formType === 'recognition' ? 'Honoring Excellence' : formType === 'volunteer' ? 'Support & Lead' : 'Join the Pioneers'}
             </span>
             <h1 className="apply-panel-title">
-              {formType === 'recognition' ? 'Distinguished Judges & Evaluators' : 'Shape the Future With R&D Club'}
+              {formType === 'recognition' ? 'Distinguished Judges & Evaluators' : formType === 'volunteer' ? 'Become a Core Event Volunteer' : 'Shape the Future With R&D Club'}
             </h1>
             <p className="apply-panel-desc">
               {formType === 'recognition'
                 ? 'We express our deepest gratitude to industry leaders, eminent academicians, and technical experts whose fair evaluations guide and inspire our student innovators.'
+                : formType === 'volunteer'
+                ? 'Be the backbone of major hackathons, technical symposiums, and R&D Club operations. Gain hands-on leadership experience, event management skills, and verified volunteer certificates.'
                 : 'Collaborate on bleeding-edge projects, build production-grade features, and accelerate your engineering skills. We bridge the gap between academic theory and industry reality.'}
             </p>
 
             <div className="apply-features-list">
               <div className="apply-feature-item">
                 <div className="feature-icon-box">
-                  {formType === 'recognition' ? <Award size={18} /> : <Code size={18} />}
+                  {formType === 'recognition' ? <Award size={18} /> : formType === 'volunteer' ? <HeartHandshake size={18} /> : <Code size={18} />}
                 </div>
                 <div className="feature-item-text">
-                  <h4>{formType === 'recognition' ? 'Institutional Recognition' : 'Real-World Experience'}</h4>
-                  <p>{formType === 'recognition' ? 'Receive an official, tamper-proof Certificate of Recognition verified by institutional leadership.' : 'Work directly on modern software/hardware codebases and write peer-reviewed scientific papers.'}</p>
+                  <h4>{formType === 'recognition' ? 'Institutional Recognition' : formType === 'volunteer' ? 'Leadership & Networking' : 'Real-World Experience'}</h4>
+                  <p>{formType === 'recognition' ? 'Receive an official, tamper-proof Certificate of Recognition verified by institutional leadership.' : formType === 'volunteer' ? 'Work closely with faculty, industry judges, and guest speakers while leading high-impact initiatives.' : 'Work directly on modern software/hardware codebases and write peer-reviewed scientific papers.'}</p>
                 </div>
               </div>
 
@@ -1358,18 +1423,18 @@ export const ApplyPage: React.FC = () => {
                   <Users size={18} />
                 </div>
                 <div className="feature-item-text">
-                  <h4>{formType === 'recognition' ? 'Academic Leadership' : 'Mentorship & Growth'}</h4>
-                  <p>{formType === 'recognition' ? 'Guide students through real-world problem statements and identify promising engineering talent.' : 'Get guided by experienced senior researchers and faculty advisors with regular code reviews.'}</p>
+                  <h4>{formType === 'recognition' ? 'Academic Leadership' : formType === 'volunteer' ? 'Team Coordination' : 'Mentorship & Growth'}</h4>
+                  <p>{formType === 'recognition' ? 'Guide students through real-world problem statements and identify promising engineering talent.' : formType === 'volunteer' ? 'Coordinate stage management, registration desks, hackathon logistics, and participant mentoring.' : 'Get guided by experienced senior researchers and faculty advisors with regular code reviews.'}</p>
                 </div>
               </div>
 
               <div className="apply-feature-item">
                 <div className="feature-icon-box text-indigo">
-                  {formType === 'recognition' ? <Sparkles size={18} /> : <Server size={18} />}
+                  <Sparkles size={18} />
                 </div>
                 <div className="feature-item-text">
-                  <h4>{formType === 'recognition' ? 'Verifiable Credential' : 'HPC Compute & Resources'}</h4>
-                  <p>{formType === 'recognition' ? 'Indexed with a permanent verification ID accessible to academic institutions and organizations globally.' : 'Get priority access to high-performance A100/H100 clusters and electronics testing labs.'}</p>
+                  <h4>{formType === 'recognition' ? 'Verifiable Credential' : formType === 'volunteer' ? 'Volunteer Certification' : 'HPC Compute & Resources'}</h4>
+                  <p>{formType === 'recognition' ? 'Indexed with a permanent verification ID accessible to academic institutions and organizations globally.' : formType === 'volunteer' ? 'Receive an official, verifiable Certificate of Appreciation acknowledging your dedication and service.' : 'Get priority access to high-performance A100/H100 clusters and electronics testing labs.'}</p>
                 </div>
               </div>
             </div>
@@ -1380,7 +1445,7 @@ export const ApplyPage: React.FC = () => {
             <div className="form-container-card card">
               <div className="form-header-row">
                 <div>
-                  <h2>{formType === 'join-club' ? 'Membership Application' : formType === 'event' ? 'Event Registration' : formType === 'recognition' ? 'Judge & Dignitary Recognition' : 'Hackathon Registration'}</h2>
+                  <h2>{formType === 'join-club' ? 'Membership Application' : formType === 'event' ? 'Event Registration' : formType === 'recognition' ? 'Judge & Dignitary Recognition' : formType === 'volunteer' ? 'Volunteer Registration' : 'Hackathon Registration'}</h2>
                   <p style={{ color: 'var(--text-secondary)', fontSize: '0.8125rem', marginTop: '0.25rem' }}>
                     Fields marked with <span className="req">*</span> are required.
                   </p>
@@ -1395,10 +1460,12 @@ export const ApplyPage: React.FC = () => {
                   <div className="success-icon-wrapper">
                     <Check size={48} />
                   </div>
-                  <h3>{formType === 'recognition' ? 'Recognition Details Recorded!' : 'Application Submitted!'}</h3>
+                  <h3>{formType === 'recognition' ? 'Recognition Details Recorded!' : formType === 'volunteer' ? 'Volunteer Application Submitted!' : 'Application Submitted!'}</h3>
                   <p>
                     {formType === 'recognition'
                       ? 'Thank you for your valuable contribution. Your information has been saved. Your official Certificate of Recognition will be issued by the administration.'
+                      : formType === 'volunteer'
+                      ? 'Thank you for stepping forward! Your volunteer application has been submitted. Our organizing committee will review your profile and contact you soon.'
                       : 'Your request has been saved. An email confirmation has been sent to your university address.'}
                   </p>
                   <button onClick={() => handleFormSelect('none')} className="btn btn-secondary btn-sm">
@@ -1771,6 +1838,190 @@ export const ApplyPage: React.FC = () => {
                             I confirm that the above information is accurate and reflects my contribution as an official Judge / Evaluator for Trinity College of Engineering & Technology. I understand that my Certificate of Recognition will be issued based on these details.
                           </span>
                         </label>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Volunteer Details */}
+                  {formType === 'volunteer' && (
+                    <>
+                      <div className="form-section-title">Volunteer Profile & Academic Info</div>
+
+                      <div className="form-group">
+                        <label htmlFor="volunteerFullName">Full Name <span className="req">*</span></label>
+                        <div className="input-with-icon">
+                          <User size={16} />
+                          <input
+                            type="text"
+                            id="volunteerFullName"
+                            required
+                            placeholder="e.g. John Doe"
+                            value={fullName}
+                            onChange={(e) => setFullName(e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="form-group">
+                        <label htmlFor="volunteerPin">Roll Number / Student PIN <span className="req">*</span></label>
+                        <div className="input-with-icon">
+                          <GraduationCap size={16} />
+                          <input
+                            type="text"
+                            id="volunteerPin"
+                            required
+                            placeholder="e.g. 21TK1A0501"
+                            value={pinNumber}
+                            onChange={(e) => setPinNumber(e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      <VerifiedEmailInput
+                        id="volunteerEmail"
+                        value={email}
+                        onChange={setEmail}
+                        isVerified={isEmailVerified}
+                        onVerifiedChange={setIsEmailVerified}
+                        placeholder="e.g. student@college.edu"
+                        label="Email Address"
+                        required
+                      />
+
+                      <CountryPhoneInput
+                        id="volunteerMobile"
+                        countryCode={countryCode}
+                        onCountryCodeChange={setCountryCode}
+                        phone={mobile}
+                        onPhoneChange={setMobile}
+                        label="Mobile / WhatsApp Number"
+                        required
+                      />
+
+                      <div className="form-grid-2">
+                        <div className="form-group">
+                          <label htmlFor="volunteerBranch">Branch / Department <span className="req">*</span></label>
+                          <CustomSelect
+                            id="volunteerBranch"
+                            required
+                            value={branch}
+                            onChange={setBranch}
+                            options={branchesList.length > 0 ? branchesList : ['Computer Science & Engineering', 'Electronics & Communication', 'Electrical & Electronics', 'Mechanical Engineering', 'Civil Engineering']}
+                            placeholder="Select Branch"
+                            icon={<GraduationCap size={16} />}
+                          />
+                        </div>
+
+                        <div className="form-group">
+                          <label htmlFor="volunteerYear">Year of Study <span className="req">*</span></label>
+                          <CustomSelect
+                            id="volunteerYear"
+                            required
+                            value={yearOfStudy}
+                            onChange={setYearOfStudy}
+                            options={['1st Year', '2nd Year', '3rd Year', '4th Year']}
+                            placeholder="Select Year"
+                            icon={<Calendar size={16} />}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="form-section-title" style={{ marginTop: '1.5rem' }}>Role & Event Assignment</div>
+
+                      <div className="form-group">
+                        <label htmlFor="volunteerEvent">Target Event / Activity <span className="req">*</span></label>
+                        <CustomSelect
+                          id="volunteerEvent"
+                          required
+                          value={volunteerEvent}
+                          onChange={setVolunteerEvent}
+                          options={['General / All Upcoming Events', ...(allEventsList.length > 0 ? allEventsList : ['Smart India Hackathon 2026', 'R&D Annual TechFest'])]}
+                          placeholder="Select Event Preference"
+                          icon={<Sparkles size={16} />}
+                          disabled={isLoadingEvents}
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label htmlFor="volunteerRole">Preferred Volunteering Track <span className="req">*</span></label>
+                        <CustomSelect
+                          id="volunteerRole"
+                          required
+                          value={volunteerRole}
+                          onChange={setVolunteerRole}
+                          options={[
+                            'Event Operations & Logistics',
+                            'Stage, Anchor & Dignitary Management',
+                            'Technical & Lab Support',
+                            'Registration & Crowd Coordination',
+                            'Design, Media & Photography',
+                            'Social Media & Live Coverage'
+                          ]}
+                          placeholder="Select Track"
+                          icon={<Briefcase size={16} />}
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label htmlFor="volunteerAvailability">Availability Commitment <span className="req">*</span></label>
+                        <CustomSelect
+                          id="volunteerAvailability"
+                          required
+                          value={volunteerAvailability}
+                          onChange={setVolunteerAvailability}
+                          options={[
+                            'All Days & Event Days (Full Commitment)',
+                            'Event Days Only',
+                            'Pre-Event Preparation Days',
+                            'Flexible / On-Call'
+                          ]}
+                          placeholder="Select Availability"
+                          icon={<Calendar size={16} />}
+                        />
+                      </div>
+
+                      <div className="form-section-title" style={{ marginTop: '1.5rem' }}>Skills & Experience</div>
+
+                      <div className="form-group">
+                        <label htmlFor="volunteerSkills">Key Skills & Strengths <span className="req">*</span></label>
+                        <input
+                          type="text"
+                          id="volunteerSkills"
+                          required
+                          placeholder="e.g. Public speaking, event hosting, photography, Python, lab networking"
+                          value={volunteerSkills}
+                          onChange={(e) => setVolunteerSkills(e.target.value)}
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label htmlFor="volunteerExperience">Previous Volunteering / Organizing Experience <span className="opt">(Optional)</span></label>
+                        <textarea
+                          id="volunteerExperience"
+                          rows={3}
+                          placeholder="List any past events, clubs, or symposiums you have organized or volunteered for..."
+                          value={volunteerExperience}
+                          onChange={(e) => setVolunteerExperience(e.target.value.slice(0, 500))}
+                          maxLength={500}
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label htmlFor="volunteerNotes">Why would you like to volunteer with R&D Club? <span className="opt">(Optional)</span></label>
+                        <textarea
+                          id="volunteerNotes"
+                          rows={4}
+                          placeholder="Tell us what motivates you and how you can best contribute to our team..."
+                          value={volunteerNotes}
+                          onChange={(e) => setVolunteerNotes(e.target.value.slice(0, 500))}
+                          maxLength={500}
+                        />
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.25rem', fontSize: '0.75rem' }}>
+                          <span />
+                          <span style={{ color: volunteerNotes.length === 500 ? '#dc2626' : 'var(--text-secondary)' }}>
+                            {volunteerNotes.length} / 500
+                          </span>
+                        </div>
                       </div>
                     </>
                   )}
