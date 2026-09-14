@@ -2958,25 +2958,27 @@ export const ApplyPage: React.FC = () => {
                     </>
                   )}
 
-                  <button
-                    type="submit"
-                    disabled={isSubmitting || (formType === 'submission' && (!verifiedTeam || !submissionFile))}
-                    className="btn btn-primary form-submit-btn"
-                    style={{ marginTop: '1.5rem' }}
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <Loader2 className="spinner-icon" size={16} />
-                        {formType === 'submission' ? 'Uploading to Drive & Submitting...' : 'Submitting...'}
-                      </>
-                    ) : formType === 'submission' ? (
-                      <>
-                        <UploadCloud size={16} /> Submit Project Presentation
-                      </>
-                    ) : (
-                      'Submit Application'
-                    )}
-                  </button>
+                  <div style={{ display: 'flex', justifyContent: 'center', width: '100%', marginTop: '2rem' }}>
+                    <button
+                      type="submit"
+                      disabled={isSubmitting || (formType === 'submission' && (!verifiedTeam || !submissionFile))}
+                      className="btn btn-primary form-submit-btn"
+                      style={{ alignSelf: 'center', minWidth: '260px', padding: '0.75rem 2rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginTop: 0 }}
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="spinner-icon" size={16} />
+                          {formType === 'submission' ? 'Uploading to Drive & Submitting...' : 'Submitting...'}
+                        </>
+                      ) : formType === 'submission' ? (
+                        <>
+                          <UploadCloud size={18} /> Submit Project Presentation
+                        </>
+                      ) : (
+                        'Submit Application'
+                      )}
+                    </button>
+                  </div>
                 </form>
               )}
             </div>
