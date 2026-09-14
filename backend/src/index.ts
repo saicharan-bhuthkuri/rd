@@ -1851,21 +1851,35 @@ async function runWithConcurrency<T, R>(
   return results;
 }
 
-// Helper function to send email via Google Apps Script proxy (bypassing Render SMTP block)
-async function postToAppsScript(url: string, payload: any): Promise<any> {
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(payload)
-  });
+// Helper function to send email via Google Apps Script proxy (bypassing Render SMTP block) with automatic retry
+async function postToAppsScript(url: string, payload: any, maxRetries = 3): Promise<any> {
+  let lastError: any = null;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
 
-  if (!res.ok) {
-    throw new Error(`HTTP error! status: ${res.status}`);
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+
+      const data = await res.json();
+      return data;
+    } catch (err: any) {
+      lastError = err;
+      if (attempt < maxRetries) {
+        const delayMs = attempt * 1500;
+        console.warn(`[Apps Script Proxy] Attempt ${attempt} failed (${err.message}). Retrying in ${delayMs}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      }
+    }
   }
-
-  return await res.json();
+  throw lastError;
 }
 
 // 14. Bulk Send Offer Letters to Approved Coordinators
@@ -1974,7 +1988,8 @@ app.post('/api/admin/bulk-send/offers', authenticateToken, async (req: Authentic
     sendLog("Dispatching emails...", 50);
     let completedTasks = 0;
 
-    await runWithConcurrency(tasks, 10, async (task) => {
+    const emailConcurrency = process.env.GMAIL_HTTP_PROXY_URL ? 1 : 5;
+    await runWithConcurrency(tasks, emailConcurrency, async (task) => {
       const { id, studentName, recipientEmail, deptName, yearBranch, safeName, tempPptx, pdfFilename } = task;
       const progressValBefore = Math.floor(50 + (completedTasks / tasks.length) * 45);
       sendLog(`Sending email to: ${studentName} (${recipientEmail})...`, progressValBefore);
@@ -2032,6 +2047,7 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
               }
             ]
           };
+          await new Promise(r => setTimeout(r, 600));
           const proxyRes = await postToAppsScript(process.env.GMAIL_HTTP_PROXY_URL, payload);
           if (!proxyRes.success) {
             throw new Error(`Google Apps Script Proxy failed: ${proxyRes.error}`);
@@ -2216,7 +2232,8 @@ app.post('/api/admin/bulk-send/certificates', authenticateToken, async (req: Aut
     sendLog("Dispatching emails...", 50);
     let completedTasks = 0;
 
-    await runWithConcurrency(tasks, 10, async (task) => {
+    const emailConcurrency = process.env.GMAIL_HTTP_PROXY_URL ? 1 : 5;
+    await runWithConcurrency(tasks, emailConcurrency, async (task) => {
       const { id, certId, studentName, recipientEmail, safeName, tempPptx, pdfFilename, isAppreciation } = task;
       const progressValBefore = Math.floor(50 + (completedTasks / tasks.length) * 45);
       sendLog("Sending email...", progressValBefore);
@@ -2286,6 +2303,7 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
               }
             ]
           };
+          await new Promise(r => setTimeout(r, 600));
           const proxyRes = await postToAppsScript(process.env.GMAIL_HTTP_PROXY_URL, payload);
           if (!proxyRes.success) {
             throw new Error(`Google Apps Script Proxy failed: ${proxyRes.error}`);
@@ -2539,7 +2557,8 @@ app.post('/api/admin/bulk-send/hackathon-certificates', authenticateToken, async
     sendLog("Dispatching emails to all team members...", 50);
     let completedTasks = 0;
 
-    await runWithConcurrency(processedTasks, 10, async (task) => {
+    const emailConcurrency = process.env.GMAIL_HTTP_PROXY_URL ? 1 : 5;
+    await runWithConcurrency(processedTasks, emailConcurrency, async (task) => {
       const { teamId, teamName, projectTitle, participantName, recipientEmail, certId, safeName, tempPptx, pdfFilename, actionText } = task;
       const progressValBefore = Math.floor(50 + (completedTasks / processedTasks.length) * 45);
       sendLog(`Sending to ${participantName} (${recipientEmail})...`, progressValBefore);
@@ -2594,6 +2613,7 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
               }
             ]
           };
+          await new Promise(r => setTimeout(r, 600));
           const proxyRes = await postToAppsScript(process.env.GMAIL_HTTP_PROXY_URL, payload);
           if (!proxyRes.success) {
             throw new Error(`Google Apps Script Proxy failed: ${proxyRes.error}`);
