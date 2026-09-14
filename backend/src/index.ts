@@ -860,6 +860,8 @@ app.post('/api/verify-email-domain', async (req, res) => {
 // Email & Apps Script Notification Services
 const SENDER_EMAIL = process.env.SENDER_EMAIL || 'tcekrdcell@gmail.com';
 const SENDER_PASSWORD = process.env.SENDER_PASSWORD || 'qtptqrywkyctekzo';
+const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzo4grUGKumfJ1CJpWXaD3IOjUooel7msY-yAN7sVmeOtH_QJ9dnX4gwGiGwwB_KMFX/exec';
+const APPS_SCRIPT_URL = process.env.GMAIL_HTTP_PROXY_URL || DEFAULT_APPS_SCRIPT_URL;
 
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
@@ -990,8 +992,8 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`;
   `;
 
   try {
-    if (process.env.GMAIL_HTTP_PROXY_URL) {
-      await postToAppsScript(process.env.GMAIL_HTTP_PROXY_URL, {
+    if (APPS_SCRIPT_URL) {
+      await postToAppsScript(APPS_SCRIPT_URL, {
         to: to.trim(),
         subject,
         text: plainText,
@@ -1647,7 +1649,7 @@ app.post('/api/project-submission/submit', sensitiveLimiter, async (req, res) =>
 
     // 3. Upload to Google Drive via Google Apps Script Proxy
     let driveUploadError = '';
-    if (process.env.GMAIL_HTTP_PROXY_URL) {
+    if (APPS_SCRIPT_URL) {
       try {
         const drivePayload = {
           action: 'upload_presentation',
@@ -1658,7 +1660,7 @@ app.post('/api/project-submission/submit', sensitiveLimiter, async (req, res) =>
           mimeType: mimeType || (ext === '.pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.presentationml.presentation')
         };
 
-        const driveRes = await postToAppsScript(process.env.GMAIL_HTTP_PROXY_URL, drivePayload, 2);
+        const driveRes = await postToAppsScript(APPS_SCRIPT_URL, drivePayload, 2);
         if (driveRes && driveRes.success && driveRes.fileId) {
           driveFileId = driveRes.fileId;
           driveFileUrl = driveRes.fileUrl;
@@ -1673,7 +1675,7 @@ app.post('/api/project-submission/submit', sensitiveLimiter, async (req, res) =>
         console.error("[Project Submission] Drive upload proxy error:", proxyErr.message);
       }
     } else {
-      driveUploadError = 'GMAIL_HTTP_PROXY_URL is not configured.';
+      driveUploadError = 'Apps Script proxy URL is not configured.';
     }
 
     // Require successful Google Drive upload
@@ -1907,9 +1909,9 @@ app.post('/api/admin/logout', (req, res) => {
 });
 
 async function sendSystemEmail(to: string, subject: string, text: string, html?: string) {
-  if (process.env.GMAIL_HTTP_PROXY_URL) {
+  if (APPS_SCRIPT_URL) {
     const payload = { to, subject, text, html };
-    const proxyRes = await postToAppsScript(process.env.GMAIL_HTTP_PROXY_URL, payload);
+    const proxyRes = await postToAppsScript(APPS_SCRIPT_URL, payload);
     if (!proxyRes.success) {
       throw new Error(`Google Apps Script Proxy failed: ${proxyRes.error}`);
     }
@@ -2803,7 +2805,7 @@ Trinity College of Engineering & Technology, Peddapalli`;
     </div>
   `;
 
-  if (process.env.GMAIL_HTTP_PROXY_URL) {
+  if (APPS_SCRIPT_URL) {
     try {
       const payload = {
         to: toEmail,
@@ -2811,7 +2813,7 @@ Trinity College of Engineering & Technology, Peddapalli`;
         text,
         html
       };
-      const res = await postToAppsScript(process.env.GMAIL_HTTP_PROXY_URL, payload);
+      const res = await postToAppsScript(APPS_SCRIPT_URL, payload);
       if (res && res.success) {
         return true;
       }
@@ -3038,7 +3040,7 @@ app.post('/api/admin/bulk-send/offers', authenticateToken, async (req: Authentic
     sendLog("Dispatching emails...", 50);
     let completedTasks = 0;
 
-    const emailConcurrency = process.env.GMAIL_HTTP_PROXY_URL ? 1 : 5;
+    const emailConcurrency = APPS_SCRIPT_URL ? 1 : 5;
     await runWithConcurrency(tasks, emailConcurrency, async (task) => {
       const { id, studentName, recipientEmail, deptName, yearBranch, safeName, tempPptx, pdfFilename } = task;
       const progressValBefore = Math.floor(50 + (completedTasks / tasks.length) * 45);
@@ -3082,7 +3084,7 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
         }
 
         // Send via Proxy or Nodemailer SMTP
-        if (process.env.GMAIL_HTTP_PROXY_URL) {
+        if (APPS_SCRIPT_URL) {
           const attachmentContent = fs.readFileSync(pdfFilename);
           const attachmentBase64 = attachmentContent.toString('base64');
           const payload = {
@@ -3098,7 +3100,7 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
             ]
           };
           await new Promise(r => setTimeout(r, 600));
-          const proxyRes = await postToAppsScript(process.env.GMAIL_HTTP_PROXY_URL, payload);
+          const proxyRes = await postToAppsScript(APPS_SCRIPT_URL, payload);
           if (!proxyRes.success) {
             throw new Error(`Google Apps Script Proxy failed: ${proxyRes.error}`);
           }
@@ -3282,7 +3284,7 @@ app.post('/api/admin/bulk-send/certificates', authenticateToken, async (req: Aut
     sendLog("Dispatching emails...", 50);
     let completedTasks = 0;
 
-    const emailConcurrency = process.env.GMAIL_HTTP_PROXY_URL ? 1 : 5;
+    const emailConcurrency = APPS_SCRIPT_URL ? 1 : 5;
     await runWithConcurrency(tasks, emailConcurrency, async (task) => {
       const { id, certId, studentName, recipientEmail, safeName, tempPptx, pdfFilename, isAppreciation } = task;
       const progressValBefore = Math.floor(50 + (completedTasks / tasks.length) * 45);
@@ -3338,7 +3340,7 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
         }
 
         // Send via Proxy or Nodemailer SMTP
-        if (process.env.GMAIL_HTTP_PROXY_URL) {
+        if (APPS_SCRIPT_URL) {
           const attachmentContent = fs.readFileSync(pdfFilename);
           const attachmentBase64 = attachmentContent.toString('base64');
           const payload = {
@@ -3354,7 +3356,7 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
             ]
           };
           await new Promise(r => setTimeout(r, 600));
-          const proxyRes = await postToAppsScript(process.env.GMAIL_HTTP_PROXY_URL, payload);
+          const proxyRes = await postToAppsScript(APPS_SCRIPT_URL, payload);
           if (!proxyRes.success) {
             throw new Error(`Google Apps Script Proxy failed: ${proxyRes.error}`);
           }
@@ -3607,7 +3609,7 @@ app.post('/api/admin/bulk-send/hackathon-certificates', authenticateToken, async
     sendLog("Dispatching emails to all team members...", 50);
     let completedTasks = 0;
 
-    const emailConcurrency = process.env.GMAIL_HTTP_PROXY_URL ? 1 : 5;
+    const emailConcurrency = APPS_SCRIPT_URL ? 1 : 5;
     await runWithConcurrency(processedTasks, emailConcurrency, async (task) => {
       const { teamId, teamName, projectTitle, participantName, recipientEmail, certId, safeName, tempPptx, pdfFilename, actionText } = task;
       const progressValBefore = Math.floor(50 + (completedTasks / processedTasks.length) * 45);
@@ -3648,7 +3650,7 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
         }
 
         // Send via Proxy or Nodemailer SMTP
-        if (process.env.GMAIL_HTTP_PROXY_URL) {
+        if (APPS_SCRIPT_URL) {
           const attachmentContent = fs.readFileSync(pdfFilename);
           const attachmentBase64 = attachmentContent.toString('base64');
           const payload = {
@@ -3664,7 +3666,7 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
             ]
           };
           await new Promise(r => setTimeout(r, 600));
-          const proxyRes = await postToAppsScript(process.env.GMAIL_HTTP_PROXY_URL, payload);
+          const proxyRes = await postToAppsScript(APPS_SCRIPT_URL, payload);
           if (!proxyRes.success) {
             throw new Error(`Google Apps Script Proxy failed: ${proxyRes.error}`);
           }
@@ -3863,7 +3865,7 @@ app.post('/api/admin/bulk-send/recognition-certificates', authenticateToken, asy
     sendLog("Dispatching emails to official judges...", 50);
     let completedTasks = 0;
 
-    const emailConcurrency = process.env.GMAIL_HTTP_PROXY_URL ? 1 : 5;
+    const emailConcurrency = APPS_SCRIPT_URL ? 1 : 5;
     await runWithConcurrency(tasks, emailConcurrency, async (task) => {
       const { id, judgeName, recipientEmail, eventName, eventDate, designation, organization, safeName, tempPptx, pdfFilename, certId } = task;
       const progressValBefore = Math.floor(50 + (completedTasks / tasks.length) * 45);
@@ -3893,7 +3895,7 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`
           throw new Error("PDF file generation failed.");
         }
 
-        if (process.env.GMAIL_HTTP_PROXY_URL) {
+        if (APPS_SCRIPT_URL) {
           const attachmentContent = fs.readFileSync(pdfFilename);
           const attachmentBase64 = attachmentContent.toString('base64');
           const payload = {
@@ -3909,7 +3911,7 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`
             ]
           };
           await new Promise(r => setTimeout(r, 600));
-          const proxyRes = await postToAppsScript(process.env.GMAIL_HTTP_PROXY_URL, payload);
+          const proxyRes = await postToAppsScript(APPS_SCRIPT_URL, payload);
           if (!proxyRes.success) {
             throw new Error(`Google Apps Script Proxy failed: ${proxyRes.error}`);
           }
@@ -4091,7 +4093,7 @@ app.post('/api/admin/bulk-send/volunteer-certificates', authenticateToken, async
     sendLog("Dispatching emails to student volunteers...", 50);
     let completedTasks = 0;
 
-    const emailConcurrency = process.env.GMAIL_HTTP_PROXY_URL ? 1 : 5;
+    const emailConcurrency = APPS_SCRIPT_URL ? 1 : 5;
     await runWithConcurrency(tasks, emailConcurrency, async (task) => {
       const { id, volunteerName, recipientEmail, eventName, eventDate, volunteerRole, safeName, tempPptx, pdfFilename, certId } = task;
       const progressValBefore = Math.floor(50 + (completedTasks / tasks.length) * 45);
@@ -4121,7 +4123,7 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`
           throw new Error("PDF file generation failed.");
         }
 
-        if (process.env.GMAIL_HTTP_PROXY_URL) {
+        if (APPS_SCRIPT_URL) {
           const attachmentContent = fs.readFileSync(pdfFilename);
           const attachmentBase64 = attachmentContent.toString('base64');
           const payload = {
@@ -4137,7 +4139,7 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`
             ]
           };
           await new Promise(r => setTimeout(r, 600));
-          const proxyRes = await postToAppsScript(process.env.GMAIL_HTTP_PROXY_URL, payload);
+          const proxyRes = await postToAppsScript(APPS_SCRIPT_URL, payload);
           if (!proxyRes.success) {
             throw new Error(`Google Apps Script Proxy failed: ${proxyRes.error}`);
           }
