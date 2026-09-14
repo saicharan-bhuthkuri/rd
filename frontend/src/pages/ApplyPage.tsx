@@ -422,7 +422,7 @@ export const VerifiedEmailInput: React.FC<VerifiedEmailInputProps> = ({
 
           {isVerified ? (
             <div className="email-verified-pill">
-              <CheckCircle2 size={16} style={{ color: '#16a34a' }} />
+              <CheckCircle2 size={14} />
               <span>Verified</span>
             </div>
           ) : (
