@@ -57,6 +57,14 @@ html {
   scroll-behavior: smooth;
   scroll-padding-top: 5rem;
   overflow-x: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+html::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 body {
@@ -68,6 +76,14 @@ body {
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
   zoom: 90%;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+body::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -3457,8 +3473,24 @@ button, input, textarea, select, option {
 /* Admin Panel Styles */
 .admin-container {
   display: flex;
-  min-height: 100vh;
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
   background-color: var(--bg-alt);
+}
+
+/* Hide scrollbars across the entire admin dashboard while preserving scroll capability */
+.admin-container,
+.admin-container * {
+  scrollbar-width: none !important; /* Firefox */
+  -ms-overflow-style: none !important; /* IE and Edge */
+}
+
+.admin-container::-webkit-scrollbar,
+.admin-container *::-webkit-scrollbar {
+  display: none !important; /* Chrome, Safari, Opera */
+  width: 0 !important;
+  height: 0 !important;
 }
 
 .admin-sidebar {
