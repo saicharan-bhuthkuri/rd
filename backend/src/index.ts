@@ -728,6 +728,69 @@ app.get('/api/sync-stream', (req, res) => {
   });
 });
 
+// In-memory cache for validated domains
+const domainCache = new Map<string, boolean>();
+
+// Pre-seed known common reliable email domains
+['gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com', 'icloud.com', 'aol.com', 'protonmail.com', 'zoho.com', 'mail.com', 'tcek.ac.in', 'klu.ac.in'].forEach(d => {
+  domainCache.set(d, true);
+});
+
+// Real-time Email & Domain Verification endpoint
+app.post('/api/verify-email-domain', async (req, res) => {
+  const { email } = req.body;
+
+  if (!email || typeof email !== 'string') {
+    return res.status(400).json({ valid: false, error: 'Email address is required.' });
+  }
+
+  const trimmed = email.trim().toLowerCase();
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
+  if (!emailRegex.test(trimmed)) {
+    return res.status(400).json({ valid: false, error: 'Please enter a valid email address format (e.g., name@domain.com).' });
+  }
+
+  const parts = trimmed.split('@');
+  const domain = parts[1];
+
+  if (!domain || domain.includes('..') || domain.startsWith('.') || domain.endsWith('.')) {
+    return res.status(400).json({ valid: false, error: 'Invalid domain format.' });
+  }
+
+  // Check cache first
+  if (domainCache.has(domain)) {
+    const isDomainValid = domainCache.get(domain)!;
+    if (isDomainValid) {
+      return res.json({ valid: true, domain, exists: true });
+    } else {
+      return res.status(400).json({ valid: false, error: `Domain "${domain}" does not exist or has no mail servers configured.` });
+    }
+  }
+
+  try {
+    // Attempt to resolve MX records
+    const mxRecords = await dns.promises.resolveMx(domain).catch(() => null);
+
+    if (mxRecords && mxRecords.length > 0) {
+      domainCache.set(domain, true);
+      return res.json({ valid: true, domain, exists: true });
+    }
+
+    // Fallback: check if domain has A/AAAA records (some legacy or internal mail servers)
+    const aRecords = await dns.promises.resolve4(domain).catch(() => null);
+    if (aRecords && aRecords.length > 0) {
+      domainCache.set(domain, true);
+      return res.json({ valid: true, domain, exists: true });
+    }
+
+    domainCache.set(domain, false);
+    return res.status(400).json({ valid: false, error: `The domain "${domain}" does not exist or does not accept emails.` });
+  } catch (err: any) {
+    return res.status(400).json({ valid: false, error: `Unable to verify email domain "${domain}".` });
+  }
+});
+
 // 1. Club Membership Application endpoint
 app.post('/api/apply/club', sensitiveLimiter, async (req, res) => {
   const {

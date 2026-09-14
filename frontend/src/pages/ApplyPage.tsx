@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useParams, useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '../config';
-import { ArrowLeft, User, Mail, Phone, GraduationCap, Calendar, Sparkles, Check, Loader2, Code, Users, Server, ChevronDown, Plus, Trash2, AlertTriangle, Award, Briefcase, Building2 } from 'lucide-react';
+import { ArrowLeft, User, Mail, Phone, GraduationCap, Calendar, Sparkles, Check, CheckCircle2, Loader2, Code, Users, Server, ChevronDown, Plus, Trash2, AlertTriangle, Award, Briefcase, Building2 } from 'lucide-react';
 
 type FormType = 'none' | 'join-club' | 'event' | 'hackathon' | 'recognition';
 
@@ -182,6 +182,380 @@ const CustomSelect: React.FC<CustomSelectProps> = ({
   );
 };
 
+export interface CountryRule {
+  code: string;
+  name: string;
+  flag: string;
+  pattern: RegExp;
+  minDigits: number;
+  maxDigits: number;
+  example: string;
+  formatHint: string;
+}
+
+export const COUNTRY_RULES: CountryRule[] = [
+  { code: '+91', name: 'India', flag: '🇮🇳', pattern: /^[6-9]\d{9}$/, minDigits: 10, maxDigits: 10, example: '98765 43210', formatHint: '10 digits starting with 6, 7, 8, or 9' },
+  { code: '+1', name: 'USA / Canada', flag: '🇺🇸', pattern: /^[2-9]\d{9}$/, minDigits: 10, maxDigits: 10, example: '202 555 0123', formatHint: '10 digits (area code starts with 2-9)' },
+  { code: '+44', name: 'UK', flag: '🇬🇧', pattern: /^[7]\d{9}$/, minDigits: 10, maxDigits: 10, example: '7911 123456', formatHint: '10 digits starting with 7' },
+  { code: '+971', name: 'UAE', flag: '🇦🇪', pattern: /^[5]\d{8}$/, minDigits: 9, maxDigits: 9, example: '50 123 4567', formatHint: '9 digits starting with 5' },
+  { code: '+61', name: 'Australia', flag: '🇦🇺', pattern: /^[4]\d{8}$/, minDigits: 9, maxDigits: 9, example: '412 345 678', formatHint: '9 digits starting with 4' },
+  { code: '+65', name: 'Singapore', flag: '🇸🇬', pattern: /^[89]\d{7}$/, minDigits: 8, maxDigits: 8, example: '8123 4567', formatHint: '8 digits starting with 8 or 9' },
+  { code: '+966', name: 'Saudi Arabia', flag: '🇸🇦', pattern: /^[5]\d{8}$/, minDigits: 9, maxDigits: 9, example: '50 123 4567', formatHint: '9 digits starting with 5' },
+  { code: '+974', name: 'Qatar', flag: '🇶🇦', pattern: /^[3567]\d{7}$/, minDigits: 8, maxDigits: 8, example: '3312 3456', formatHint: '8 digits starting with 3, 5, 6, or 7' },
+  { code: '+49', name: 'Germany', flag: '🇩🇪', pattern: /^[1]\d{9,10}$/, minDigits: 10, maxDigits: 11, example: '151 2345678', formatHint: '10-11 digits starting with 1' },
+  { code: '+977', name: 'Nepal', flag: '🇳🇵', pattern: /^[9]\d{9}$/, minDigits: 10, maxDigits: 10, example: '9841 234567', formatHint: '10 digits starting with 9' },
+  { code: '+880', name: 'Bangladesh', flag: '🇧🇩', pattern: /^[1]\d{9}$/, minDigits: 10, maxDigits: 10, example: '1712 345678', formatHint: '10 digits starting with 1' },
+  { code: '+94', name: 'Sri Lanka', flag: '🇱🇰', pattern: /^[7]\d{8}$/, minDigits: 9, maxDigits: 9, example: '71 234 5678', formatHint: '9 digits starting with 7' },
+  { code: '+63', name: 'Philippines', flag: '🇵🇭', pattern: /^[9]\d{9}$/, minDigits: 10, maxDigits: 10, example: '917 123 4567', formatHint: '10 digits starting with 9' },
+  { code: '+', name: 'Other', flag: '🌐', pattern: /^\d{7,15}$/, minDigits: 7, maxDigits: 15, example: '1234567890', formatHint: '7 to 15 digits' },
+];
+
+export const validatePhone = (phone: string, countryCode: string): { isValid: boolean; message: string } => {
+  const digits = phone.replace(/\D/g, '');
+  const rule = COUNTRY_RULES.find(r => r.code === countryCode) || COUNTRY_RULES[COUNTRY_RULES.length - 1];
+  
+  if (!digits) {
+    return { isValid: false, message: 'Please enter a mobile number' };
+  }
+  
+  if (digits.length < rule.minDigits) {
+    return { isValid: false, message: `Please enter at least ${rule.minDigits} digits for ${rule.name}` };
+  }
+  
+  if (digits.length > rule.maxDigits) {
+    return { isValid: false, message: `Maximum ${rule.maxDigits} digits allowed for ${rule.name}` };
+  }
+  
+  if (!rule.pattern.test(digits)) {
+    return { isValid: false, message: `Invalid mobile number for ${rule.name} (Requires ${rule.formatHint})` };
+  }
+  
+  return { isValid: true, message: `Valid ${rule.name} Mobile Number` };
+};
+
+interface VerifiedEmailInputProps {
+  id?: string;
+  value: string;
+  onChange: (value: string) => void;
+  required?: boolean;
+  placeholder?: string;
+  disabled?: boolean;
+  label?: string;
+}
+
+const TRUSTED_EMAIL_DOMAINS = new Set([
+  'gmail.com',
+  'yahoo.com',
+  'outlook.com',
+  'hotmail.com',
+  'icloud.com',
+  'proton.me',
+  'protonmail.com',
+  'zoho.com',
+  'tcek.ac.in',
+  'google.com',
+  'microsoft.com',
+  'live.com',
+  'aol.com',
+  'mail.com'
+]);
+
+export const VerifiedEmailInput: React.FC<VerifiedEmailInputProps> = ({
+  id = 'email',
+  value,
+  onChange,
+  required = true,
+  placeholder = 'user@university.edu',
+  disabled = false,
+  label = 'Email Address'
+}) => {
+  const [touched, setTouched] = useState(false);
+  const [status, setStatus] = useState<'idle' | 'validating' | 'valid' | 'invalid'>('idle');
+  const [errorMessage, setErrorMessage] = useState('');
+
+  useEffect(() => {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      if (touched && required) {
+        setStatus('invalid');
+        setErrorMessage('Please enter an email address');
+      } else {
+        setStatus('idle');
+        setErrorMessage('');
+      }
+      return;
+    }
+
+    const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+    if (!emailRegex.test(trimmed)) {
+      setStatus('invalid');
+      setErrorMessage('Please enter a valid email address (e.g. name@domain.com)');
+      return;
+    }
+
+    const domain = trimmed.split('@')[1]?.toLowerCase();
+    if (domain && TRUSTED_EMAIL_DOMAINS.has(domain)) {
+      setStatus('valid');
+      setErrorMessage('');
+      return;
+    }
+
+    let isCancelled = false;
+    setStatus('validating');
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/verify-email-domain`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: trimmed })
+        });
+        if (isCancelled) return;
+        if (res.ok) {
+          const data = await res.json();
+          if (data.valid) {
+            setStatus('valid');
+            setErrorMessage('');
+          } else {
+            setStatus('invalid');
+            setErrorMessage(data.message || 'Email domain does not exist. Please enter a valid email address.');
+          }
+        } else {
+          // If server fails or is offline, fallback to regex validity
+          setStatus('valid');
+          setErrorMessage('');
+        }
+      } catch (e) {
+        if (!isCancelled) {
+          setStatus('valid');
+          setErrorMessage('');
+        }
+      }
+    }, 350);
+
+    return () => {
+      isCancelled = true;
+      clearTimeout(timer);
+    };
+  }, [value, touched, required]);
+
+  return (
+    <div className="form-group">
+      {label && (
+        <label htmlFor={id}>
+          {label} {required && <span className="req">*</span>}
+        </label>
+      )}
+      <div className="input-with-icon" style={{ position: 'relative' }}>
+        <Mail size={16} />
+        <input
+          type="email"
+          id={id}
+          required={required}
+          disabled={disabled}
+          placeholder={placeholder}
+          value={value}
+          onChange={(e) => {
+            setTouched(true);
+            onChange(e.target.value);
+          }}
+          onBlur={() => setTouched(true)}
+          className={`input-validated ${status === 'valid' ? 'is-valid' : status === 'invalid' && touched ? 'is-invalid' : ''}`}
+          style={{ paddingRight: '2.5rem' }}
+        />
+        <div
+          style={{
+            position: 'absolute',
+            right: '0.75rem',
+            top: '50%',
+            transform: 'translateY(-50%)',
+            display: 'flex',
+            alignItems: 'center',
+            pointerEvents: 'none'
+          }}
+        >
+          {status === 'validating' && (
+            <Loader2 size={16} className="spinner-icon" style={{ color: 'var(--text-muted)' }} />
+          )}
+          {status === 'valid' && (
+            <CheckCircle2 size={18} style={{ color: '#16a34a' }} />
+          )}
+          {status === 'invalid' && touched && (
+            <AlertTriangle size={18} style={{ color: '#dc2626' }} />
+          )}
+        </div>
+      </div>
+      {status === 'valid' && (
+        <span className="field-hint-success">
+          <CheckCircle2 size={12} /> Valid Email Address
+        </span>
+      )}
+      {status === 'invalid' && touched && errorMessage && (
+        <span className="field-hint-error">
+          <AlertTriangle size={12} /> {errorMessage}
+        </span>
+      )}
+    </div>
+  );
+};
+
+interface CountryPhoneInputProps {
+  id?: string;
+  countryCode: string;
+  onCountryCodeChange: (code: string) => void;
+  phone: string;
+  onPhoneChange: (phone: string) => void;
+  required?: boolean;
+  disabled?: boolean;
+  label?: string;
+}
+
+export const CountryPhoneInput: React.FC<CountryPhoneInputProps> = ({
+  id = 'mobile',
+  countryCode,
+  onCountryCodeChange,
+  phone,
+  onPhoneChange,
+  required = true,
+  disabled = false,
+  label = 'Mobile Number'
+}) => {
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [touched, setTouched] = useState(false);
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
+
+  const selectedRule = COUNTRY_RULES.find(r => r.code === countryCode) || COUNTRY_RULES[0];
+  const validation = validatePhone(phone, countryCode);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleDigitsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setTouched(true);
+    // Strict numbers only: filter out all non-digits
+    const digitsOnly = e.target.value.replace(/\D/g, '');
+    const truncated = digitsOnly.slice(0, selectedRule.maxDigits);
+    onPhoneChange(truncated);
+  };
+
+  const isFieldValid = phone.length > 0 && validation.isValid;
+  const isFieldInvalid = touched && (phone.length === 0 || !validation.isValid);
+
+  return (
+    <div className="form-group">
+      {label && (
+        <label htmlFor={id}>
+          {label} {required && <span className="req">*</span>}
+        </label>
+      )}
+      <div className="country-phone-wrapper" ref={dropdownRef}>
+        {/* Country Code Trigger & Dropdown */}
+        <div className="country-code-select-container">
+          <button
+            type="button"
+            className="country-code-trigger"
+            disabled={disabled}
+            onClick={() => !disabled && setIsDropdownOpen(!isDropdownOpen)}
+            aria-label="Select Country Code"
+          >
+            <span className="country-flag">{selectedRule.flag}</span>
+            <span className="country-code-text">{selectedRule.code}</span>
+            <ChevronDown 
+              size={14} 
+              style={{ 
+                color: 'var(--text-muted)', 
+                transform: isDropdownOpen ? 'rotate(180deg)' : 'none', 
+                transition: 'transform 0.2s' 
+              }} 
+            />
+          </button>
+
+          {isDropdownOpen && (
+            <div className="country-code-dropdown">
+              {COUNTRY_RULES.map((rule) => (
+                <div
+                  key={rule.code + rule.name}
+                  className={`country-code-option ${rule.code === countryCode ? 'selected' : ''}`}
+                  onClick={() => {
+                    onCountryCodeChange(rule.code);
+                    setIsDropdownOpen(false);
+                    if (phone.length > rule.maxDigits) {
+                      onPhoneChange(phone.slice(0, rule.maxDigits));
+                    }
+                  }}
+                >
+                  <span className="country-flag">{rule.flag}</span>
+                  <span className="country-name">{rule.name}</span>
+                  <span className="country-dial-code">{rule.code}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Mobile Input Field */}
+        <div className="phone-number-field-wrapper">
+          <div className="input-with-icon" style={{ position: 'relative' }}>
+            <Phone size={16} />
+            <input
+              type="tel"
+              id={id}
+              required={required}
+              disabled={disabled}
+              placeholder={`e.g. ${selectedRule.example}`}
+              value={phone}
+              onChange={handleDigitsChange}
+              onBlur={() => setTouched(true)}
+              maxLength={selectedRule.maxDigits}
+              inputMode="numeric"
+              pattern="[0-9]*"
+              className={`input-validated ${isFieldValid ? 'is-valid' : isFieldInvalid ? 'is-invalid' : ''}`}
+              style={{ paddingRight: '2.5rem' }}
+            />
+            <div
+              style={{
+                position: 'absolute',
+                right: '0.75rem',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                display: 'flex',
+                alignItems: 'center',
+                pointerEvents: 'none'
+              }}
+            >
+              {isFieldValid && (
+                <CheckCircle2 size={18} style={{ color: '#16a34a' }} />
+              )}
+              {isFieldInvalid && (
+                <AlertTriangle size={18} style={{ color: '#dc2626' }} />
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {isFieldValid && (
+        <span className="field-hint-success">
+          <CheckCircle2 size={12} /> {validation.message}
+        </span>
+      )}
+      {isFieldInvalid && (
+        <span className="field-hint-error">
+          <AlertTriangle size={12} /> {validation.message}
+        </span>
+      )}
+    </div>
+  );
+};
+
+
 const getFormTypeFromParam = (param?: string): FormType => {
   if (!param) return 'none';
   const clean = param.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -212,6 +586,7 @@ export const ApplyPage: React.FC = () => {
   const [fullName, setFullName] = useState('');
   const [pinNumber, setPinNumber] = useState('');
   const [email, setEmail] = useState('');
+  const [countryCode, setCountryCode] = useState('+91');
   const [mobile, setMobile] = useState('');
   const [branch, setBranch] = useState('');
   const [yearOfStudy, setYearOfStudy] = useState('');
@@ -254,6 +629,7 @@ export const ApplyPage: React.FC = () => {
     id: string;
     fullName: string;
     email: string;
+    countryCode: string;
     phone: string;
     role: 'Student' | 'Professional' | 'Other';
     year: string;
@@ -398,6 +774,7 @@ export const ApplyPage: React.FC = () => {
     setFullName('');
     setPinNumber('');
     setEmail('');
+    setCountryCode('+91');
     setMobile('');
     setBranch('');
     setYearOfStudy('');
@@ -457,6 +834,7 @@ export const ApplyPage: React.FC = () => {
       id: Math.random().toString(36).substring(2, 9),
       fullName: '',
       email: '',
+      countryCode: '+91',
       phone: '',
       role: 'Student',
       year: '1st Year',
@@ -479,7 +857,7 @@ export const ApplyPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
 
     // JS-based manual form verification to prevent hidden inputs focus block issues
     if (formType === 'join-club') {
@@ -491,6 +869,11 @@ export const ApplyPage: React.FC = () => {
         alert("Please enter a valid Email Address.");
         return;
       }
+      const phoneValidation = validatePhone(mobile, countryCode);
+      if (!phoneValidation.isValid) {
+        alert(phoneValidation.message);
+        return;
+      }
     } else if (formType === 'event') {
       if (!fullName.trim() || !pinNumber.trim() || !email.trim() || !mobile.trim() || !branch || !yearOfStudy || !eventName) {
         alert("Please fill in all required fields.");
@@ -500,6 +883,11 @@ export const ApplyPage: React.FC = () => {
         alert("Please enter a valid Email Address.");
         return;
       }
+      const phoneValidation = validatePhone(mobile, countryCode);
+      if (!phoneValidation.isValid) {
+        alert(phoneValidation.message);
+        return;
+      }
     } else if (formType === 'recognition') {
       if (!fullName.trim() || !email.trim() || !mobile.trim() || !judgeDesignation.trim() || !judgeOrganization.trim() || !judgeEventName.trim() || !judgeDomain.trim() || !judgeExperience.trim()) {
         alert("Please fill in all required fields (Full Name, Email, Mobile, Designation, Organization, Event, Domain/Specialization, and Experience).");
@@ -507,6 +895,11 @@ export const ApplyPage: React.FC = () => {
       }
       if (!emailRegex.test(email.trim())) {
         alert("Please enter a valid Email Address.");
+        return;
+      }
+      const phoneValidation = validatePhone(mobile, countryCode);
+      if (!phoneValidation.isValid) {
+        alert(phoneValidation.message);
         return;
       }
       if (!recognitionConfirmed) {
@@ -536,6 +929,11 @@ export const ApplyPage: React.FC = () => {
       }
       if (!mobile.trim()) {
         alert("Please enter the Team Leader's Phone Number.");
+        return;
+      }
+      const leaderPhoneValidation = validatePhone(mobile, countryCode);
+      if (!leaderPhoneValidation.isValid) {
+        alert(`Team Leader: ${leaderPhoneValidation.message}`);
         return;
       }
       if (!leaderRole) {
@@ -586,6 +984,11 @@ export const ApplyPage: React.FC = () => {
           alert(`Please enter Member ${num}'s Phone Number.`);
           return;
         }
+        const memberPhoneValidation = validatePhone(m.phone, m.countryCode || '+91');
+        if (!memberPhoneValidation.isValid) {
+          alert(`Member ${num}: ${memberPhoneValidation.message}`);
+          return;
+        }
         if (!m.role) {
           alert(`Please select Member ${num}'s Designation / Role.`);
           return;
@@ -623,11 +1026,13 @@ export const ApplyPage: React.FC = () => {
 
     setIsSubmitting(true);
 
+    const formattedFullMobile = `${countryCode} ${mobile.trim()}`;
+
     const payload = formType === 'join-club' ? {
       fullName,
       pinNumber,
       email,
-      mobile,
+      mobile: formattedFullMobile,
       branch,
       yearOfStudy,
       section,
@@ -638,7 +1043,7 @@ export const ApplyPage: React.FC = () => {
       fullName,
       pinNumber,
       email,
-      mobile,
+      mobile: formattedFullMobile,
       branch,
       yearOfStudy,
       section,
@@ -647,7 +1052,7 @@ export const ApplyPage: React.FC = () => {
     } : formType === 'recognition' ? {
       fullName,
       email,
-      mobile,
+      mobile: formattedFullMobile,
       designation: judgeDesignation,
       organization: judgeOrganization,
       eventName: judgeEventName,
@@ -660,14 +1065,17 @@ export const ApplyPage: React.FC = () => {
       teamName,
       leaderName: fullName,
       leaderEmail: email,
-      leaderPhone: mobile,
+      leaderPhone: formattedFullMobile,
       leaderRole,
       leaderYear: leaderRole === 'Student' ? leaderYear : null,
       leaderBranch: leaderRole === 'Student' ? leaderBranch : null,
       leaderInstitution: leaderRole === 'Student' ? leaderInstitution : null,
       leaderCompany: leaderRole !== 'Student' ? leaderCompany : null,
       leaderJobTitle: leaderRole !== 'Student' ? leaderJobTitle : null,
-      members
+      members: members.map(m => ({
+        ...m,
+        phone: `${m.countryCode || '+91'} ${m.phone.trim()}`
+      }))
     };
 
     const endpoint = formType === 'join-club' ? 'club' : formType === 'event' ? 'event' : formType === 'recognition' ? 'recognition' : 'hackathon';
@@ -877,35 +1285,24 @@ export const ApplyPage: React.FC = () => {
                         </div>
                       </div>
 
-                      <div className="form-group">
-                        <label htmlFor="email">Email Address <span className="req">*</span></label>
-                        <div className="input-with-icon">
-                          <Mail size={16} />
-                          <input
-                            type="email"
-                            id="email"
-                            required
-                            placeholder="user@university.edu"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                          />
-                        </div>
-                      </div>
+                      <VerifiedEmailInput
+                        id="email"
+                        value={email}
+                        onChange={setEmail}
+                        placeholder="user@university.edu"
+                        label="Email Address"
+                        required
+                      />
 
-                      <div className="form-group">
-                        <label htmlFor="mobile">Mobile Number <span className="req">*</span></label>
-                        <div className="input-with-icon">
-                          <Phone size={16} />
-                          <input
-                            type="tel"
-                            id="mobile"
-                            required
-                            placeholder="e.g. +91 98765 43210"
-                            value={mobile}
-                            onChange={(e) => setMobile(e.target.value)}
-                          />
-                        </div>
-                      </div>
+                      <CountryPhoneInput
+                        id="mobile"
+                        countryCode={countryCode}
+                        onCountryCodeChange={setCountryCode}
+                        phone={mobile}
+                        onPhoneChange={setMobile}
+                        label="Mobile Number"
+                        required
+                      />
 
                       <div className="form-group">
                         <label htmlFor="branch">Branch / Department <span className="req">*</span></label>
@@ -1068,35 +1465,24 @@ export const ApplyPage: React.FC = () => {
                         </div>
                       </div>
 
-                      <div className="form-group">
-                        <label htmlFor="email">Email Address <span className="req">*</span></label>
-                        <div className="input-with-icon">
-                          <Mail size={16} />
-                          <input
-                            type="email"
-                            id="email"
-                            required
-                            placeholder="e.g. judge@institution.edu or expert@company.com"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                          />
-                        </div>
-                      </div>
+                      <VerifiedEmailInput
+                        id="judgeEmail"
+                        value={email}
+                        onChange={setEmail}
+                        placeholder="e.g. judge@institution.edu or expert@company.com"
+                        label="Email Address"
+                        required
+                      />
 
-                      <div className="form-group">
-                        <label htmlFor="mobile">Mobile / Contact Number <span className="req">*</span></label>
-                        <div className="input-with-icon">
-                          <Phone size={16} />
-                          <input
-                            type="tel"
-                            id="mobile"
-                            required
-                            placeholder="e.g. +91 98765 43210"
-                            value={mobile}
-                            onChange={(e) => setMobile(e.target.value)}
-                          />
-                        </div>
-                      </div>
+                      <CountryPhoneInput
+                        id="judgeMobile"
+                        countryCode={countryCode}
+                        onCountryCodeChange={setCountryCode}
+                        phone={mobile}
+                        onPhoneChange={setMobile}
+                        label="Mobile / Contact Number"
+                        required
+                      />
 
                       <div className="form-group">
                         <label htmlFor="judgeDesignation">Job Title / Designation <span className="req">*</span></label>
@@ -1307,35 +1693,24 @@ export const ApplyPage: React.FC = () => {
                       </div>
 
                       <div className="form-grid-2">
-                        <div className="form-group">
-                          <label htmlFor="leaderEmail">Email Address <span className="req">*</span></label>
-                          <div className="input-with-icon">
-                            <Mail size={16} />
-                            <input
-                              type="email"
-                              id="leaderEmail"
-                              required
-                              placeholder="leader@domain.com"
-                              value={email}
-                              onChange={(e) => setEmail(e.target.value)}
-                            />
-                          </div>
-                        </div>
+                        <VerifiedEmailInput
+                          id="leaderEmail"
+                          value={email}
+                          onChange={setEmail}
+                          placeholder="leader@domain.com"
+                          label="Email Address"
+                          required
+                        />
 
-                        <div className="form-group">
-                          <label htmlFor="leaderPhone">Phone Number <span className="req">*</span></label>
-                          <div className="input-with-icon">
-                            <Phone size={16} />
-                            <input
-                              type="tel"
-                              id="leaderPhone"
-                              required
-                              placeholder="e.g. +91 98765 43210"
-                              value={mobile}
-                              onChange={(e) => setMobile(e.target.value)}
-                            />
-                          </div>
-                        </div>
+                        <CountryPhoneInput
+                          id="leaderPhone"
+                          countryCode={countryCode}
+                          onCountryCodeChange={setCountryCode}
+                          phone={mobile}
+                          onPhoneChange={setMobile}
+                          label="Phone Number"
+                          required
+                        />
                       </div>
 
                       <div className="form-group">
@@ -1466,33 +1841,24 @@ export const ApplyPage: React.FC = () => {
                           </div>
 
                           <div className="form-grid-2">
-                            <div className="form-group">
-                              <label>Email Address <span className="req">*</span></label>
-                              <div className="input-with-icon">
-                                <Mail size={16} />
-                                <input
-                                  type="email"
-                                  required
-                                  placeholder="jane@domain.com"
-                                  value={member.email}
-                                  onChange={(e) => handleMemberChange(member.id, 'email', e.target.value)}
-                                />
-                              </div>
-                            </div>
+                            <VerifiedEmailInput
+                              id={`member-email-${member.id}`}
+                              value={member.email}
+                              onChange={(val) => handleMemberChange(member.id, 'email', val)}
+                              placeholder="jane@domain.com"
+                              label="Email Address"
+                              required
+                            />
 
-                            <div className="form-group">
-                              <label>Phone Number <span className="req">*</span></label>
-                              <div className="input-with-icon">
-                                <Phone size={16} />
-                                <input
-                                  type="tel"
-                                  required
-                                  placeholder="e.g. +91 98765 43210"
-                                  value={member.phone}
-                                  onChange={(e) => handleMemberChange(member.id, 'phone', e.target.value)}
-                                />
-                              </div>
-                            </div>
+                            <CountryPhoneInput
+                              id={`member-phone-${member.id}`}
+                              countryCode={member.countryCode || '+91'}
+                              onCountryCodeChange={(code) => handleMemberChange(member.id, 'countryCode', code)}
+                              phone={member.phone}
+                              onPhoneChange={(phone) => handleMemberChange(member.id, 'phone', phone)}
+                              label="Phone Number"
+                              required
+                            />
                           </div>
 
                           <div className="form-group">
