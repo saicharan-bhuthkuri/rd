@@ -50,7 +50,6 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   // Get active admin user from localStorage
   const adminUser = JSON.parse(localStorage.getItem('admin_user') || '{}');
   const role = adminUser.role || '';
-  const username = adminUser.username || '';
 
   const handleLogout = async () => {
     try {
@@ -163,17 +162,6 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
             <span>Logout</span>
           </button>
         </nav>
-
-        {/* Profile Card */}
-        <div className="admin-profile-card">
-          <div className="admin-avatar">
-            {username.slice(0, 2).toUpperCase()}
-          </div>
-          <div className="admin-profile-info">
-            <h4>{username}</h4>
-            <span className={`role-badge role-${role}`}>{role}</span>
-          </div>
-        </div>
       </aside>
 
       {/* Main Content Area */}
