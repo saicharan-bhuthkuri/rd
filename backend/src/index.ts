@@ -883,7 +883,8 @@ async function postToAppsScript(url: string, payload: any, maxRetries = 3): Prom
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
+        redirect: 'follow'
       });
 
       if (!res.ok) {
@@ -1628,12 +1629,26 @@ app.post('/api/project-submission/submit', sensitiveLimiter, async (req, res) =>
     let driveFolderId = '';
     let driveFolderUrl = '';
 
+    const cleanBase64 = String(fileBase64).indexOf('base64,') > -1 
+      ? String(fileBase64).split('base64,')[1] 
+      : String(fileBase64);
+
+    // 2.5 Save local backup on backend server
+    try {
+      const uploadDir = path.join(process.cwd(), 'uploads', 'submissions');
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+      const safeBackupName = `${Date.now()}_${fileName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      fs.writeFileSync(path.join(uploadDir, safeBackupName), Buffer.from(cleanBase64, 'base64'));
+    } catch (saveErr: any) {
+      console.warn("[Project Submission] Local backup save notice:", saveErr.message);
+    }
+
+    // 3. Upload to Google Drive via Google Apps Script Proxy
+    let driveUploadError = '';
     if (process.env.GMAIL_HTTP_PROXY_URL) {
       try {
-        const cleanBase64 = String(fileBase64).indexOf('base64,') > -1 
-          ? String(fileBase64).split('base64,')[1] 
-          : String(fileBase64);
-
         const drivePayload = {
           action: 'upload_presentation',
           eventName: String(eventName).trim(),
@@ -1644,23 +1659,28 @@ app.post('/api/project-submission/submit', sensitiveLimiter, async (req, res) =>
         };
 
         const driveRes = await postToAppsScript(process.env.GMAIL_HTTP_PROXY_URL, drivePayload, 2);
-        if (driveRes && driveRes.success) {
-          driveFileId = driveRes.fileId || '';
-          driveFileUrl = driveRes.fileUrl || '';
+        if (driveRes && driveRes.success && driveRes.fileId) {
+          driveFileId = driveRes.fileId;
+          driveFileUrl = driveRes.fileUrl;
           driveFolderId = driveRes.folderId || '';
           driveFolderUrl = driveRes.folderUrl || '';
         } else {
-          console.warn("[Project Submission] Drive upload returned notice:", driveRes?.error);
+          driveUploadError = driveRes?.error || 'Google Apps Script did not confirm file creation.';
+          console.warn("[Project Submission] Drive upload returned notice:", driveUploadError);
         }
       } catch (proxyErr: any) {
+        driveUploadError = proxyErr.message;
         console.error("[Project Submission] Drive upload proxy error:", proxyErr.message);
       }
+    } else {
+      driveUploadError = 'GMAIL_HTTP_PROXY_URL is not configured.';
     }
 
-    // Fallback URL if Google Apps Script is not yet updated or returns no URL
-    if (!driveFileUrl) {
-      driveFileUrl = `https://drive.google.com/drive/search?q=${encodeURIComponent(fileName)}`;
-      driveFolderUrl = `https://drive.google.com/drive/search?q=${encodeURIComponent(eventName)}`;
+    // Require successful Google Drive upload
+    if (!driveFileId || !driveFileUrl) {
+      return res.status(502).json({
+        error: `Google Drive Upload Failed: ${driveUploadError || 'Unable to store file in Google Drive.'} Please ensure the updated google_drive_proxy.gs code is deployed in script.google.com with Drive permissions.`
+      });
     }
 
     // 4. Save metadata in database (NO file binary/base64 stored)

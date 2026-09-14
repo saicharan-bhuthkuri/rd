@@ -109,7 +109,8 @@ function doPost(e) {
       subject: data.subject,
       body: data.text || "",
       htmlBody: data.html,
-      attachments: attachments
+      attachments: attachments,
+      name: "Trinity College R&D Cell"
     });
 
     return ContentService.createTextOutput(JSON.stringify({ success: true }))
@@ -119,4 +120,13 @@ function doPost(e) {
     return ContentService.createTextOutput(JSON.stringify({ success: false, error: err.message }))
       .setMimeType(ContentService.MimeType.JSON);
   }
+}
+
+function doGet(e) {
+  return ContentService.createTextOutput(JSON.stringify({
+    status: 'online',
+    service: 'TCEK R&D Cell Apps Script Proxy',
+    version: '2.0',
+    capabilities: ['email_dispatch', 'google_drive_upload']
+  })).setMimeType(ContentService.MimeType.JSON);
 }
