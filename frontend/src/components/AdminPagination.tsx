@@ -18,8 +18,8 @@ export const AdminPagination: React.FC<AdminPaginationProps> = ({
   onPageChange,
   itemName = 'records'
 }) => {
-  // If there are no records, do not show pagination controls
-  if (totalRecords === 0) {
+  // If there are no records or only 1 page, do not show pagination strip
+  if (totalRecords <= pageSize || totalPages <= 1) {
     return null;
   }
 

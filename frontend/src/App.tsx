@@ -81,6 +81,14 @@ import { AdminCreateEventPage } from './pages/AdminCreateEventPage';
 import { AdminBranchesPage } from './pages/AdminBranchesPage';
 import { AdminForgotPasswordPage } from './pages/AdminForgotPasswordPage'; // Newly created page
 import { AdminResetPasswordPage } from './pages/AdminResetPasswordPage'; // Newly created page
+import { AdminRegDeskPage } from './pages/AdminRegDeskPage';
+import { AdminRoomsPage } from './pages/AdminRoomsPage';
+
+// Registration Desk Pages
+import { RegDeskLoginPage } from './pages/RegDeskLoginPage';
+import { RegDeskForgotPasswordPage } from './pages/RegDeskForgotPasswordPage';
+import { RegDeskResetPasswordPage } from './pages/RegDeskResetPasswordPage';
+import { RegDeskDashboardPage } from './pages/RegDeskDashboardPage';
 
 
 
@@ -128,13 +136,29 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; allowedRoles?: strin
   return <>{children}</>;
 };
 
+// Protected Router Guard for Registration Desk
+const RegDeskProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const regDeskToken = localStorage.getItem('reg_desk_token');
+  const adminToken = localStorage.getItem('admin_token');
+  const regDeskUser = JSON.parse(localStorage.getItem('reg_desk_user') || '{}');
+  const adminUser = JSON.parse(localStorage.getItem('admin_user') || '{}');
+
+  const isLoggedIn = (!!regDeskToken && !!regDeskUser.deskId) || (!!adminToken && !!adminUser.username);
+
+  if (!isLoggedIn) {
+    return <Navigate to="/reg-desk/login" replace />;
+  }
+
+  return <>{children}</>;
+};
+
 // Main Layout Wrapper
 const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
-  const isAdminPath = location.pathname.startsWith('/admin');
+  const isAdminOrDeskPath = location.pathname.startsWith('/admin') || location.pathname.startsWith('/reg-desk');
   const isHome = location.pathname === '/';
 
-  if (isAdminPath) {
+  if (isAdminOrDeskPath) {
     return (
       <main style={{ minHeight: '100vh' }}>
         {children}
@@ -198,6 +222,23 @@ function App() {
           <Route path="/apply" element={<ApplyPage />} />
           <Route path="/apply/:registrationType" element={<ApplyPage />} />
           <Route path="/verify" element={<VerifyCertificatePage />} />
+
+          {/* Registration Desk Routes */}
+          <Route path="/reg-desk/login" element={<RegDeskLoginPage />} />
+          <Route path="/reg-desk/forgot-password" element={<RegDeskForgotPasswordPage />} />
+          <Route path="/reg-desk/reset-password" element={<RegDeskResetPasswordPage />} />
+          <Route
+            path="/reg-desk"
+            element={<Navigate to="/reg-desk/dashboard" replace />}
+          />
+          <Route
+            path="/reg-desk/dashboard"
+            element={
+              <RegDeskProtectedRoute>
+                <RegDeskDashboardPage />
+              </RegDeskProtectedRoute>
+            }
+          />
 
           {/* Admin Routes */}
           <Route path="/admin/login" element={<AdminLoginPage />} />
@@ -313,6 +354,24 @@ function App() {
             element={
               <ProtectedRoute>
                 <AdminBranchesPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin/reg-desk"
+            element={
+              <ProtectedRoute>
+                <AdminRegDeskPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin/rooms"
+            element={
+              <ProtectedRoute>
+                <AdminRoomsPage />
               </ProtectedRoute>
             }
           />

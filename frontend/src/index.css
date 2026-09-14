@@ -4052,7 +4052,7 @@ button, input, textarea, select, option {
   border-radius: var(--radius-lg);
   overflow: hidden;
   box-shadow: var(--shadow-sm);
-  margin-bottom: 2rem;
+  margin-bottom: 0.75rem;
 }
 
 .admin-table {

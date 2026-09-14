@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Users, ArrowLeft, LogOut, Sparkles, Calendar, ClipboardList, Layers, Menu, Code, Award, HeartHandshake, FolderUp, ChevronLeft } from 'lucide-react';
+import { Users, ArrowLeft, LogOut, Sparkles, Calendar, ClipboardList, Layers, Menu, Code, Award, HeartHandshake, FolderUp, ChevronLeft, UserCheck, DoorOpen } from 'lucide-react';
 import { API_BASE_URL } from '../config';
 
 interface AdminLayoutProps {
@@ -141,6 +141,16 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
           <Link to="/admin/branches" className={`admin-nav-item ${isActive('/admin/branches')}`}>
             <Layers size={18} />
             <span>Manage Branches</span>
+          </Link>
+
+          <Link to="/admin/reg-desk" className={`admin-nav-item ${isActive('/admin/reg-desk')}`}>
+            <UserCheck size={18} />
+            <span>Registration Desk</span>
+          </Link>
+
+          <Link to="/admin/rooms" className={`admin-nav-item ${isActive('/admin/rooms')}`}>
+            <DoorOpen size={18} />
+            <span>Registration Rooms</span>
           </Link>
 
           {(role === 'developer' || role === 'superadmin') && (

@@ -110,8 +110,12 @@ if (isProd && JWT_SECRET === 'rdcell_secret_key_2026') {
 // Request typing for JWT authentication
 interface AuthenticatedRequest extends express.Request {
   user?: {
+    id?: number;
     username: string;
-    role: 'developer' | 'superadmin' | 'admin';
+    role: 'developer' | 'superadmin' | 'admin' | 'reg_desk';
+    deskId?: string;
+    name?: string;
+    email?: string;
   };
 }
 
@@ -126,6 +130,11 @@ const authenticateToken = (req: AuthenticatedRequest, res: express.Response, nex
   jwt.verify(token, JWT_SECRET, (err: any, decoded: any) => {
     if (err) {
       return res.status(403).json({ error: "Invalid or expired token." });
+    }
+
+    // Role Guard: Registration Desk users cannot access full Admin endpoints
+    if (decoded.role === 'reg_desk') {
+      return res.status(403).json({ error: "Forbidden: Registration Desk personnel do not have access to the Main Admin Console." });
     }
 
     // CSRF Protection
@@ -146,6 +155,31 @@ const authenticateToken = (req: AuthenticatedRequest, res: express.Response, nex
           return res.status(403).json({ error: "CSRF token verification failed: validation failed." });
         }
       }
+    }
+
+    req.user = decoded;
+    next();
+  });
+};
+
+// Middleware specifically for Registration Desk and Admin endpoints
+const authenticateRegDeskToken = (req: AuthenticatedRequest, res: express.Response, next: express.NextFunction) => {
+  const authHeader = req.headers['authorization'];
+  const token = req.cookies?.reg_desk_token || req.cookies?.admin_token || (authHeader && authHeader.split(' ')[1]);
+
+  if (!token) {
+    return res.status(401).json({ error: "Access token missing. Please sign in to the Registration Desk portal." });
+  }
+
+  jwt.verify(token, JWT_SECRET, (err: any, decoded: any) => {
+    if (err) {
+      return res.status(403).json({ error: "Invalid or expired session. Please sign in again." });
+    }
+
+    // Allow reg_desk role OR any admin role
+    const validRoles = ['reg_desk', 'admin', 'superadmin', 'developer'];
+    if (!validRoles.includes(decoded.role)) {
+      return res.status(403).json({ error: "Unauthorized role for Registration Desk operations." });
     }
 
     req.user = decoded;
@@ -476,6 +510,80 @@ async function setupDatabase() {
       console.log("Database verification: salt column verified/added to admin_users.");
     } catch (e) {
       // Column already exists, ignore
+    }
+
+    // 15. Registration Desk Users Table
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS registration_desk_users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        desk_id TEXT UNIQUE NOT NULL,
+        name TEXT NOT NULL,
+        email TEXT NOT NULL,
+        password TEXT NOT NULL,
+        salt TEXT NOT NULL,
+        status TEXT DEFAULT 'active' CHECK(status IN ('active', 'inactive')),
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // 16. Registration Rooms Table
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS registration_rooms (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_type TEXT NOT NULL CHECK(event_type IN ('event', 'hackathon')),
+        event_name TEXT NOT NULL,
+        room_name TEXT NOT NULL,
+        room_code TEXT NOT NULL,
+        capacity INTEGER DEFAULT 0,
+        assigned_desk_id TEXT,
+        assigned_desk_name TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Attendance column alterations for event_registrations
+    try {
+      await db.execute(`ALTER TABLE event_registrations ADD COLUMN attendance TEXT DEFAULT 'pending';`);
+    } catch (e) {}
+    try {
+      await db.execute(`ALTER TABLE event_registrations ADD COLUMN attendance_marked_by TEXT;`);
+    } catch (e) {}
+    try {
+      await db.execute(`ALTER TABLE event_registrations ADD COLUMN attendance_marked_at DATETIME;`);
+    } catch (e) {}
+    try {
+      await db.execute(`ALTER TABLE event_registrations ADD COLUMN room_code TEXT;`);
+    } catch (e) {}
+
+    // Attendance column alterations for hackathon_registrations
+    try {
+      await db.execute(`ALTER TABLE hackathon_registrations ADD COLUMN attendance TEXT DEFAULT 'pending';`);
+    } catch (e) {}
+    try {
+      await db.execute(`ALTER TABLE hackathon_registrations ADD COLUMN attendance_marked_by TEXT;`);
+    } catch (e) {}
+    try {
+      await db.execute(`ALTER TABLE hackathon_registrations ADD COLUMN attendance_marked_at DATETIME;`);
+    } catch (e) {}
+    try {
+      await db.execute(`ALTER TABLE hackathon_registrations ADD COLUMN room_code TEXT;`);
+    } catch (e) {}
+
+    // Seed initial Registration Desk member if table is empty
+    try {
+      const deskCheck = await db.execute("SELECT id FROM registration_desk_users LIMIT 1");
+      if (deskCheck.rows.length === 0) {
+        const deskSalt = generateSalt();
+        const deskPass = 'desk1234';
+        const deskHash = await bcrypt.hash(deskSalt + deskPass, 10);
+        await db.execute({
+          sql: `INSERT INTO registration_desk_users (desk_id, name, email, password, salt, status) VALUES (?, ?, ?, ?, ?, ?)`,
+          args: ['REG-DESK-01', 'Desk Team A', 'tcekrdcell@gmail.com', deskHash, deskSalt, 'active']
+        });
+        console.log("Seeding verification: Default Registration Desk user REG-DESK-01 created.");
+      }
+    } catch (deskSeedErr: any) {
+      console.error("Error checking/seeding registration desk user:", deskSeedErr.message);
     }
 
     // Initial admin seeding (only executed if explicitly defined via environment variables and accounts do not exist)
@@ -2521,7 +2629,602 @@ app.delete('/api/admin/users/:id', authenticateToken, async (req: AuthenticatedR
     console.error("Error deleting user:", err);
     return res.status(500).json({ error: "Failed to delete user account.", details: err.message });
   }
-});// 11. Fetch All Events (Public)
+});
+
+// ==========================================
+// REGISTRATION DESK & ATTENDANCE MANAGEMENT
+// ==========================================
+
+// 10.1 Registration Desk Login
+app.post('/api/reg-desk/login', sensitiveLimiter, async (req, res) => {
+  const { deskId, password } = req.body;
+  if (!deskId || !password) {
+    return res.status(400).json({ error: "Registration Desk ID and password are required." });
+  }
+
+  try {
+    const userRes = await db.execute({
+      sql: "SELECT * FROM registration_desk_users WHERE LOWER(desk_id) = LOWER(?)",
+      args: [deskId.trim()]
+    });
+
+    if (userRes.rows.length === 0) {
+      return res.status(401).json({ error: "Invalid Registration Desk ID or password." });
+    }
+
+    const deskUser = userRes.rows[0];
+
+    if (deskUser.status === 'inactive') {
+      return res.status(403).json({ error: "This Registration Desk account is inactive. Please contact the administrator." });
+    }
+
+    const isMatch = await bcrypt.compare((deskUser.salt as string) + password, deskUser.password as string);
+    if (!isMatch) {
+      return res.status(401).json({ error: "Invalid Registration Desk ID or password." });
+    }
+
+    const token = jwt.sign(
+      {
+        id: deskUser.id,
+        username: deskUser.desk_id,
+        deskId: deskUser.desk_id,
+        name: deskUser.name,
+        email: deskUser.email,
+        role: 'reg_desk'
+      },
+      JWT_SECRET,
+      { expiresIn: '12h' }
+    );
+
+    res.cookie('reg_desk_token', token, {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: isProd ? 'none' : 'lax',
+      maxAge: 12 * 60 * 60 * 1000
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Registration Desk login successful.",
+      token,
+      user: {
+        id: deskUser.id,
+        deskId: deskUser.desk_id,
+        name: deskUser.name,
+        email: deskUser.email,
+        role: 'reg_desk'
+      }
+    });
+  } catch (err: any) {
+    console.error("Registration desk login error:", err);
+    return res.status(500).json({ error: "Login failed.", details: err.message });
+  }
+});
+
+// 10.2 Registration Desk Forgot Password
+app.post('/api/reg-desk/forgot-password', sensitiveLimiter, async (req, res) => {
+  const { deskIdOrEmail } = req.body;
+  if (!deskIdOrEmail || deskIdOrEmail.trim() === '') {
+    return res.status(400).json({ error: "Please enter your Registration Desk ID or registered email." });
+  }
+
+  try {
+    const userRes = await db.execute({
+      sql: "SELECT * FROM registration_desk_users WHERE LOWER(desk_id) = LOWER(?) OR LOWER(email) = LOWER(?)",
+      args: [deskIdOrEmail.trim(), deskIdOrEmail.trim()]
+    });
+
+    if (userRes.rows.length === 0) {
+      return res.status(404).json({ error: "No Registration Desk account found matching that ID or email." });
+    }
+
+    const deskUser = userRes.rows[0];
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const tokenSalt = generateSalt();
+    const tokenHash = crypto.createHash('sha256').update(tokenSalt + rawToken).digest('hex');
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+
+    await db.execute({
+      sql: "INSERT INTO password_reset_tokens (username, token_hash, salt, expires_at) VALUES (?, ?, ?, ?)",
+      args: [`desk_${deskUser.desk_id}`, tokenHash, tokenSalt, expiresAt]
+    });
+
+    const resetToken = jwt.sign(
+      { deskId: deskUser.desk_id, rawToken, purpose: 'reg-desk-reset' },
+      JWT_SECRET,
+      { expiresIn: '30m' }
+    );
+
+    const origin = req.headers.origin || process.env.FRONTEND_URL || 'https://tcek-rd.web.app';
+    const resetLink = `${origin}/reg-desk/reset-password?token=${resetToken}`;
+
+    const subject = "Registration Desk Password Reset Request";
+    const text = `Hello ${deskUser.name},\n\nA password reset request was received for your Registration Desk account (${deskUser.desk_id}).\n\nClick the link below to set a new password:\n${resetLink}\n\nThis link is valid for 30 minutes.`;
+
+    const html = `
+      <div style="font-family: sans-serif; background-color: #0f172a; color: #f1f5f9; padding: 30px;">
+        <div style="max-width: 500px; margin: 0 auto; background: #1e293b; padding: 24px; border-radius: 10px; border: 1px solid #334155;">
+          <h2 style="color: #38bdf8;">Registration Desk Password Recovery</h2>
+          <p>Hello <strong>${deskUser.name}</strong> (${deskUser.desk_id}),</p>
+          <p>A request was received to reset the password for your Registration Desk portal account.</p>
+          <div style="margin: 25px 0; text-align: center;">
+            <a href="${resetLink}" style="background-color: #0284c7; color: #ffffff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block;">Reset Password</a>
+          </div>
+          <p style="font-size: 0.8rem; color: #94a3b8;">Or copy this URL into your browser:<br/><a href="${resetLink}" style="color: #38bdf8;">${resetLink}</a></p>
+          <p style="font-size: 0.75rem; color: #64748b;">This link will expire in 30 minutes.</p>
+        </div>
+      </div>
+    `;
+
+    try {
+      await sendSystemEmail(deskUser.email as string, subject, text, html);
+    } catch (mailErr: any) {
+      console.warn("Mail dispatch warning for reg-desk reset:", mailErr.message);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Password reset instructions have been sent to ${deskUser.email}.`
+    });
+  } catch (err: any) {
+    console.error("Forgot password reg-desk error:", err);
+    return res.status(500).json({ error: "Failed to process recovery request.", details: err.message });
+  }
+});
+
+// 10.3 Registration Desk Reset Password
+app.post('/api/reg-desk/reset-password', sensitiveLimiter, async (req, res) => {
+  const { token, newPassword } = req.body;
+  if (!token || !newPassword) {
+    return res.status(400).json({ error: "Token and new password are required." });
+  }
+
+  if (newPassword.length < 6) {
+    return res.status(400).json({ error: "Password must be at least 6 characters long." });
+  }
+
+  try {
+    const decoded: any = jwt.verify(token, JWT_SECRET);
+    if (decoded.purpose !== 'reg-desk-reset' || !decoded.deskId || !decoded.rawToken) {
+      return res.status(400).json({ error: "Invalid password reset token." });
+    }
+
+    const usernameKey = `desk_${decoded.deskId}`;
+    const tokenRows = await db.execute({
+      sql: "SELECT * FROM password_reset_tokens WHERE username = ? AND used = 0 ORDER BY id DESC LIMIT 1",
+      args: [usernameKey]
+    });
+
+    if (tokenRows.rows.length === 0) {
+      return res.status(400).json({ error: "This password reset token has already been used or expired." });
+    }
+
+    const tokenRecord = tokenRows.rows[0];
+    const expectedHash = crypto.createHash('sha256').update((tokenRecord.salt as string) + decoded.rawToken).digest('hex');
+
+    if (expectedHash !== tokenRecord.token_hash) {
+      return res.status(400).json({ error: "Invalid password reset token." });
+    }
+
+    if (new Date() > new Date(tokenRecord.expires_at as string)) {
+      return res.status(400).json({ error: "This password reset link has expired." });
+    }
+
+    const newSalt = generateSalt();
+    const newHash = await bcrypt.hash(newSalt + newPassword, 10);
+
+    await db.execute({
+      sql: "UPDATE registration_desk_users SET password = ?, salt = ? WHERE LOWER(desk_id) = LOWER(?)",
+      args: [newHash, newSalt, decoded.deskId]
+    });
+
+    await db.execute({
+      sql: "UPDATE password_reset_tokens SET used = 1 WHERE id = ?",
+      args: [tokenRecord.id]
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Password has been successfully updated. You may now sign in."
+    });
+  } catch (err: any) {
+    console.error("Reset password error:", err);
+    return res.status(400).json({ error: "Failed to reset password. Link may be expired or invalid.", details: err.message });
+  }
+});
+
+// 10.4 Registration Desk Assignments & Events
+app.get('/api/reg-desk/assignments', authenticateRegDeskToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const deskId = req.user?.deskId || req.user?.username || '';
+    
+    // Fetch rooms assigned to this desk member
+    const roomsRes = await db.execute({
+      sql: "SELECT * FROM registration_rooms WHERE LOWER(assigned_desk_id) = LOWER(?) OR assigned_desk_id IS NULL OR assigned_desk_id = '' ORDER BY room_name ASC",
+      args: [deskId]
+    });
+
+    // Also fetch all distinct events and hackathons
+    const eventsRes = await db.execute("SELECT DISTINCT title, date, location FROM events WHERE category != 'Hackathon' ORDER BY id DESC");
+    const hackathonsRes = await db.execute("SELECT DISTINCT hackathon_name FROM hackathon_registrations WHERE hackathon_name IS NOT NULL AND hackathon_name != ''");
+    const eventHackathonsRes = await db.execute("SELECT title, date, location FROM events WHERE category = 'Hackathon' ORDER BY id DESC");
+
+    const hackathonSet = new Set<string>();
+    hackathonsRes.rows.forEach(r => {
+      if (r.hackathon_name) hackathonSet.add(String(r.hackathon_name).trim());
+    });
+    eventHackathonsRes.rows.forEach(r => {
+      if (r.title) hackathonSet.add(String(r.title).trim());
+    });
+
+    return res.status(200).json({
+      success: true,
+      deskUser: {
+        deskId,
+        name: req.user?.name || deskId,
+        role: req.user?.role
+      },
+      assignedRooms: roomsRes.rows,
+      events: eventsRes.rows.map(r => ({ title: r.title, date: r.date, location: r.location })),
+      hackathons: Array.from(hackathonSet).map(h => ({ title: h }))
+    });
+  } catch (err: any) {
+    console.error("Error fetching reg desk assignments:", err);
+    return res.status(500).json({ error: "Failed to load desk assignments.", details: err.message });
+  }
+});
+
+// 10.5 Registration Desk Participants List & Statistics
+app.get('/api/reg-desk/participants', authenticateRegDeskToken, async (req: AuthenticatedRequest, res) => {
+  const { type, name, branch, attendance, search } = req.query;
+
+  if (!type || !name) {
+    return res.status(400).json({ error: "Type ('event' | 'hackathon') and Event/Hackathon Name are required." });
+  }
+
+  try {
+    let rows: any[] = [];
+    if (type === 'hackathon') {
+      const result = await db.execute({
+        sql: "SELECT * FROM hackathon_registrations WHERE LOWER(hackathon_name) = LOWER(?) ORDER BY id ASC",
+        args: [String(name).trim()]
+      });
+      rows = result.rows;
+    } else {
+      const result = await db.execute({
+        sql: "SELECT * FROM event_registrations WHERE LOWER(event_name) = LOWER(?) ORDER BY id ASC",
+        args: [String(name).trim()]
+      });
+      rows = result.rows;
+    }
+
+    // Compute stats across all records for this event
+    let total = rows.length;
+    let present = 0;
+    let absent = 0;
+    let pending = 0;
+    const branchMap: Record<string, number> = {};
+
+    rows.forEach(r => {
+      const att = (r.attendance || 'pending').toLowerCase();
+      if (att === 'present') present++;
+      else if (att === 'absent') absent++;
+      else pending++;
+
+      const br = (r.leader_branch || r.branch || 'General').toUpperCase().trim();
+      branchMap[br] = (branchMap[br] || 0) + 1;
+    });
+
+    // Apply filtering
+    let filtered = [...rows];
+
+    if (branch && branch !== 'all') {
+      filtered = filtered.filter(r => {
+        const b = (r.leader_branch || r.branch || '').toUpperCase().trim();
+        return b === String(branch).toUpperCase().trim();
+      });
+    }
+
+    if (attendance && attendance !== 'all') {
+      filtered = filtered.filter(r => {
+        const a = (r.attendance || 'pending').toLowerCase();
+        return a === String(attendance).toLowerCase();
+      });
+    }
+
+    if (search && String(search).trim() !== '') {
+      const q = String(search).toLowerCase().trim();
+      filtered = filtered.filter(r => {
+        const team = (r.team_name || '').toLowerCase();
+        const leader = (r.leader_name || '').toLowerCase();
+        const name = (r.full_name || '').toLowerCase();
+        const pin = (r.pin_number || '').toLowerCase();
+        const email = (r.leader_email || r.email || '').toLowerCase();
+        const phone = (r.leader_phone || r.mobile || '').toLowerCase();
+        const proj = (r.project_title || '').toLowerCase();
+        return team.includes(q) || leader.includes(q) || name.includes(q) || pin.includes(q) || email.includes(q) || phone.includes(q) || proj.includes(q);
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      participants: filtered,
+      stats: {
+        total,
+        present,
+        absent,
+        pending,
+        branches: Object.entries(branchMap).map(([name, count]) => ({ name, count }))
+      }
+    });
+  } catch (err: any) {
+    console.error("Error fetching participants for reg desk:", err);
+    return res.status(500).json({ error: "Failed to fetch participants.", details: err.message });
+  }
+});
+
+// 10.6 Registration Desk Mark Attendance (Present / Absent / Reset)
+app.post('/api/reg-desk/attendance', authenticateRegDeskToken, async (req: AuthenticatedRequest, res) => {
+  const { type, id, attendance } = req.body;
+  if (!type || !id || !attendance) {
+    return res.status(400).json({ error: "Type ('event'|'hackathon'), Participant ID, and attendance state are required." });
+  }
+
+  const validStates = ['present', 'absent', 'pending'];
+  if (!validStates.includes(attendance.toLowerCase())) {
+    return res.status(400).json({ error: "Invalid attendance state. Allowed: present, absent, pending." });
+  }
+
+  const attVal = attendance.toLowerCase();
+  const markedBy = req.user?.deskId || req.user?.username || 'Registration Desk';
+
+  try {
+    if (type === 'hackathon') {
+      await db.execute({
+        sql: "UPDATE hackathon_registrations SET attendance = ?, attendance_marked_by = ?, attendance_marked_at = CURRENT_TIMESTAMP WHERE id = ?",
+        args: [attVal, markedBy, id]
+      });
+    } else {
+      await db.execute({
+        sql: "UPDATE event_registrations SET attendance = ?, attendance_marked_by = ?, attendance_marked_at = CURRENT_TIMESTAMP WHERE id = ?",
+        args: [attVal, markedBy, id]
+      });
+    }
+
+    notifySyncClients("REFRESH_ATTENDANCE");
+
+    return res.status(200).json({
+      success: true,
+      message: `Attendance updated to ${attVal}`,
+      id,
+      attendance: attVal,
+      markedBy
+    });
+  } catch (err: any) {
+    console.error("Error updating attendance:", err);
+    return res.status(500).json({ error: "Failed to update attendance.", details: err.message });
+  }
+});
+
+// 10.7 Admin Registration Desk Team Management Endpoints
+app.get('/api/admin/reg-desk-users', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const usersRes = await db.execute("SELECT id, desk_id, name, email, status, created_at FROM registration_desk_users ORDER BY created_at DESC");
+    return res.status(200).json(usersRes.rows);
+  } catch (err: any) {
+    console.error("Error listing reg desk users:", err);
+    return res.status(500).json({ error: "Failed to load registration desk members.", details: err.message });
+  }
+});
+
+app.post('/api/admin/reg-desk-users', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  const { desk_id, name, email, password, status } = req.body;
+  if (!desk_id || !name || !email || !password) {
+    return res.status(400).json({ error: "Desk ID, Name, Email, and Password are required." });
+  }
+
+  try {
+    const checkRes = await db.execute({
+      sql: "SELECT id FROM registration_desk_users WHERE LOWER(desk_id) = LOWER(?)",
+      args: [desk_id.trim()]
+    });
+    if (checkRes.rows.length > 0) {
+      return res.status(409).json({ error: `Registration Desk ID '${desk_id}' is already in use.` });
+    }
+
+    const salt = generateSalt();
+    const hash = await bcrypt.hash(salt + password, 10);
+    const userStatus = status === 'inactive' ? 'inactive' : 'active';
+
+    const result = await db.execute({
+      sql: "INSERT INTO registration_desk_users (desk_id, name, email, password, salt, status) VALUES (?, ?, ?, ?, ?, ?)",
+      args: [desk_id.trim().toUpperCase(), name.trim(), email.trim(), hash, salt, userStatus]
+    });
+
+    notifySyncClients("REFRESH_REG_DESK_USERS");
+    return res.status(201).json({
+      success: true,
+      message: "Registration Desk member added successfully.",
+      id: Number(result.lastInsertRowid)
+    });
+  } catch (err: any) {
+    console.error("Error creating reg desk user:", err);
+    return res.status(500).json({ error: "Failed to create desk member.", details: err.message });
+  }
+});
+
+app.put('/api/admin/reg-desk-users/:id', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  const { id } = req.params;
+  const { name, email, status, password } = req.body;
+
+  try {
+    const existing = await db.execute({
+      sql: "SELECT * FROM registration_desk_users WHERE id = ?",
+      args: [id]
+    });
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ error: "Registration Desk member not found." });
+    }
+
+    const current = existing.rows[0];
+    const newName = name ? name.trim() : current.name;
+    const newEmail = email ? email.trim() : current.email;
+    const newStatus = status ? status : current.status;
+
+    if (password && password.trim() !== '') {
+      const salt = generateSalt();
+      const hash = await bcrypt.hash(salt + password.trim(), 10);
+      await db.execute({
+        sql: "UPDATE registration_desk_users SET name = ?, email = ?, status = ?, password = ?, salt = ? WHERE id = ?",
+        args: [newName, newEmail, newStatus, hash, salt, id]
+      });
+    } else {
+      await db.execute({
+        sql: "UPDATE registration_desk_users SET name = ?, email = ?, status = ? WHERE id = ?",
+        args: [newName, newEmail, newStatus, id]
+      });
+    }
+
+    notifySyncClients("REFRESH_REG_DESK_USERS");
+    return res.status(200).json({ success: true, message: "Desk member updated successfully." });
+  } catch (err: any) {
+    console.error("Error updating reg desk user:", err);
+    return res.status(500).json({ error: "Failed to update desk member.", details: err.message });
+  }
+});
+
+app.post('/api/admin/reg-desk-users/:id/reset-password', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  const { id } = req.params;
+  const { newPassword } = req.body;
+
+  if (!newPassword || newPassword.trim().length < 6) {
+    return res.status(400).json({ error: "New password must be at least 6 characters." });
+  }
+
+  try {
+    const salt = generateSalt();
+    const hash = await bcrypt.hash(salt + newPassword.trim(), 10);
+    await db.execute({
+      sql: "UPDATE registration_desk_users SET password = ?, salt = ? WHERE id = ?",
+      args: [hash, salt, id]
+    });
+
+    return res.status(200).json({ success: true, message: "Password reset successfully." });
+  } catch (err: any) {
+    console.error("Error resetting password:", err);
+    return res.status(500).json({ error: "Failed to reset password.", details: err.message });
+  }
+});
+
+app.delete('/api/admin/reg-desk-users/:id', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  const { id } = req.params;
+  try {
+    await db.execute({
+      sql: "DELETE FROM registration_desk_users WHERE id = ?",
+      args: [id]
+    });
+    notifySyncClients("REFRESH_REG_DESK_USERS");
+    return res.status(200).json({ success: true, message: "Desk member removed." });
+  } catch (err: any) {
+    console.error("Error deleting reg desk user:", err);
+    return res.status(500).json({ error: "Failed to delete desk member.", details: err.message });
+  }
+});
+
+// 10.8 Admin Registration Rooms Management Endpoints
+app.get('/api/admin/rooms', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const roomsRes = await db.execute("SELECT * FROM registration_rooms ORDER BY id DESC");
+    return res.status(200).json(roomsRes.rows);
+  } catch (err: any) {
+    console.error("Error fetching rooms:", err);
+    return res.status(500).json({ error: "Failed to fetch rooms.", details: err.message });
+  }
+});
+
+app.post('/api/admin/rooms', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  const { event_type, event_name, room_name, room_code, capacity, assigned_desk_id, assigned_desk_name } = req.body;
+  if (!event_type || !event_name || !room_name || !room_code) {
+    return res.status(400).json({ error: "Event Type, Event Name, Room Name, and Room Code are required." });
+  }
+
+  try {
+    const result = await db.execute({
+      sql: "INSERT INTO registration_rooms (event_type, event_name, room_name, room_code, capacity, assigned_desk_id, assigned_desk_name) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      args: [
+        event_type,
+        event_name.trim(),
+        room_name.trim(),
+        room_code.trim(),
+        Number(capacity) || 0,
+        assigned_desk_id || null,
+        assigned_desk_name || null
+      ]
+    });
+
+    notifySyncClients("REFRESH_ROOMS");
+    return res.status(201).json({
+      success: true,
+      message: "Room created successfully.",
+      id: Number(result.lastInsertRowid)
+    });
+  } catch (err: any) {
+    console.error("Error creating room:", err);
+    return res.status(500).json({ error: "Failed to create room.", details: err.message });
+  }
+});
+
+app.put('/api/admin/rooms/:id', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  const { id } = req.params;
+  const { event_type, event_name, room_name, room_code, capacity, assigned_desk_id, assigned_desk_name } = req.body;
+
+  try {
+    await db.execute({
+      sql: `UPDATE registration_rooms SET 
+              event_type = COALESCE(?, event_type),
+              event_name = COALESCE(?, event_name),
+              room_name = COALESCE(?, room_name),
+              room_code = COALESCE(?, room_code),
+              capacity = COALESCE(?, capacity),
+              assigned_desk_id = ?,
+              assigned_desk_name = ?
+            WHERE id = ?`,
+      args: [
+        event_type || null,
+        event_name ? event_name.trim() : null,
+        room_name ? room_name.trim() : null,
+        room_code ? room_code.trim() : null,
+        capacity !== undefined ? Number(capacity) : null,
+        assigned_desk_id || null,
+        assigned_desk_name || null,
+        id
+      ]
+    });
+
+    notifySyncClients("REFRESH_ROOMS");
+    return res.status(200).json({ success: true, message: "Room updated successfully." });
+  } catch (err: any) {
+    console.error("Error updating room:", err);
+    return res.status(500).json({ error: "Failed to update room.", details: err.message });
+  }
+});
+
+app.delete('/api/admin/rooms/:id', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  const { id } = req.params;
+  try {
+    await db.execute({
+      sql: "DELETE FROM registration_rooms WHERE id = ?",
+      args: [id]
+    });
+    notifySyncClients("REFRESH_ROOMS");
+    return res.status(200).json({ success: true, message: "Room deleted successfully." });
+  } catch (err: any) {
+    console.error("Error deleting room:", err);
+    return res.status(500).json({ error: "Failed to delete room.", details: err.message });
+  }
+});
+
+// 11. Fetch All Events (Public)
 app.get('/api/events', async (req, res) => {
   try {
     const eventsRes = await db.execute("SELECT * FROM events ORDER BY created_at DESC");
@@ -3315,15 +4018,27 @@ app.post('/api/admin/bulk-send/certificates', authenticateToken, async (req: Aut
       sql: "SELECT * FROM event_registrations WHERE event_name = ? AND (certificate_sent = 0 OR certificate_sent IS NULL)",
       args: [eventTitle]
     });
-    const registrations = regsRes.rows;
+    const allPendingAttendees = regsRes.rows;
+    const registrations = allPendingAttendees.filter((reg: any) => (reg.attendance || '').toLowerCase() === 'present');
+    const absentCount = allPendingAttendees.length - registrations.length;
 
-    if (registrations.length === 0) {
+    if (allPendingAttendees.length === 0) {
       sendLog(`No registrations pending certificates found for: ${eventTitle}.`, 100, true);
       res.end();
       return;
     }
 
-    sendLog(`Found ${registrations.length} attendees pending certificates. Starting bulk dispatch...`, 15);
+    if (registrations.length === 0) {
+      sendLog(`All ${allPendingAttendees.length} pending attendees are marked Absent or pending. Only attendees marked 'Present' by the Registration Desk are eligible for certificates.`, 100, true);
+      res.end();
+      return;
+    }
+
+    if (absentCount > 0) {
+      sendLog(`Attendance Filter: Automatically excluded ${absentCount} absent/unmarked attendee(s).`, 12);
+    }
+
+    sendLog(`Found ${registrations.length} eligible attendees (marked Present) pending certificates. Starting bulk dispatch...`, 15);
 
     let successCount = 0;
 
@@ -3567,15 +4282,27 @@ app.post('/api/admin/bulk-send/hackathon-certificates', authenticateToken, async
       sql: "SELECT * FROM hackathon_registrations WHERE hackathon_name = ? AND status = 'approved' AND (certificate_sent = 0 OR certificate_sent IS NULL)",
       args: [hackathonName]
     });
-    const approvedTeams = teamsRes.rows;
+    const allPendingTeams = teamsRes.rows;
+    const approvedTeams = allPendingTeams.filter((t: any) => (t.attendance || '').toLowerCase() === 'present');
+    const absentCount = allPendingTeams.length - approvedTeams.length;
 
-    if (approvedTeams.length === 0) {
+    if (allPendingTeams.length === 0) {
       sendLog(`No approved team registrations pending certificates found for: ${hackathonName}.`, 100, true);
       res.end();
       return;
     }
 
-    sendLog(`Found ${approvedTeams.length} approved teams pending certificates. Generating recipient tasks...`, 15);
+    if (approvedTeams.length === 0) {
+      sendLog(`All ${allPendingTeams.length} pending teams are marked Absent or pending. Only teams marked 'Present' by the Registration Desk are eligible for certificates.`, 100, true);
+      res.end();
+      return;
+    }
+
+    if (absentCount > 0) {
+      sendLog(`Attendance Filter: Automatically excluded ${absentCount} absent/unmarked team(s).`, 12);
+    }
+
+    sendLog(`Found ${approvedTeams.length} eligible teams (marked Present) pending certificates. Generating recipient tasks...`, 15);
 
     // 4. Build individual recipient tasks for leader + members
     const tasks: any[] = [];

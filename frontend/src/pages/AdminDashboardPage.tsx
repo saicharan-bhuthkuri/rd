@@ -100,6 +100,10 @@ interface EventRegistration {
   status: string;
   certificate_sent?: number;
   certificate_id?: string;
+  attendance?: 'present' | 'absent' | 'pending';
+  attendance_marked_by?: string;
+  attendance_marked_at?: string;
+  room_code?: string;
   created_at: string;
 }
 
@@ -123,6 +127,10 @@ interface HackathonRegistration {
   status: 'pending' | 'approved' | 'rejected';
   certificate_sent?: number;
   certificate_type?: string;
+  attendance?: 'present' | 'absent' | 'pending';
+  attendance_marked_by?: string;
+  attendance_marked_at?: string;
+  room_code?: string;
   created_at: string;
 }
 
@@ -153,6 +161,7 @@ export const AdminDashboardPage: React.FC = () => {
   const [eventFilter, setEventFilter] = useState('all');
   const [hackathonFilter, setHackathonFilter] = useState('all');
   const [certSentFilter, setCertSentFilter] = useState<'all' | 'sent' | 'pending'>('all');
+  const [attendanceFilter, setAttendanceFilter] = useState<'all' | 'present' | 'absent' | 'pending'>('all');
   const [volunteerRoleFilter, setVolunteerRoleFilter] = useState('all');
   const [managedBranches, setManagedBranches] = useState<string[]>([]);
 
@@ -163,7 +172,7 @@ export const AdminDashboardPage: React.FC = () => {
   // Reset pagination to page 1 whenever active tab or any filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeTab, searchTerm, branchFilter, statusFilter, eventFilter, hackathonFilter, volunteerRoleFilter, certSentFilter]);
+  }, [activeTab, searchTerm, branchFilter, statusFilter, eventFilter, hackathonFilter, volunteerRoleFilter, certSentFilter, attendanceFilter]);
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -563,9 +572,16 @@ export const AdminDashboardPage: React.FC = () => {
       return;
     }
 
+    const targetHackathonRegs = hackathonRegs.filter(r => hackathonFilter === 'all' || r.hackathon_name === hackathonFilter);
+    const eligibleTeams = targetHackathonRegs.filter(r => r.status === 'approved' && (r.attendance || 'pending').toLowerCase() === 'present');
+    const excludedTeams = targetHackathonRegs.filter(r => (r.attendance || 'pending').toLowerCase() !== 'present');
+
     showCustomConfirm(
       "Send Hackathon Certificates",
-      `Are you sure you want to generate and dispatch certificates to ALL approved team members registered for the hackathon "${hackathonFilter}"?`,
+      `Attendance Check for "${hackathonFilter}":\n\n` +
+      `• Eligible: ${eligibleTeams.length} approved team(s) marked Present.\n` +
+      `• Excluded: ${excludedTeams.length} team(s) marked Absent or Pending.\n\n` +
+      `Only teams marked Present will receive certificates. Proceed with dispatch?`,
       executeBulkSendHackathonCertificates
     );
   };
@@ -907,7 +923,8 @@ export const AdminDashboardPage: React.FC = () => {
     const matchesCertSent = certSentFilter === 'all' ||
       (certSentFilter === 'sent' && reg.certificate_sent === 1) ||
       (certSentFilter === 'pending' && (!reg.certificate_sent || reg.certificate_sent === 0));
-    return matchesSearch && matchesBranch && matchesEvent && matchesCertSent;
+    const matchesAttendance = attendanceFilter === 'all' || (reg.attendance || 'pending').toLowerCase() === attendanceFilter;
+    return matchesSearch && matchesBranch && matchesEvent && matchesCertSent && matchesAttendance;
   });
 
   const filteredHackathonRegs = hackathonRegs.filter(reg => {
@@ -919,7 +936,8 @@ export const AdminDashboardPage: React.FC = () => {
     const matchesBranch = matchesBranchFilter(reg.leader_branch || '', branchFilter);
     const matchesHackathon = hackathonFilter === 'all' || 
       (reg.hackathon_name || 'R&D AlphaQuest Hackathon') === hackathonFilter;
-    return matchesSearch && matchesStatus && matchesBranch && matchesHackathon;
+    const matchesAttendance = attendanceFilter === 'all' || (reg.attendance || 'pending').toLowerCase() === attendanceFilter;
+    return matchesSearch && matchesStatus && matchesBranch && matchesHackathon && matchesAttendance;
   });
 
   const filteredRecognitionApps = recognitionApps.filter(app => {
@@ -1438,6 +1456,25 @@ export const AdminDashboardPage: React.FC = () => {
             />
           )}
 
+          {/* Attendance Filter for Events and Hackathons */}
+          {(activeTab === 'event' || activeTab === 'hackathon') && (
+            <AdminFilterDropdown
+              value={attendanceFilter}
+              onChange={(val) => setAttendanceFilter(val as 'all' | 'present' | 'absent' | 'pending')}
+              options={[
+                { value: 'all', label: 'All Attendance' },
+                { value: 'present', label: 'Present Only' },
+                { value: 'absent', label: 'Absent Only' },
+                { value: 'pending', label: 'Pending Only' }
+              ]}
+              placeholder="All Attendance"
+              minWidth="135px"
+              maxWidth="165px"
+              menuWidth="180px"
+              title="Filter by Attendance"
+            />
+          )}
+
           {/* 6. Dispatch filter (for recognition / volunteer) */}
           {(activeTab === 'recognition' || activeTab === 'volunteer') && (
             <AdminFilterDropdown
@@ -1617,6 +1654,7 @@ export const AdminDashboardPage: React.FC = () => {
                   <th>Student Info</th>
                   <th>Academic Profile</th>
                   <th>Target Event</th>
+                  <th>Attendance</th>
                   <th>Special Notes</th>
                   <th colSpan={2}>Certificate Action / Type</th>
                 </tr>
@@ -1652,6 +1690,7 @@ export const AdminDashboardPage: React.FC = () => {
                   <th>Team & Leader Info</th>
                   <th>Academic & Branch Profile</th>
                   <th>Members Roster</th>
+                  <th>Attendance</th>
                   <th>Status</th>
                   <th colSpan={2}>Certificate Action / Type</th>
                 </tr>
@@ -1721,7 +1760,7 @@ export const AdminDashboardPage: React.FC = () => {
               ) : activeTab === 'event' ? (
                 filteredEventRegs.length === 0 ? (
                   <tr>
-                    <td colSpan={6} style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--text-muted)' }}>
+                    <td colSpan={7} style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--text-muted)' }}>
                       No event registrations match the filter criteria.
                     </td>
                   </tr>
@@ -1783,6 +1822,40 @@ export const AdminDashboardPage: React.FC = () => {
                         <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--primary)' }}>
                           {reg.event_name}
                         </span>
+                      </td>
+                      <td>
+                        {(() => {
+                          const att = (reg.attendance || 'pending').toLowerCase();
+                          const badgeStyles: Record<string, { bg: string; color: string; border: string; label: string }> = {
+                            present: { bg: '#ecfdf5', color: '#047857', border: '#a7f3d0', label: '✓ Present' },
+                            absent: { bg: '#fef2f2', color: '#b91c1c', border: '#fecaca', label: '✕ Absent' },
+                            pending: { bg: '#f3f4f6', color: '#4b5563', border: '#e5e7eb', label: '⏳ Pending' }
+                          };
+                          const s = badgeStyles[att] || badgeStyles.pending;
+                          return (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', alignItems: 'flex-start' }}>
+                              <span style={{
+                                fontSize: '0.6875rem',
+                                fontWeight: 700,
+                                color: s.color,
+                                backgroundColor: s.bg,
+                                border: `1px solid ${s.border}`,
+                                padding: '0.15rem 0.45rem',
+                                borderRadius: '9999px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.25rem'
+                              }}>
+                                {s.label}
+                              </span>
+                              {reg.room_code && (
+                                <span style={{ fontSize: '0.6875rem', color: 'var(--text-muted)' }}>
+                                  Room: {reg.room_code}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td style={{ maxWidth: '250px', fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
                         <div style={{ maxHeight: '60px', overflowY: 'auto' }}>{reg.notes || 'No notes provided'}</div>
@@ -2329,7 +2402,7 @@ export const AdminDashboardPage: React.FC = () => {
               ) : (
                 filteredHackathonRegs.length === 0 ? (
                   <tr>
-                    <td colSpan={6} style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--text-muted)' }}>
+                    <td colSpan={7} style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--text-muted)' }}>
                       No hackathon registrations match the filter criteria.
                     </td>
                   </tr>
@@ -2397,6 +2470,40 @@ export const AdminDashboardPage: React.FC = () => {
                               <Eye size={12} /> View Details
                             </button>
                           </div>
+                        </td>
+                        <td>
+                          {(() => {
+                            const att = (reg.attendance || 'pending').toLowerCase();
+                            const badgeStyles: Record<string, { bg: string; color: string; border: string; label: string }> = {
+                              present: { bg: '#ecfdf5', color: '#047857', border: '#a7f3d0', label: '✓ Present' },
+                              absent: { bg: '#fef2f2', color: '#b91c1c', border: '#fecaca', label: '✕ Absent' },
+                              pending: { bg: '#f3f4f6', color: '#4b5563', border: '#e5e7eb', label: '⏳ Pending' }
+                            };
+                            const s = badgeStyles[att] || badgeStyles.pending;
+                            return (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', alignItems: 'flex-start' }}>
+                                <span style={{
+                                  fontSize: '0.6875rem',
+                                  fontWeight: 700,
+                                  color: s.color,
+                                  backgroundColor: s.bg,
+                                  border: `1px solid ${s.border}`,
+                                  padding: '0.15rem 0.45rem',
+                                  borderRadius: '9999px',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.25rem'
+                                }}>
+                                  {s.label}
+                                </span>
+                                {reg.room_code && (
+                                  <span style={{ fontSize: '0.6875rem', color: 'var(--text-muted)' }}>
+                                    Room: {reg.room_code}
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', alignItems: 'flex-start' }}>
@@ -2728,6 +2835,29 @@ export const AdminDashboardPage: React.FC = () => {
             <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
               Are you sure you want to generate and dispatch certificates to all unsent/pending registered attendees of the event <strong>"{eventFilter}"</strong>? The certificate action text (e.g. Coordinated, Won First Place) will be read directly from the table dropdown values.
             </p>
+
+            {(() => {
+              const targetRegs = eventRegs.filter(r => (eventFilter === 'all' || r.event_name === eventFilter) && r.certificate_sent !== 1);
+              const presentCount = targetRegs.filter(r => (r.attendance || '').toLowerCase() === 'present').length;
+              const excludedCount = targetRegs.length - presentCount;
+              return (
+                <div style={{
+                  background: 'rgba(240, 253, 244, 0.7)',
+                  border: '1px solid #bbf7d0',
+                  borderRadius: '0.5rem',
+                  padding: '0.75rem 1rem',
+                  fontSize: '0.8125rem'
+                }}>
+                  <div style={{ fontWeight: 600, color: '#15803d', marginBottom: '0.25rem' }}>
+                    Attendance Eligibility Automation
+                  </div>
+                  <div style={{ color: '#166534', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                    <div>• <strong>{presentCount}</strong> attendee(s) marked <strong>Present</strong> (Eligible for certificates)</div>
+                    <div style={{ color: '#991b1b' }}>• <strong>{excludedCount}</strong> attendee(s) marked <strong>Absent / Pending</strong> (Skipped automatically)</div>
+                  </div>
+                </div>
+              );
+            })()}
 
             <div style={{
               display: 'flex',
