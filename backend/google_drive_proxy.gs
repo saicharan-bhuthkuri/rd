@@ -130,3 +130,9 @@ function doGet(e) {
     capabilities: ['email_dispatch', 'google_drive_upload']
   })).setMimeType(ContentService.MimeType.JSON);
 }
+
+// One-time authorization helper: select 'authorizeDrive' in the top toolbar dropdown and click 'Run'
+function authorizeDrive() {
+  var root = DriveApp.getRootFolder();
+  Logger.log("Drive authorized successfully. Root: " + root.getName());
+}
