@@ -1216,7 +1216,7 @@ export const AdminDashboardPage: React.FC = () => {
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                               {(() => {
                                 const val = reg.certificate_type || 'Participation';
-                                const presetValues = ['Participation', 'Winner', 'Runner-up', 'Special Mention'];
+                                const presetValues = ['Participation', 'Appreciation', 'Special Mention'];
                                 const matchedPreset = presetValues.find(p => p.toLowerCase() === val.toLowerCase());
                                 const displayVal = matchedPreset || val;
                                 const isCustom = !matchedPreset;
@@ -1239,8 +1239,7 @@ export const AdminDashboardPage: React.FC = () => {
                                     }}
                                   >
                                     <option value="Participation">Participation</option>
-                                    <option value="Winner">Winner</option>
-                                    <option value="Runner-up">Runner-up</option>
+                                    <option value="Appreciation">Appreciation</option>
                                     <option value="Special Mention">Special Mention</option>
                                     {isCustom && <option value={val}>{val}</option>}
                                   </select>
