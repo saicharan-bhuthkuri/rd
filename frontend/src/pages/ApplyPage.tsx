@@ -1692,26 +1692,24 @@ export const ApplyPage: React.FC = () => {
                         </div>
                       </div>
 
-                      <div className="form-grid-2">
-                        <VerifiedEmailInput
-                          id="leaderEmail"
-                          value={email}
-                          onChange={setEmail}
-                          placeholder="leader@domain.com"
-                          label="Email Address"
-                          required
-                        />
+                      <VerifiedEmailInput
+                        id="leaderEmail"
+                        value={email}
+                        onChange={setEmail}
+                        placeholder="leader@domain.com"
+                        label="Email Address"
+                        required
+                      />
 
-                        <CountryPhoneInput
-                          id="leaderPhone"
-                          countryCode={countryCode}
-                          onCountryCodeChange={setCountryCode}
-                          phone={mobile}
-                          onPhoneChange={setMobile}
-                          label="Phone Number"
-                          required
-                        />
-                      </div>
+                      <CountryPhoneInput
+                        id="leaderPhone"
+                        countryCode={countryCode}
+                        onCountryCodeChange={setCountryCode}
+                        phone={mobile}
+                        onPhoneChange={setMobile}
+                        label="Phone Number"
+                        required
+                      />
 
                       <div className="form-group">
                         <label htmlFor="leaderRole">Designation / Role <span className="req">*</span></label>
@@ -1840,26 +1838,24 @@ export const ApplyPage: React.FC = () => {
                             </div>
                           </div>
 
-                          <div className="form-grid-2">
-                            <VerifiedEmailInput
-                              id={`member-email-${member.id}`}
-                              value={member.email}
-                              onChange={(val) => handleMemberChange(member.id, 'email', val)}
-                              placeholder="jane@domain.com"
-                              label="Email Address"
-                              required
-                            />
+                          <VerifiedEmailInput
+                            id={`member-email-${member.id}`}
+                            value={member.email}
+                            onChange={(val) => handleMemberChange(member.id, 'email', val)}
+                            placeholder="jane@domain.com"
+                            label="Email Address"
+                            required
+                          />
 
-                            <CountryPhoneInput
-                              id={`member-phone-${member.id}`}
-                              countryCode={member.countryCode || '+91'}
-                              onCountryCodeChange={(code) => handleMemberChange(member.id, 'countryCode', code)}
-                              phone={member.phone}
-                              onPhoneChange={(phone) => handleMemberChange(member.id, 'phone', phone)}
-                              label="Phone Number"
-                              required
-                            />
-                          </div>
+                          <CountryPhoneInput
+                            id={`member-phone-${member.id}`}
+                            countryCode={member.countryCode || '+91'}
+                            onCountryCodeChange={(code) => handleMemberChange(member.id, 'countryCode', code)}
+                            phone={member.phone}
+                            onPhoneChange={(phone) => handleMemberChange(member.id, 'phone', phone)}
+                            label="Phone Number"
+                            required
+                          />
 
                           <div className="form-group">
                             <label>Designation / Role <span className="req">*</span></label>
