@@ -175,7 +175,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
       </aside>
 
       {/* Main Content Area */}
-      <main className="admin-main">
+      <main className={`admin-main ${isSidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`}>
         <header className="admin-header">
           <div className="header-left-group">
             <button 

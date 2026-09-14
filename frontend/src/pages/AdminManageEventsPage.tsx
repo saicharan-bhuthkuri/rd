@@ -26,7 +26,7 @@ export const AdminManageEventsPage: React.FC = () => {
   
   // Pagination State (Prev / 1 2 3 ... / Next)
   const [currentPage, setCurrentPage] = useState(1);
-  const PAGE_SIZE = 10;
+  const PAGE_SIZE = 20;
   
   // Custom styled confirmation modal state
   const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; eventId: number; eventTitle: string }>({

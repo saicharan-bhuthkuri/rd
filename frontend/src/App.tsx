@@ -159,21 +159,22 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const isHome = location.pathname === '/';
 
   if (isAdminOrDeskPath) {
+    const isAuthGate = location.pathname.includes('/login') || location.pathname.includes('/forgot') || location.pathname.includes('/reset');
     return (
-      <main style={{ minHeight: '100vh' }}>
+      <main style={{ minHeight: 'calc(100vh / 0.9)', display: 'flex', flexDirection: 'column', flex: 1, backgroundColor: isAuthGate ? 'var(--bg-main)' : 'var(--bg-alt)' }}>
         {children}
       </main>
     );
   }
 
   return (
-    <>
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: 'calc(100vh / 0.9)', flex: 1, backgroundColor: 'var(--bg-main)' }}>
       <Header />
-      <main style={{ minHeight: 'calc(100vh - 10rem)', paddingTop: isHome ? '0' : '5rem' }}>
+      <main style={{ minHeight: 'calc((100vh / 0.9) - 10rem)', paddingTop: isHome ? '0' : '5rem', flex: 1 }}>
         {children}
       </main>
       <Footer />
-    </>
+    </div>
   );
 };
 

@@ -23,7 +23,7 @@ export const AdminRegDeskPage: React.FC = () => {
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const PAGE_SIZE = 10;
+  const PAGE_SIZE = 20;
 
   // Add Member Modal State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);

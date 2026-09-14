@@ -42,7 +42,7 @@ export const AdminRoomsPage: React.FC = () => {
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const PAGE_SIZE = 10;
+  const PAGE_SIZE = 20;
 
   // Create Room Modal State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);

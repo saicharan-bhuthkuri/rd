@@ -46,6 +46,23 @@ export const AdminPagination: React.FC<AdminPaginationProps> = ({
 
   const pages = getPageNumbers();
 
+  const handlePageSelect = (page: number) => {
+    if (page < 1 || page > safeTotalPages || page === currentPage) return;
+    onPageChange(page);
+    // Smooth scroll up to top of table container or window
+    setTimeout(() => {
+      const tableContainer = document.querySelector('.admin-table-container');
+      if (tableContainer) {
+        tableContainer.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+      const adminMain = document.querySelector('.admin-main');
+      if (adminMain) {
+        adminMain.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 10);
+  };
+
   return (
     <div className="admin-pagination-container">
       <div className="admin-pagination-info">
@@ -56,7 +73,7 @@ export const AdminPagination: React.FC<AdminPaginationProps> = ({
         {/* Previous Button */}
         <button
           type="button"
-          onClick={() => onPageChange(currentPage - 1)}
+          onClick={() => handlePageSelect(currentPage - 1)}
           disabled={currentPage <= 1}
           className="admin-pagination-btn admin-pagination-nav-btn"
           aria-label="Previous Page"
@@ -83,7 +100,7 @@ export const AdminPagination: React.FC<AdminPaginationProps> = ({
               <button
                 key={`page-${pageNum}`}
                 type="button"
-                onClick={() => onPageChange(pageNum)}
+                onClick={() => handlePageSelect(pageNum)}
                 className={`admin-pagination-btn admin-pagination-page-btn ${isActive ? 'active' : ''}`}
                 aria-current={isActive ? 'page' : undefined}
               >
@@ -96,7 +113,7 @@ export const AdminPagination: React.FC<AdminPaginationProps> = ({
         {/* Next Button */}
         <button
           type="button"
-          onClick={() => onPageChange(currentPage + 1)}
+          onClick={() => handlePageSelect(currentPage + 1)}
           disabled={currentPage >= safeTotalPages}
           className="admin-pagination-btn admin-pagination-nav-btn"
           aria-label="Next Page"

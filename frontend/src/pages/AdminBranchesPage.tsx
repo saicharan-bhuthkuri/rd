@@ -20,7 +20,7 @@ export const AdminBranchesPage: React.FC = () => {
 
   // Pagination State (Prev / 1 2 3 ... / Next)
   const [currentPage, setCurrentPage] = useState(1);
-  const PAGE_SIZE = 10;
+  const PAGE_SIZE = 20;
 
   // Dialog configurations for deletion confirm
   const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; branchId: number; branchName: string }>({
@@ -129,7 +129,7 @@ export const AdminBranchesPage: React.FC = () => {
   return (
     <AdminLayout>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-        
+
         {/* Alerts */}
         {errorMsg && (
           <div className="alert alert-danger" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
@@ -145,14 +145,14 @@ export const AdminBranchesPage: React.FC = () => {
         )}
 
         <div className="branches-grid-layout">
-          
+
           {/* Add branch form panel */}
           <div className="card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <Layers size={18} style={{ color: 'var(--primary)' }} />
               <h3 style={{ margin: 0, fontSize: '1.125rem', fontWeight: 600 }}>Add Department</h3>
             </div>
-            
+
             <form onSubmit={handleAddBranch} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div className="form-group" style={{ margin: 0 }}>
                 <label htmlFor="branchName" style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--text-secondary)' }}>
@@ -169,9 +169,9 @@ export const AdminBranchesPage: React.FC = () => {
                 />
               </div>
 
-              <button 
-                type="submit" 
-                className="btn btn-primary" 
+              <button
+                type="submit"
+                className="btn btn-primary"
                 disabled={isSubmitting}
                 style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
               >
@@ -226,9 +226,9 @@ export const AdminBranchesPage: React.FC = () => {
                           </span>
                         </td>
                         <td style={{ textAlign: 'right' }}>
-                          <button 
-                            onClick={() => setDeleteConfirm({ isOpen: true, branchId: b.id, branchName: b.name })} 
-                            className="btn-action reject" 
+                          <button
+                            onClick={() => setDeleteConfirm({ isOpen: true, branchId: b.id, branchName: b.name })}
+                            className="btn-action reject"
                             title="Delete Department"
                           >
                             <Trash2 size={14} />

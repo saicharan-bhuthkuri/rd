@@ -167,12 +167,20 @@ export const AdminDashboardPage: React.FC = () => {
 
   // Pagination State (Prev / 1 2 3 ... / Next)
   const [currentPage, setCurrentPage] = useState(1);
-  const PAGE_SIZE = 10;
+  const PAGE_SIZE = 20;
 
   // Reset pagination to page 1 whenever active tab or any filter changes
   useEffect(() => {
     setCurrentPage(1);
   }, [activeTab, searchTerm, branchFilter, statusFilter, eventFilter, hackathonFilter, volunteerRoleFilter, certSentFilter, attendanceFilter]);
+
+  // Auto scroll table container up to top when page changes
+  useEffect(() => {
+    const tableContainer = document.querySelector('.admin-table-container');
+    if (tableContainer) {
+      tableContainer.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [currentPage]);
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
