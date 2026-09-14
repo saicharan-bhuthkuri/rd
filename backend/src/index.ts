@@ -1627,8 +1627,8 @@ app.get('/api/events', async (req, res) => {
 app.post('/api/admin/events', authenticateToken, async (req: AuthenticatedRequest, res) => {
   const { category, title, description, date, time, location, speaker, speakerBio } = req.body;
 
-  if (!category || !title || !description || !date || !time || !location || !speaker || !speakerBio) {
-    return res.status(400).json({ error: "All fields are required to create an event." });
+  if (!category || !title || !description || !date || !time || !location) {
+    return res.status(400).json({ error: "Category, Title, Description, Date, Time, and Location are required to create an event." });
   }
 
   try {
@@ -1644,7 +1644,7 @@ app.post('/api/admin/events', authenticateToken, async (req: AuthenticatedReques
 
     const result = await db.execute({
       sql: `INSERT INTO events (category, title, description, date, time, location, speaker, speaker_bio) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      args: [category, title, description, date, time, location, speaker, speakerBio]
+      args: [category, title, description, date, time, location, speaker || '', speakerBio || '']
     });
 
     // Log Activity

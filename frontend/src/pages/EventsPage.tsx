@@ -122,13 +122,15 @@ export const EventsPage: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="event-speaker-profile">
-                    <User size={16} className="speaker-avatar-icon" />
-                    <div>
-                      <h4 className="speaker-name">{evt.speaker}</h4>
-                      <p className="speaker-bio">{evt.speaker_bio}</p>
+                  {evt.speaker && evt.speaker.trim() ? (
+                    <div className="event-speaker-profile">
+                      <User size={16} className="speaker-avatar-icon" />
+                      <div>
+                        <h4 className="speaker-name">{evt.speaker}</h4>
+                        {evt.speaker_bio && <p className="speaker-bio">{evt.speaker_bio}</p>}
+                      </div>
                     </div>
-                  </div>
+                  ) : null}
                 </div>
 
                 <div className="expanded-event-action">

@@ -147,10 +147,18 @@ export const AdminManageEventsPage: React.FC = () => {
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Loc: {evt.location}</div>
                     </td>
                     <td>
-                      <strong>{evt.speaker}</strong>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', maxWidth: '180px', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                        {evt.speaker_bio}
-                      </div>
+                      {evt.speaker && evt.speaker.trim() ? (
+                        <>
+                          <strong>{evt.speaker}</strong>
+                          {evt.speaker_bio && (
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', maxWidth: '180px', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                              {evt.speaker_bio}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>—</span>
+                      )}
                     </td>
                     <td>
                       <button

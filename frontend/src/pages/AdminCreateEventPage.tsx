@@ -14,8 +14,6 @@ export const AdminCreateEventPage: React.FC = () => {
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
   const [location, setLocation] = useState('');
-  const [speaker, setSpeaker] = useState('');
-  const [speakerBio, setSpeakerBio] = useState('');
 
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState('');
@@ -51,8 +49,8 @@ export const AdminCreateEventPage: React.FC = () => {
           date,
           time,
           location,
-          speaker,
-          speakerBio: speakerBio
+          speaker: '',
+          speakerBio: ''
         }),
       });
 
@@ -70,8 +68,6 @@ export const AdminCreateEventPage: React.FC = () => {
       setDate('');
       setTime('');
       setLocation('');
-      setSpeaker('');
-      setSpeakerBio('');
       setCategory('Workshop');
     } catch (err: any) {
       setCreateError(err.message);
@@ -181,44 +177,16 @@ export const AdminCreateEventPage: React.FC = () => {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', marginBottom: '1.25rem' }}>
-            <div className="form-group">
-              <label htmlFor="evt-location">Venue / Location</label>
-              <input
-                type="text"
-                id="evt-location"
-                required
-                className="form-control"
-                placeholder="e.g. R&D Lab 4A"
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-              />
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="evt-speaker">Speaker Name</label>
-              <input
-                type="text"
-                id="evt-speaker"
-                required
-                className="form-control"
-                placeholder="e.g. Dr. Aravind S"
-                value={speaker}
-                onChange={(e) => setSpeaker(e.target.value)}
-              />
-            </div>
-          </div>
-
           <div className="form-group" style={{ marginBottom: '1.75rem' }}>
-            <label htmlFor="evt-speaker-bio">Speaker Profile / Bio</label>
-            <textarea
-              id="evt-speaker-bio"
+            <label htmlFor="evt-location">Venue / Location</label>
+            <input
+              type="text"
+              id="evt-location"
               required
-              rows={3}
               className="form-control"
-              placeholder="Include speaker credentials or affiliations..."
-              value={speakerBio}
-              onChange={(e) => setSpeakerBio(e.target.value)}
+              placeholder="e.g. R&D Lab 4A"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
             />
           </div>
 
