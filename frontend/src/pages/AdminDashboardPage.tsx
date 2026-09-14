@@ -152,6 +152,7 @@ export const AdminDashboardPage: React.FC = () => {
   const [hackathonFilter, setHackathonFilter] = useState('all');
   const [certSentFilter, setCertSentFilter] = useState<'all' | 'sent' | 'pending'>('all');
   const [volunteerRoleFilter, setVolunteerRoleFilter] = useState('all');
+  const [managedBranches, setManagedBranches] = useState<string[]>([]);
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -196,13 +197,30 @@ export const AdminDashboardPage: React.FC = () => {
     }
   };
 
+  // Fetch branches from Branch Management
+  const fetchManagedBranches = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/branches`);
+      if (response.ok) {
+        const data = await response.json();
+        if (Array.isArray(data)) {
+          setManagedBranches(data.map((b: any) => b.name));
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to load branches from Branch Management:", e);
+    }
+  };
+
   useEffect(() => {
     fetchApplications();
+    fetchManagedBranches();
 
     const handleSync = (e: Event) => {
       const eventType = (e as CustomEvent).detail;
       if (eventType === 'REFRESH_APPLICATIONS' || eventType === 'REFRESH_SUBMISSIONS') {
         fetchApplications();
+        fetchManagedBranches();
       }
     };
 
@@ -767,18 +785,40 @@ export const AdminDashboardPage: React.FC = () => {
     }
   };
 
-  // Get distinct branches for filter dropdown
+  // Get distinct branches from Branch Management (with fallback)
   const getBranches = () => {
+    if (managedBranches.length > 0) {
+      return managedBranches;
+    }
     const branches = new Set<string>();
-    clubApps.forEach(app => branches.add(app.branch.toUpperCase()));
-    eventRegs.forEach(reg => branches.add(reg.branch.toUpperCase()));
-    volunteerApps.forEach(app => branches.add(app.branch.toUpperCase()));
+    clubApps.forEach(app => app.branch && branches.add(app.branch.trim()));
+    eventRegs.forEach(reg => reg.branch && branches.add(reg.branch.trim()));
+    volunteerApps.forEach(app => app.branch && branches.add(app.branch.trim()));
     hackathonRegs.forEach(reg => {
-      if (reg.leader_branch) {
-        branches.add(reg.leader_branch.toUpperCase());
-      }
+      if (reg.leader_branch) branches.add(reg.leader_branch.trim());
     });
     return Array.from(branches);
+  };
+
+  const matchesBranchFilter = (studentBranch: string, filterVal: string) => {
+    if (!filterVal || filterVal === 'all') return true;
+    if (!studentBranch) return false;
+    const s = studentBranch.trim().toUpperCase();
+    const f = filterVal.trim().toUpperCase();
+    if (s === f) return true;
+
+    // Compare acronyms inside parentheses e.g. (CSM), (AI&ML), (CSE), (ECE), (EEE), (DCSE)
+    const matchF = f.match(/\(([^)]+)\)/);
+    const acronymF = matchF ? matchF[1].toUpperCase() : null;
+
+    const matchS = s.match(/\(([^)]+)\)/);
+    const acronymS = matchS ? matchS[1].toUpperCase() : null;
+
+    if (acronymF && acronymS && acronymF === acronymS) return true;
+    if (acronymF && (s === acronymF || s.includes(acronymF))) return true;
+    if (acronymS && (f === acronymS || f.includes(acronymS))) return true;
+
+    return s.includes(f) || f.includes(s);
   };
 
   // Get distinct volunteer roles for filter dropdown
@@ -826,7 +866,7 @@ export const AdminDashboardPage: React.FC = () => {
                           app.pin_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           app.email.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || app.status === statusFilter;
-    const matchesBranch = branchFilter === 'all' || app.branch.toUpperCase() === branchFilter.toUpperCase();
+    const matchesBranch = matchesBranchFilter(app.branch, branchFilter);
     return matchesSearch && matchesStatus && matchesBranch;
   });
 
@@ -834,7 +874,7 @@ export const AdminDashboardPage: React.FC = () => {
     const matchesSearch = reg.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           reg.pin_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           reg.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesBranch = branchFilter === 'all' || reg.branch.toUpperCase() === branchFilter.toUpperCase();
+    const matchesBranch = matchesBranchFilter(reg.branch, branchFilter);
     const matchesEvent = eventFilter === 'all' || reg.event_name === eventFilter;
     const matchesCertSent = certSentFilter === 'all' ||
       (certSentFilter === 'sent' && reg.certificate_sent === 1) ||
@@ -848,8 +888,7 @@ export const AdminDashboardPage: React.FC = () => {
                           (reg.project_title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                           reg.leader_email.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || reg.status === statusFilter;
-    const matchesBranch = branchFilter === 'all' || 
-      (reg.leader_branch && reg.leader_branch.toUpperCase() === branchFilter.toUpperCase());
+    const matchesBranch = matchesBranchFilter(reg.leader_branch || '', branchFilter);
     const matchesHackathon = hackathonFilter === 'all' || 
       (reg.hackathon_name || 'R&D AlphaQuest Hackathon') === hackathonFilter;
     return matchesSearch && matchesStatus && matchesBranch && matchesHackathon;
@@ -878,7 +917,7 @@ export const AdminDashboardPage: React.FC = () => {
                           (app.event_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                           app.mobile.includes(searchTerm);
     const matchesStatus = statusFilter === 'all' || app.status === statusFilter;
-    const matchesBranch = branchFilter === 'all' || app.branch.toUpperCase() === branchFilter.toUpperCase();
+    const matchesBranch = matchesBranchFilter(app.branch, branchFilter);
     const matchesRole = volunteerRoleFilter === 'all' || app.volunteer_role === volunteerRoleFilter;
     const matchesCertSent = certSentFilter === 'all' ||
       (certSentFilter === 'sent' && app.certificate_sent === 1) ||
@@ -1245,72 +1284,28 @@ export const AdminDashboardPage: React.FC = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
 
-          {activeTab === 'club' || activeTab === 'hackathon' || activeTab === 'recognition' || activeTab === 'volunteer' || activeTab === 'submission' ? (
+          {/* 1. Hackathons filter (for Hackathons tab) */}
+          {activeTab === 'hackathon' && (
             <select
               className="admin-filter-select"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              value={hackathonFilter}
+              onChange={(e) => setHackathonFilter(e.target.value)}
+              title="Filter by Hackathon"
             >
-              <option value="all">All Statuses</option>
-              <option value="pending">Pending</option>
-              <option value="approved">Approved</option>
-              <option value="rejected">Rejected</option>
-            </select>
-          ) : (
-            <select
-              className="admin-filter-select"
-              value={certSentFilter}
-              onChange={(e) => setCertSentFilter(e.target.value as 'all' | 'sent' | 'pending')}
-            >
-              <option value="all">All Certificates</option>
-              <option value="sent">Sent Only</option>
-              <option value="pending">Pending Only</option>
-            </select>
-          )}
-
-          {(activeTab === 'recognition' || activeTab === 'volunteer') && (
-            <select
-              className="admin-filter-select"
-              value={certSentFilter}
-              onChange={(e) => setCertSentFilter(e.target.value as 'all' | 'sent' | 'pending')}
-            >
-              <option value="all">All Dispatch States</option>
-              <option value="sent">Certificate Sent</option>
-              <option value="pending">Certificate Pending</option>
-            </select>
-          )}
-
-          {activeTab !== 'recognition' && activeTab !== 'submission' && (
-            <select
-              className="admin-filter-select"
-              value={branchFilter}
-              onChange={(e) => setBranchFilter(e.target.value)}
-            >
-              <option value="all">All Branches</option>
-              {getBranches().map((br, idx) => (
-                <option key={idx} value={br}>{br}</option>
+              <option value="all">All Hackathons</option>
+              {getHackathons().map((hack, idx) => (
+                <option key={idx} value={hack}>{hack}</option>
               ))}
             </select>
           )}
 
-          {activeTab === 'volunteer' && (
-            <select
-              className="admin-filter-select"
-              value={volunteerRoleFilter}
-              onChange={(e) => setVolunteerRoleFilter(e.target.value)}
-            >
-              <option value="all">All Volunteer Tracks</option>
-              {getVolunteerRoles().map((role, idx) => (
-                <option key={idx} value={role}>{role}</option>
-              ))}
-            </select>
-          )}
-
+          {/* 2. Events / Hackathons filter (for event / recognition / submission tabs) */}
           {(activeTab === 'event' || activeTab === 'recognition') && (
             <select
               className="admin-filter-select"
               value={eventFilter}
               onChange={(e) => setEventFilter(e.target.value)}
+              title="Filter by Event"
             >
               <option value="all">All Events</option>
               {(activeTab === 'recognition' ? getRecognitionEvents() : getEvents()).map((evt, idx) => (
@@ -1324,6 +1319,7 @@ export const AdminDashboardPage: React.FC = () => {
               className="admin-filter-select"
               value={eventFilter}
               onChange={(e) => setEventFilter(e.target.value)}
+              title="Filter by Event / Hackathon"
             >
               <option value="all">All Events / Hackathons</option>
               {getSubmissionEvents().map((evt, idx) => (
@@ -1332,16 +1328,73 @@ export const AdminDashboardPage: React.FC = () => {
             </select>
           )}
 
-          {activeTab === 'hackathon' && (
+          {/* 3. Branch filter (from Branch Management) - DIRECTLY BESIDE ALL HACKATHONS */}
+          {activeTab !== 'recognition' && activeTab !== 'submission' && (
             <select
               className="admin-filter-select"
-              value={hackathonFilter}
-              onChange={(e) => setHackathonFilter(e.target.value)}
+              value={branchFilter}
+              onChange={(e) => setBranchFilter(e.target.value)}
+              title="Filter by Branch"
             >
-              <option value="all">All Hackathons</option>
-              {getHackathons().map((hack, idx) => (
-                <option key={idx} value={hack}>{hack}</option>
+              <option value="all">All Branches</option>
+              {getBranches().map((br, idx) => (
+                <option key={idx} value={br} title={br}>{br}</option>
               ))}
+            </select>
+          )}
+
+          {/* 4. Volunteer Tracks filter */}
+          {activeTab === 'volunteer' && (
+            <select
+              className="admin-filter-select"
+              value={volunteerRoleFilter}
+              onChange={(e) => setVolunteerRoleFilter(e.target.value)}
+              title="Filter by Track"
+            >
+              <option value="all">All Volunteer Tracks</option>
+              {getVolunteerRoles().map((role, idx) => (
+                <option key={idx} value={role}>{role}</option>
+              ))}
+            </select>
+          )}
+
+          {/* 5. Status / Certificate filter */}
+          {activeTab === 'club' || activeTab === 'hackathon' || activeTab === 'recognition' || activeTab === 'volunteer' || activeTab === 'submission' ? (
+            <select
+              className="admin-filter-select"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              title="Filter by Status"
+            >
+              <option value="all">All Statuses</option>
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+            </select>
+          ) : (
+            <select
+              className="admin-filter-select"
+              value={certSentFilter}
+              onChange={(e) => setCertSentFilter(e.target.value as 'all' | 'sent' | 'pending')}
+              title="Filter by Certificate"
+            >
+              <option value="all">All Certificates</option>
+              <option value="sent">Sent Only</option>
+              <option value="pending">Pending Only</option>
+            </select>
+          )}
+
+          {/* 6. Dispatch filter (for recognition / volunteer) */}
+          {(activeTab === 'recognition' || activeTab === 'volunteer') && (
+            <select
+              className="admin-filter-select"
+              value={certSentFilter}
+              onChange={(e) => setCertSentFilter(e.target.value as 'all' | 'sent' | 'pending')}
+              title="Filter by Dispatch State"
+            >
+              <option value="all">All Dispatch States</option>
+              <option value="sent">Certificate Sent</option>
+              <option value="pending">Certificate Pending</option>
             </select>
           )}
         </div>
