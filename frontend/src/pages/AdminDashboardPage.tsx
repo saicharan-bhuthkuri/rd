@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { API_BASE_URL } from '../config';
 import { AdminLayout } from '../components/AdminLayout';
 import { formatDisplayPhone } from '../utils/phone';
-import { Download, Check, X, Layers, Calendar, Mail, Loader2, Eye, Award, HeartHandshake, FolderUp, ExternalLink, FileText, Trash2 } from 'lucide-react';
+import { Download, Check, X, Layers, Calendar, Mail, Loader2, Eye, Award, HeartHandshake, FolderUp, ExternalLink, FileText, Trash2, AlertCircle } from 'lucide-react';
 import { AdminFilterDropdown } from '../components/AdminFilterDropdown';
 
 interface ProjectSubmission {
@@ -241,18 +241,20 @@ export const AdminDashboardPage: React.FC = () => {
   const [consoleStatus, setConsoleStatus] = useState<'idle' | 'running' | 'completed' | 'failed'>('idle');
   const [consoleTitle, setConsoleTitle] = useState('');
 
-  // Custom Alert / Confirm Dialog Modal States
+  // Custom Alert / Confirm / Danger Dialog Modal States
   const [dialogConfig, setDialogConfig] = useState<{
     isOpen: boolean;
-    type: 'alert' | 'confirm';
+    type: 'alert' | 'confirm' | 'danger';
     title: string;
     message: string;
+    confirmText?: string;
     onConfirm: () => void;
   }>({
     isOpen: false,
     type: 'alert',
     title: '',
     message: '',
+    confirmText: 'Confirm',
     onConfirm: () => {}
   });
 
@@ -262,16 +264,24 @@ export const AdminDashboardPage: React.FC = () => {
       type: 'alert',
       title,
       message,
+      confirmText: 'OK',
       onConfirm: () => {}
     });
   };
 
-  const showCustomConfirm = (title: string, message: string, onConfirm: () => void) => {
+  const showCustomConfirm = (
+    title: string, 
+    message: string, 
+    onConfirm: () => void,
+    type: 'confirm' | 'danger' = 'confirm',
+    confirmText: string = 'Confirm'
+  ) => {
     setDialogConfig({
       isOpen: true,
-      type: 'confirm',
+      type,
       title,
       message,
+      confirmText,
       onConfirm
     });
   };
@@ -747,43 +757,50 @@ export const AdminDashboardPage: React.FC = () => {
       // Re-fetch to update states
       fetchApplications();
     } catch (err: any) {
-      alert(err.message);
+      showCustomAlert('Status Update Error', err.message || 'Failed to update application status.');
     }
   };
 
   // Delete application / submission action
-  const handleDeleteApplication = async (type: 'club' | 'event' | 'hackathon' | 'recognition' | 'volunteer' | 'project-submission', id: number, labelName?: string) => {
+  const handleDeleteApplication = (type: 'club' | 'event' | 'hackathon' | 'recognition' | 'volunteer' | 'project-submission', id: number, labelName?: string) => {
+    const title = labelName ? `Delete ${labelName}?` : `Delete Record #${id}?`;
     const confirmMsg = labelName 
-      ? `Are you sure you want to permanently remove "${labelName}" from the database? This cannot be undone.`
-      : `Are you sure you want to permanently remove this record (ID: ${id}) from the database? This cannot be undone.`;
+      ? `Are you sure you want to permanently remove "${labelName}" from the database? This action cannot be undone.`
+      : `Are you sure you want to permanently remove this record (ID: ${id}) from the database? This action cannot be undone.`;
 
-    if (!window.confirm(confirmMsg)) return;
+    showCustomConfirm(
+      title,
+      confirmMsg,
+      async () => {
+        const token = localStorage.getItem('admin_token');
+        try {
+          const response = await fetch(`${API_BASE_URL}/api/admin/applications/${type}/${id}`, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
 
-    const token = localStorage.getItem('admin_token');
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/admin/applications/${type}/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
+          if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.error || 'Failed to delete record.');
+          }
+
+          if (selectedSubmission?.id === id) {
+            setSelectedSubmission(null);
+          }
+          if (selectedHackathon?.id === id) {
+            setSelectedHackathon(null);
+          }
+
+          fetchApplications();
+        } catch (err: any) {
+          showCustomAlert('Delete Failed', err.message || 'Failed to delete record.');
         }
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to delete record.');
-      }
-
-      if (selectedSubmission?.id === id) {
-        setSelectedSubmission(null);
-      }
-      if (selectedHackathon?.id === id) {
-        setSelectedHackathon(null);
-      }
-
-      fetchApplications();
-    } catch (err: any) {
-      alert(err.message);
-    }
+      },
+      'danger',
+      'Permanently Delete'
+    );
   };
 
   // Get distinct branches from Branch Management (with fallback)
@@ -3479,96 +3496,62 @@ export const AdminDashboardPage: React.FC = () => {
         );
       })()}
 
-      {/* Custom Alert/Confirm Modal Dialog */}
+      {/* Custom Alert/Confirm/Danger Modal Dialog */}
       {dialogConfig.isOpen && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(15, 23, 42, 0.3)',
-          backdropFilter: 'blur(4px)',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          zIndex: 1100,
-          padding: '1.5rem'
-        }}>
-          <div className="card" style={{
-            width: '100%',
-            maxWidth: '440px',
-            boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)',
-            padding: '1.5rem',
-            borderRadius: '0.75rem',
-            border: '1px solid var(--border)',
-            background: '#fff',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '1rem'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <div style={{
-                width: '40px',
-                height: '40px',
-                borderRadius: '50%',
-                backgroundColor: dialogConfig.type === 'confirm' ? '#e0f2fe' : '#fef3c7',
-                color: dialogConfig.type === 'confirm' ? '#0284c7' : '#d97706',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0
-              }}>
-                <Mail size={20} />
+        <div className="custom-modal-overlay">
+          <div className="custom-modal-card">
+            <div className="custom-modal-header">
+              <div className={`custom-modal-icon-container ${
+                dialogConfig.type === 'danger'
+                  ? 'custom-modal-icon-danger'
+                  : dialogConfig.type === 'alert'
+                    ? 'custom-modal-icon-warning'
+                    : 'custom-modal-icon-info'
+              }`}>
+                {dialogConfig.type === 'danger' && <Trash2 size={20} />}
+                {dialogConfig.type === 'alert' && <AlertCircle size={20} />}
+                {dialogConfig.type === 'confirm' && <Mail size={20} />}
               </div>
-              <h3 style={{ margin: 0, fontSize: '1.125rem', fontWeight: 600, color: 'var(--text-main)' }}>
+              <h3 className="custom-modal-title">
                 {dialogConfig.title}
               </h3>
             </div>
 
-            <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-secondary)', lineHeight: 1.5, textAlign: 'left' }}>
+            <p className="custom-modal-body">
               {dialogConfig.message}
             </p>
 
-            <div style={{
-              display: 'flex',
-              justifyContent: 'flex-end',
-              gap: '0.5rem',
-              marginTop: '0.5rem'
-            }}>
-              {dialogConfig.type === 'confirm' && (
+            <div className="custom-modal-footer">
+              {(dialogConfig.type === 'confirm' || dialogConfig.type === 'danger') && (
                 <button
+                  type="button"
                   onClick={() => setDialogConfig(prev => ({ ...prev, isOpen: false }))}
-                  className="btn"
-                  style={{
-                    padding: '0.5rem 1.25rem',
-                    fontSize: '0.875rem',
-                    borderRadius: '0.375rem',
-                    cursor: 'pointer',
-                    background: 'rgba(0,0,0,0.05)',
-                    border: '1px solid var(--border)',
-                    color: 'var(--text-main)'
-                  }}
+                  className="custom-modal-btn-cancel"
                 >
                   Cancel
                 </button>
               )}
               <button
+                type="button"
                 onClick={() => {
                   setDialogConfig(prev => ({ ...prev, isOpen: false }));
-                  if (dialogConfig.type === 'confirm') {
+                  if (dialogConfig.type === 'confirm' || dialogConfig.type === 'danger') {
                     dialogConfig.onConfirm();
                   }
                 }}
-                className="btn btn-primary"
-                style={{
-                  padding: '0.5rem 1.25rem',
-                  fontSize: '0.875rem',
-                  borderRadius: '0.375rem',
-                  cursor: 'pointer'
-                }}
+                className={dialogConfig.type === 'danger' ? 'custom-modal-btn-danger' : 'btn btn-primary'}
+                style={
+                  dialogConfig.type !== 'danger'
+                    ? {
+                        padding: '0.5rem 1.25rem',
+                        fontSize: '0.875rem',
+                        borderRadius: '0.375rem',
+                        cursor: 'pointer'
+                      }
+                    : undefined
+                }
               >
-                {dialogConfig.type === 'confirm' ? 'Confirm' : 'OK'}
+                {dialogConfig.confirmText || (dialogConfig.type === 'danger' ? 'Permanently Delete' : dialogConfig.type === 'confirm' ? 'Confirm' : 'OK')}
               </button>
             </div>
           </div>
