@@ -133,6 +133,7 @@ function doGet(e) {
 
 // One-time authorization helper: select 'authorizeDrive' in the top toolbar dropdown and click 'Run'
 function authorizeDrive() {
-  var root = DriveApp.getRootFolder();
-  Logger.log("Drive authorized successfully. Root: " + root.getName());
+  var test = DriveApp.createFolder("Permission_Check_Temp");
+  test.setTrashed(true);
+  Logger.log("Drive write authorized successfully!");
 }
