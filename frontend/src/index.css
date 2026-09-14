@@ -3529,86 +3529,7 @@ button, input, textarea, select, option {
   border-color: var(--primary);
 }
 
-.admin-sidebar-toggle-btn {
-  display: inline-flex !important;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  height: 38px;
-  padding: 0 0.75rem;
-  border-radius: var(--radius-md);
-  border: 1.5px solid var(--border);
-  background-color: var(--bg-card);
-  color: var(--text-main);
-  cursor: pointer;
-  margin-right: 1rem;
-  flex-shrink: 0;
-  transition: all var(--transition-fast);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  font-size: 0.8125rem;
-  font-weight: 600;
-  user-select: none;
-}
 
-.admin-sidebar-toggle-btn:hover {
-  background-color: var(--primary-light);
-  color: var(--primary);
-  border-color: var(--primary);
-  transform: translateY(-1px);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
-}
-
-.admin-sidebar-toggle-btn.sidebar-is-closed {
-  background-color: var(--primary-light);
-  color: var(--primary);
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(var(--primary-hsl), 0.15);
-}
-
-.admin-sidebar-toggle-btn.sidebar-is-closed:hover {
-  background-color: var(--primary);
-  color: #ffffff;
-}
-
-/* Floating Sidebar trigger button on left edge when closed */
-.admin-floating-sidebar-trigger {
-  position: fixed;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  background: var(--bg-card);
-  border: 1.5px solid var(--border);
-  border-left: none;
-  border-radius: 0 var(--radius-md) var(--radius-md) 0;
-  padding: 0.75rem 0.6rem 0.75rem 0.4rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.35rem;
-  cursor: pointer;
-  box-shadow: 3px 0 12px rgba(0, 0, 0, 0.1);
-  z-index: 100;
-  color: var(--primary);
-  transition: all 0.2s ease;
-  user-select: none;
-}
-
-.admin-floating-sidebar-trigger span {
-  writing-mode: vertical-rl;
-  text-orientation: mixed;
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.admin-floating-sidebar-trigger:hover {
-  background: var(--primary);
-  color: #ffffff;
-  border-color: var(--primary);
-  padding-right: 0.85rem;
-  box-shadow: 4px 0 16px rgba(var(--primary-hsl), 0.3);
-}
 
 .admin-brand {
   display: flex;
@@ -3758,19 +3679,63 @@ button, input, textarea, select, option {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 2.5rem;
+  padding: 0 2rem;
   flex-shrink: 0;
+}
+
+.header-left-group {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 1rem !important;
+}
+
+.admin-sidebar-toggle-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 38px !important;
+  height: 38px !important;
+  min-width: 38px !important;
+  max-width: 38px !important;
+  border-radius: var(--radius-md) !important;
+  border: 1.5px solid var(--border) !important;
+  background-color: var(--bg-card) !important;
+  color: var(--text-main) !important;
+  cursor: pointer !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  flex-shrink: 0 !important;
+  transition: all var(--transition-fast) !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+}
+
+.admin-sidebar-toggle-btn:hover {
+  background-color: var(--bg-alt) !important;
+  color: var(--primary) !important;
+  border-color: var(--primary) !important;
+  transform: translateY(-1px) !important;
+}
+
+.admin-header-title {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
 }
 
 .admin-header-title h2 {
   font-size: 1.25rem;
   font-weight: 800;
   color: var(--text-main);
+  line-height: 1.2;
+  margin: 0;
 }
 
 .admin-header-title p {
   font-size: 0.75rem;
   color: var(--text-muted);
+  margin: 0.15rem 0 0 0;
+  line-height: 1.2;
 }
 
 .admin-header-actions {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Users, ArrowLeft, LogOut, Sparkles, Calendar, ClipboardList, Layers, Menu, Code, Award, HeartHandshake, FolderUp, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Users, ArrowLeft, LogOut, Sparkles, Calendar, ClipboardList, Layers, Menu, Code, Award, HeartHandshake, FolderUp, ChevronLeft } from 'lucide-react';
 import { API_BASE_URL } from '../config';
 
 interface AdminLayoutProps {
@@ -181,13 +181,12 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
         <header className="admin-header">
           <div className="header-left-group">
             <button 
-              className={`admin-sidebar-toggle-btn ${!isSidebarOpen ? 'sidebar-is-closed' : ''}`} 
+              className="admin-sidebar-toggle-btn" 
               onClick={toggleSidebar}
-              aria-label={isSidebarOpen ? "Collapse sidebar" : "Open sidebar (Menu)"}
-              title={isSidebarOpen ? "Collapse sidebar" : "Open sidebar (Menu)"}
+              aria-label={isSidebarOpen ? "Collapse sidebar" : "Open sidebar"}
+              title={isSidebarOpen ? "Collapse sidebar" : "Open sidebar"}
             >
               <Menu size={20} />
-              {!isSidebarOpen && <span style={{ fontWeight: 700, fontSize: '0.8125rem' }}>Menu</span>}
             </button>
             <div className="admin-header-title">
               <h2>
@@ -225,19 +224,6 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
           {children}
         </div>
       </main>
-
-      {/* Floating edge tab to open sidebar when closed */}
-      {!isSidebarOpen && (
-        <button
-          onClick={toggleSidebar}
-          className="admin-floating-sidebar-trigger"
-          title="Open Navigation Menu"
-          aria-label="Open Navigation Menu"
-        >
-          <ChevronRight size={18} />
-          <span>Menu</span>
-        </button>
-      )}
     </div>
   );
 };
