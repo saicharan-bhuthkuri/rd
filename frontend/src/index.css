@@ -3820,6 +3820,35 @@ button, input, textarea, select, option {
   box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.15);
 }
 
+@keyframes dropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.admin-custom-dropdown-menu::-webkit-scrollbar {
+  width: 6px;
+}
+
+.admin-custom-dropdown-menu::-webkit-scrollbar-track {
+  background: #f8fafc;
+  border-radius: 6px;
+}
+
+.admin-custom-dropdown-menu::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 6px;
+}
+
+.admin-custom-dropdown-menu::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
 /* Export / Action Buttons */
 .admin-btn-export {
   display: inline-flex;

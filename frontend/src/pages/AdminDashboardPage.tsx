@@ -4,6 +4,7 @@ import { API_BASE_URL } from '../config';
 import { AdminLayout } from '../components/AdminLayout';
 import { formatDisplayPhone } from '../utils/phone';
 import { Download, Check, X, Layers, Calendar, Mail, Loader2, Eye, Award, HeartHandshake, FolderUp, ExternalLink, FileText, Trash2 } from 'lucide-react';
+import { AdminFilterDropdown } from '../components/AdminFilterDropdown';
 
 interface ProjectSubmission {
   id: number;
@@ -1286,116 +1287,138 @@ export const AdminDashboardPage: React.FC = () => {
 
           {/* 1. Hackathons filter (for Hackathons tab) */}
           {activeTab === 'hackathon' && (
-            <select
-              className="admin-filter-select"
+            <AdminFilterDropdown
               value={hackathonFilter}
-              onChange={(e) => setHackathonFilter(e.target.value)}
+              onChange={setHackathonFilter}
+              options={[
+                { value: 'all', label: 'All Hackathons' },
+                ...getHackathons().map(hack => ({ value: hack, label: hack }))
+              ]}
+              placeholder="All Hackathons"
+              minWidth="140px"
+              maxWidth="190px"
+              menuWidth="240px"
               title="Filter by Hackathon"
-            >
-              <option value="all">All Hackathons</option>
-              {getHackathons().map((hack, idx) => (
-                <option key={idx} value={hack}>{hack}</option>
-              ))}
-            </select>
+            />
           )}
 
           {/* 2. Events / Hackathons filter (for event / recognition / submission tabs) */}
           {(activeTab === 'event' || activeTab === 'recognition') && (
-            <select
-              className="admin-filter-select"
+            <AdminFilterDropdown
               value={eventFilter}
-              onChange={(e) => setEventFilter(e.target.value)}
+              onChange={setEventFilter}
+              options={[
+                { value: 'all', label: 'All Events' },
+                ...(activeTab === 'recognition' ? getRecognitionEvents() : getEvents()).map(evt => ({ value: evt, label: evt }))
+              ]}
+              placeholder="All Events"
+              minWidth="130px"
+              maxWidth="180px"
+              menuWidth="240px"
               title="Filter by Event"
-            >
-              <option value="all">All Events</option>
-              {(activeTab === 'recognition' ? getRecognitionEvents() : getEvents()).map((evt, idx) => (
-                <option key={idx} value={evt}>{evt}</option>
-              ))}
-            </select>
+            />
           )}
 
           {activeTab === 'submission' && (
-            <select
-              className="admin-filter-select"
+            <AdminFilterDropdown
               value={eventFilter}
-              onChange={(e) => setEventFilter(e.target.value)}
+              onChange={setEventFilter}
+              options={[
+                { value: 'all', label: 'All Events / Hackathons' },
+                ...getSubmissionEvents().map(evt => ({ value: evt, label: evt }))
+              ]}
+              placeholder="All Events / Hackathons"
+              minWidth="150px"
+              maxWidth="200px"
+              menuWidth="250px"
               title="Filter by Event / Hackathon"
-            >
-              <option value="all">All Events / Hackathons</option>
-              {getSubmissionEvents().map((evt, idx) => (
-                <option key={idx} value={evt}>{evt}</option>
-              ))}
-            </select>
+            />
           )}
 
           {/* 3. Branch filter (from Branch Management) - DIRECTLY BESIDE ALL HACKATHONS */}
           {activeTab !== 'recognition' && activeTab !== 'submission' && (
-            <select
-              className="admin-filter-select"
+            <AdminFilterDropdown
               value={branchFilter}
-              onChange={(e) => setBranchFilter(e.target.value)}
+              onChange={setBranchFilter}
+              options={[
+                { value: 'all', label: 'All Branches' },
+                ...getBranches().map(br => ({ value: br, label: br }))
+              ]}
+              placeholder="All Branches"
+              minWidth="135px"
+              maxWidth="195px"
+              menuWidth="320px"
               title="Filter by Branch"
-            >
-              <option value="all">All Branches</option>
-              {getBranches().map((br, idx) => (
-                <option key={idx} value={br} title={br}>{br}</option>
-              ))}
-            </select>
+            />
           )}
 
           {/* 4. Volunteer Tracks filter */}
           {activeTab === 'volunteer' && (
-            <select
-              className="admin-filter-select"
+            <AdminFilterDropdown
               value={volunteerRoleFilter}
-              onChange={(e) => setVolunteerRoleFilter(e.target.value)}
+              onChange={setVolunteerRoleFilter}
+              options={[
+                { value: 'all', label: 'All Volunteer Tracks' },
+                ...getVolunteerRoles().map(role => ({ value: role, label: role }))
+              ]}
+              placeholder="All Volunteer Tracks"
+              minWidth="150px"
+              maxWidth="190px"
+              menuWidth="220px"
               title="Filter by Track"
-            >
-              <option value="all">All Volunteer Tracks</option>
-              {getVolunteerRoles().map((role, idx) => (
-                <option key={idx} value={role}>{role}</option>
-              ))}
-            </select>
+            />
           )}
 
           {/* 5. Status / Certificate filter */}
           {activeTab === 'club' || activeTab === 'hackathon' || activeTab === 'recognition' || activeTab === 'volunteer' || activeTab === 'submission' ? (
-            <select
-              className="admin-filter-select"
+            <AdminFilterDropdown
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={setStatusFilter}
+              options={[
+                { value: 'all', label: 'All Statuses' },
+                { value: 'pending', label: 'Pending' },
+                { value: 'approved', label: 'Approved' },
+                { value: 'rejected', label: 'Rejected' }
+              ]}
+              placeholder="All Statuses"
+              minWidth="120px"
+              maxWidth="140px"
+              menuWidth="160px"
               title="Filter by Status"
-            >
-              <option value="all">All Statuses</option>
-              <option value="pending">Pending</option>
-              <option value="approved">Approved</option>
-              <option value="rejected">Rejected</option>
-            </select>
+            />
           ) : (
-            <select
-              className="admin-filter-select"
+            <AdminFilterDropdown
               value={certSentFilter}
-              onChange={(e) => setCertSentFilter(e.target.value as 'all' | 'sent' | 'pending')}
+              onChange={(val) => setCertSentFilter(val as 'all' | 'sent' | 'pending')}
+              options={[
+                { value: 'all', label: 'All Certificates' },
+                { value: 'sent', label: 'Sent Only' },
+                { value: 'pending', label: 'Pending Only' }
+              ]}
+              placeholder="All Certificates"
+              minWidth="130px"
+              maxWidth="160px"
+              menuWidth="180px"
               title="Filter by Certificate"
-            >
-              <option value="all">All Certificates</option>
-              <option value="sent">Sent Only</option>
-              <option value="pending">Pending Only</option>
-            </select>
+            />
           )}
 
           {/* 6. Dispatch filter (for recognition / volunteer) */}
           {(activeTab === 'recognition' || activeTab === 'volunteer') && (
-            <select
-              className="admin-filter-select"
+            <AdminFilterDropdown
               value={certSentFilter}
-              onChange={(e) => setCertSentFilter(e.target.value as 'all' | 'sent' | 'pending')}
+              onChange={(val) => setCertSentFilter(val as 'all' | 'sent' | 'pending')}
+              options={[
+                { value: 'all', label: 'All Dispatch States' },
+                { value: 'sent', label: 'Certificate Sent' },
+                { value: 'pending', label: 'Certificate Pending' }
+              ]}
+              placeholder="All Dispatch States"
+              minWidth="140px"
+              maxWidth="180px"
+              menuWidth="200px"
               title="Filter by Dispatch State"
-            >
-              <option value="all">All Dispatch States</option>
-              <option value="sent">Certificate Sent</option>
-              <option value="pending">Certificate Pending</option>
-            </select>
+            />
           )}
         </div>
 
