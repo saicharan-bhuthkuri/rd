@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Users, ArrowLeft, LogOut, Sparkles, Calendar, ClipboardList, Layers, Menu, X, Code } from 'lucide-react';
+import { Users, ArrowLeft, LogOut, Sparkles, Calendar, ClipboardList, Layers, Menu, X, Code, Award } from 'lucide-react';
 import { API_BASE_URL } from '../config';
 
 interface AdminLayoutProps {
@@ -89,6 +89,11 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
             <span>Hackathon Registration</span>
           </Link>
 
+          <Link to="/admin/recognition" className={`admin-nav-item ${isActive('/admin/recognition')}`}>
+            <Award size={18} />
+            <span>Judge Recognition</span>
+          </Link>
+
           <Link to="/admin/events/manage" className={`admin-nav-item ${isActive('/admin/events/manage')}`}>
             <Calendar size={18} />
             <span>Manage Events</span>
@@ -150,6 +155,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
                   ? 'Event Registration Applications'
                   : location.pathname === '/admin/hackathons'
                   ? 'Hackathon Team Registrations'
+                  : location.pathname === '/admin/recognition'
+                  ? 'Judge & Dignitary Recognition Applications'
                   : location.pathname === '/admin/events/manage'
                   ? 'Manage Technical Events'
                   : location.pathname === '/admin/events/create'

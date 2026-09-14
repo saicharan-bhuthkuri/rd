@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useParams, useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '../config';
-import { ArrowLeft, User, Mail, Phone, GraduationCap, Calendar, Sparkles, Check, Loader2, Code, Users, Server, ChevronDown, Plus, Trash2, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, User, Mail, Phone, GraduationCap, Calendar, Sparkles, Check, Loader2, Code, Users, Server, ChevronDown, Plus, Trash2, AlertTriangle, Award, Briefcase, Building2 } from 'lucide-react';
 
-type FormType = 'none' | 'join-club' | 'event' | 'hackathon';
+type FormType = 'none' | 'join-club' | 'event' | 'hackathon' | 'recognition';
 
 interface CustomSelectProps {
   id: string;
@@ -185,6 +185,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({
 const getFormTypeFromParam = (param?: string): FormType => {
   if (!param) return 'none';
   const clean = param.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (clean.includes('recognition') || clean.includes('judge') || clean.includes('evaluator')) return 'recognition';
   if (clean.includes('hackathon')) return 'hackathon';
   if (clean.includes('club') || clean.includes('membership') || clean.includes('join')) return 'join-club';
   if (clean.includes('event')) return 'event';
@@ -225,6 +226,16 @@ export const ApplyPage: React.FC = () => {
   const [skills, setSkills] = useState('');
   const [reasonToJoin, setReasonToJoin] = useState('');
 
+  // Recognition / Judge specific fields state
+  const [judgeDesignation, setJudgeDesignation] = useState('');
+  const [judgeOrganization, setJudgeOrganization] = useState('');
+  const [judgeEventName, setJudgeEventName] = useState('');
+  const [judgeEventDate, setJudgeEventDate] = useState('');
+  const [judgeDomain, setJudgeDomain] = useState('');
+  const [judgeExperience, setJudgeExperience] = useState('');
+  const [judgeNotes, setJudgeNotes] = useState('');
+  const [recognitionConfirmed, setRecognitionConfirmed] = useState(false);
+
   // Hackathon specific fields state
   const [teamName, setTeamName] = useState('');
   const [selectedHackathonName, setSelectedHackathonName] = useState('');
@@ -255,6 +266,8 @@ export const ApplyPage: React.FC = () => {
   const [members, setMembers] = useState<Member[]>([]);
 
   const [eventsList, setEventsList] = useState<string[]>([]);
+  const [allEventsList, setAllEventsList] = useState<string[]>([]);
+  const [eventDateMap, setEventDateMap] = useState<{ [key: string]: string }>({});
   const [isLoadingEvents, setIsLoadingEvents] = useState(true);
   const [branchesList, setBranchesList] = useState<string[]>([]);
 
@@ -288,6 +301,8 @@ export const ApplyPage: React.FC = () => {
       document.title = 'Club Membership Application | R&D Club';
     } else if (formType === 'event') {
       document.title = 'Event Registration | R&D Club';
+    } else if (formType === 'recognition') {
+      document.title = 'Judge Recognition Registration | R&D Club';
     } else {
       document.title = 'Application Portal | R&D Club';
     }
@@ -308,6 +323,15 @@ export const ApplyPage: React.FC = () => {
             .filter((evt: any) => evt.category === 'Hackathon')
             .map((evt: any) => evt.title);
           setHackathonsList(hackathons);
+
+          const allList = data.map((evt: any) => evt.title);
+          setAllEventsList(allList);
+
+          const dates: { [key: string]: string } = {};
+          data.forEach((evt: any) => {
+            dates[evt.title] = evt.date;
+          });
+          setEventDateMap(dates);
           
           if (hackathons.length > 0) {
             const hackathonParam = searchParams.get('hackathon');
@@ -324,6 +348,13 @@ export const ApplyPage: React.FC = () => {
             setEventName(eventParam);
           } else if (titles.length > 0) {
             setEventName(titles[0]);
+          }
+
+          // Initialize judgeEventName
+          if (allList.length > 0) {
+            const initialJudgeEvt = eventParam && allList.includes(eventParam) ? eventParam : allList[0];
+            setJudgeEventName(initialJudgeEvt);
+            setJudgeEventDate(dates[initialJudgeEvt] || '');
           }
         }
       } catch (err) {
@@ -377,6 +408,21 @@ export const ApplyPage: React.FC = () => {
     setSkills('');
     setReasonToJoin('');
     
+    // Recognition reset
+    setJudgeDesignation('');
+    setJudgeOrganization('');
+    if (allEventsList.length > 0) {
+      setJudgeEventName(allEventsList[0]);
+      setJudgeEventDate(eventDateMap[allEventsList[0]] || '');
+    } else {
+      setJudgeEventName('');
+      setJudgeEventDate('');
+    }
+    setJudgeDomain('');
+    setJudgeExperience('');
+    setJudgeNotes('');
+    setRecognitionConfirmed(false);
+
     // Hackathon reset
     setTeamName('');
     setSelectedHackathonName(hackathonsList.length > 0 ? hackathonsList[0] : '');
@@ -399,6 +445,8 @@ export const ApplyPage: React.FC = () => {
       navigate('/apply/ClubRegistration');
     } else if (type === 'event') {
       navigate('/apply/EventRegistration');
+    } else if (type === 'recognition') {
+      navigate('/apply/RecognitionRegistration');
     } else {
       navigate('/apply');
     }
@@ -450,6 +498,19 @@ export const ApplyPage: React.FC = () => {
       }
       if (!emailRegex.test(email.trim())) {
         alert("Please enter a valid Email Address.");
+        return;
+      }
+    } else if (formType === 'recognition') {
+      if (!fullName.trim() || !email.trim() || !mobile.trim() || !judgeDesignation.trim() || !judgeOrganization.trim() || !judgeEventName.trim()) {
+        alert("Please fill in all required fields (Full Name, Email, Mobile, Designation, Organization, and Event).");
+        return;
+      }
+      if (!emailRegex.test(email.trim())) {
+        alert("Please enter a valid Email Address.");
+        return;
+      }
+      if (!recognitionConfirmed) {
+        alert("Please confirm the verification checkbox at the bottom before submitting.");
         return;
       }
     } else if (formType === 'hackathon') {
@@ -583,6 +644,17 @@ export const ApplyPage: React.FC = () => {
       section,
       eventName,
       notes
+    } : formType === 'recognition' ? {
+      fullName,
+      email,
+      mobile,
+      designation: judgeDesignation,
+      organization: judgeOrganization,
+      eventName: judgeEventName,
+      eventDate: judgeEventDate || eventDateMap[judgeEventName] || '',
+      domainExpertise: judgeDomain,
+      experienceYears: judgeExperience,
+      notes: judgeNotes
     } : {
       hackathonName: selectedHackathonName,
       teamName,
@@ -598,7 +670,7 @@ export const ApplyPage: React.FC = () => {
       members
     };
 
-    const endpoint = formType === 'join-club' ? 'club' : formType === 'event' ? 'event' : 'hackathon';
+    const endpoint = formType === 'join-club' ? 'club' : formType === 'event' ? 'event' : formType === 'recognition' ? 'recognition' : 'hackathon';
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/apply/${endpoint}`, {
@@ -641,7 +713,7 @@ export const ApplyPage: React.FC = () => {
             </p>
           </section>
 
-          <div className="apply-options-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '2rem' }}>
+          <div className="apply-options-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '2rem' }}>
             <div className="apply-option-card card hover-lift" onClick={() => handleFormSelect('join-club')}>
               <div className="apply-icon-wrapper club-icon">
                 <Sparkles size={28} />
@@ -665,7 +737,7 @@ export const ApplyPage: React.FC = () => {
             </div>
 
             <div className="apply-option-card card hover-lift" onClick={() => handleFormSelect('hackathon')}>
-              <div className="apply-icon-wrapper event-icon" style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6' }}>
+              <div className="apply-icon-wrapper hackathon-icon">
                 <Code size={28} />
               </div>
               <h3>Apply for a Hackathon</h3>
@@ -673,6 +745,17 @@ export const ApplyPage: React.FC = () => {
                 Register your team and submit your hackathon project.
               </p>
               <button className="btn btn-primary btn-sm">Register for Hackathon</button>
+            </div>
+
+            <div className="apply-option-card card hover-lift" onClick={() => handleFormSelect('recognition')}>
+              <div className="apply-icon-wrapper recognition-icon">
+                <Award size={28} />
+              </div>
+              <h3>Judge Recognition</h3>
+              <p>
+                Register as an official Judge, Evaluator, or Guest Dignitary.
+              </p>
+              <button className="btn btn-primary btn-sm">Register for Recognition</button>
             </div>
           </div>
         </div>
@@ -682,21 +765,26 @@ export const ApplyPage: React.FC = () => {
           
           {/* Left Column: Branding panel */}
           <div className="apply-info-panel">
-            <span className="badge">Join the Pioneers</span>
-            <h1 className="apply-panel-title">Shape the Future With R&D Club</h1>
+            <span className="badge">
+              {formType === 'recognition' ? 'Honoring Excellence' : 'Join the Pioneers'}
+            </span>
+            <h1 className="apply-panel-title">
+              {formType === 'recognition' ? 'Distinguished Judges & Evaluators' : 'Shape the Future With R&D Club'}
+            </h1>
             <p className="apply-panel-desc">
-              Collaborate on bleeding-edge projects, build production-grade features, and accelerate your 
-              engineering skills. We bridge the gap between academic theory and industry reality.
+              {formType === 'recognition'
+                ? 'We express our deepest gratitude to industry leaders, eminent academicians, and technical experts whose fair evaluations guide and inspire our student innovators.'
+                : 'Collaborate on bleeding-edge projects, build production-grade features, and accelerate your engineering skills. We bridge the gap between academic theory and industry reality.'}
             </p>
 
             <div className="apply-features-list">
               <div className="apply-feature-item">
                 <div className="feature-icon-box">
-                  <Code size={18} />
+                  {formType === 'recognition' ? <Award size={18} /> : <Code size={18} />}
                 </div>
                 <div className="feature-item-text">
-                  <h4>Real-World Experience</h4>
-                  <p>Work directly on modern software/hardware codebases and write peer-reviewed scientific papers.</p>
+                  <h4>{formType === 'recognition' ? 'Institutional Recognition' : 'Real-World Experience'}</h4>
+                  <p>{formType === 'recognition' ? 'Receive an official, tamper-proof Certificate of Recognition verified by institutional leadership.' : 'Work directly on modern software/hardware codebases and write peer-reviewed scientific papers.'}</p>
                 </div>
               </div>
 
@@ -705,18 +793,18 @@ export const ApplyPage: React.FC = () => {
                   <Users size={18} />
                 </div>
                 <div className="feature-item-text">
-                  <h4>Mentorship & Growth</h4>
-                  <p>Get guided by experienced senior researchers and faculty advisors with regular code reviews.</p>
+                  <h4>{formType === 'recognition' ? 'Academic Leadership' : 'Mentorship & Growth'}</h4>
+                  <p>{formType === 'recognition' ? 'Guide students through real-world problem statements and identify promising engineering talent.' : 'Get guided by experienced senior researchers and faculty advisors with regular code reviews.'}</p>
                 </div>
               </div>
 
               <div className="apply-feature-item">
                 <div className="feature-icon-box text-indigo">
-                  <Server size={18} />
+                  {formType === 'recognition' ? <Sparkles size={18} /> : <Server size={18} />}
                 </div>
                 <div className="feature-item-text">
-                  <h4>HPC Compute & Resources</h4>
-                  <p>Get priority access to high-performance A100/H100 clusters and electronics testing labs.</p>
+                  <h4>{formType === 'recognition' ? 'Verifiable Credential' : 'HPC Compute & Resources'}</h4>
+                  <p>{formType === 'recognition' ? 'Indexed with a permanent verification ID accessible to academic institutions and organizations globally.' : 'Get priority access to high-performance A100/H100 clusters and electronics testing labs.'}</p>
                 </div>
               </div>
             </div>
@@ -727,7 +815,7 @@ export const ApplyPage: React.FC = () => {
             <div className="form-container-card card">
               <div className="form-header-row">
                 <div>
-                  <h2>{formType === 'join-club' ? 'Membership Application' : formType === 'event' ? 'Event Registration' : 'Hackathon Registration'}</h2>
+                  <h2>{formType === 'join-club' ? 'Membership Application' : formType === 'event' ? 'Event Registration' : formType === 'recognition' ? 'Judge & Dignitary Recognition' : 'Hackathon Registration'}</h2>
                   <p style={{ color: 'var(--text-secondary)', fontSize: '0.8125rem', marginTop: '0.25rem' }}>
                     Fields marked with <span className="req">*</span> are required.
                   </p>
@@ -742,9 +830,11 @@ export const ApplyPage: React.FC = () => {
                   <div className="success-icon-wrapper">
                     <Check size={48} />
                   </div>
-                  <h3>Application Submitted!</h3>
+                  <h3>{formType === 'recognition' ? 'Recognition Details Recorded!' : 'Application Submitted!'}</h3>
                   <p>
-                    Your request has been saved. An email confirmation has been sent to your university address.
+                    {formType === 'recognition'
+                      ? 'Thank you for your valuable contribution. Your information has been saved. Your official Certificate of Recognition will be issued by the administration.'
+                      : 'Your request has been saved. An email confirmation has been sent to your university address.'}
                   </p>
                   <button onClick={() => handleFormSelect('none')} className="btn btn-secondary btn-sm">
                     Back to Options
@@ -753,7 +843,7 @@ export const ApplyPage: React.FC = () => {
               ) : (
                 <form onSubmit={handleSubmit} className="apply-detailed-form">
                   {/* Academic & Contact Section */}
-                  {formType !== 'hackathon' && (
+                  {(formType === 'join-club' || formType === 'event') && (
                     <>
                       <div className="form-section-title">Academic & Contact Info</div>
                       
@@ -954,6 +1044,184 @@ export const ApplyPage: React.FC = () => {
                             {reasonToJoin.length} / 500
                           </span>
                         </div>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Recognition / Judge Details */}
+                  {formType === 'recognition' && (
+                    <>
+                      <div className="form-section-title">Judge / Dignitary Profile</div>
+
+                      <div className="form-group">
+                        <label htmlFor="fullName">Full Name <span className="req">*</span></label>
+                        <div className="input-with-icon">
+                          <User size={16} />
+                          <input
+                            type="text"
+                            id="fullName"
+                            required
+                            placeholder="e.g. Dr. Alan Turing / Prof. Clara Vance"
+                            value={fullName}
+                            onChange={(e) => setFullName(e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="form-group">
+                        <label htmlFor="email">Email Address <span className="req">*</span></label>
+                        <div className="input-with-icon">
+                          <Mail size={16} />
+                          <input
+                            type="email"
+                            id="email"
+                            required
+                            placeholder="e.g. judge@institution.edu or expert@company.com"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="form-group">
+                        <label htmlFor="mobile">Mobile / Contact Number <span className="req">*</span></label>
+                        <div className="input-with-icon">
+                          <Phone size={16} />
+                          <input
+                            type="tel"
+                            id="mobile"
+                            required
+                            placeholder="e.g. +91 98765 43210"
+                            value={mobile}
+                            onChange={(e) => setMobile(e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="form-group">
+                        <label htmlFor="judgeDesignation">Job Title / Designation <span className="req">*</span></label>
+                        <div className="input-with-icon">
+                          <Briefcase size={16} />
+                          <input
+                            type="text"
+                            id="judgeDesignation"
+                            required
+                            placeholder="e.g. Associate Professor / Lead Architect / Senior Judge"
+                            value={judgeDesignation}
+                            onChange={(e) => setJudgeDesignation(e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="form-group">
+                        <label htmlFor="judgeOrganization">Organization / Institution / Company <span className="req">*</span></label>
+                        <div className="input-with-icon">
+                          <Building2 size={16} />
+                          <input
+                            type="text"
+                            id="judgeOrganization"
+                            required
+                            placeholder="e.g. Trinity College of Engineering / Google / NIT Warangal"
+                            value={judgeOrganization}
+                            onChange={(e) => setJudgeOrganization(e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="form-section-title" style={{ marginTop: '1.5rem' }}>Evaluation & Event Context</div>
+
+                      <div className="form-group">
+                        <label htmlFor="judgeEventName">Event / Hackathon Served As Judge <span className="req">*</span></label>
+                        <CustomSelect
+                          id="judgeEventName"
+                          value={judgeEventName}
+                          onChange={(val) => {
+                            setJudgeEventName(val);
+                            if (eventDateMap[val]) {
+                              setJudgeEventDate(eventDateMap[val]);
+                            }
+                          }}
+                          options={allEventsList.length > 0 ? allEventsList : ["Smart India Hackathon 2026", "R&D AlphaQuest Hackathon"]}
+                          placeholder="Select Event"
+                          icon={<Sparkles size={16} />}
+                          disabled={isLoadingEvents}
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label htmlFor="judgeEventDate">Event Date <span className="req">*</span></label>
+                        <div className="input-with-icon">
+                          <Calendar size={16} />
+                          <input
+                            type="text"
+                            id="judgeEventDate"
+                            required
+                            placeholder="e.g. September 14, 2026"
+                            value={judgeEventDate}
+                            onChange={(e) => setJudgeEventDate(e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="form-group">
+                        <label htmlFor="judgeDomain">Area of Domain / Specialization <span className="opt">(Optional)</span></label>
+                        <input
+                          type="text"
+                          id="judgeDomain"
+                          placeholder="e.g. AI/ML, Cloud Architecture, Robotics, Embedded Systems"
+                          value={judgeDomain}
+                          onChange={(e) => setJudgeDomain(e.target.value)}
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label htmlFor="judgeExperience">Experience (Years in Industry / Academia) <span className="opt">(Optional)</span></label>
+                        <input
+                          type="text"
+                          id="judgeExperience"
+                          placeholder="e.g. 10+ Years / 15 Years in Research"
+                          value={judgeExperience}
+                          onChange={(e) => setJudgeExperience(e.target.value)}
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label htmlFor="judgeNotes">Citation / Evaluation Remarks / Bio <span className="opt">(Optional)</span></label>
+                        <textarea
+                          id="judgeNotes"
+                          rows={4}
+                          placeholder="Brief biography or key highlights from your evaluation session..."
+                          value={judgeNotes}
+                          onChange={(e) => setJudgeNotes(e.target.value.slice(0, 500))}
+                          maxLength={500}
+                        />
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.25rem', fontSize: '0.75rem' }}>
+                          <span />
+                          <span style={{ color: judgeNotes.length === 500 ? '#dc2626' : 'var(--text-secondary)' }}>
+                            {judgeNotes.length} / 500
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="form-group" style={{ 
+                        marginTop: '1.5rem', 
+                        padding: '1.25rem', 
+                        backgroundColor: 'rgba(217, 119, 6, 0.05)', 
+                        border: '1px solid rgba(217, 119, 6, 0.2)', 
+                        borderRadius: '8px' 
+                      }}>
+                        <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', cursor: 'pointer', userSelect: 'none' }}>
+                          <input
+                            type="checkbox"
+                            required
+                            checked={recognitionConfirmed}
+                            onChange={(e) => setRecognitionConfirmed(e.target.checked)}
+                            style={{ marginTop: '0.25rem', width: '16px', height: '16px', cursor: 'pointer' }}
+                          />
+                          <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                            I confirm that the above information is accurate and reflects my contribution as an official Judge / Evaluator for Trinity College of Engineering & Technology. I understand that my Certificate of Recognition will be issued based on these details.
+                          </span>
+                        </label>
                       </div>
                     </>
                   )}

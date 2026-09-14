@@ -237,6 +237,15 @@ function App() {
           />
 
           <Route
+            path="/admin/recognition"
+            element={
+              <ProtectedRoute>
+                <AdminDashboardPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
             path="/admin/users"
             element={
               <ProtectedRoute allowedRoles={['developer', 'superadmin']}>
