@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Users, ArrowLeft, LogOut, Sparkles, Calendar, ClipboardList, Layers, Menu, X, Code, Award, HeartHandshake, FolderUp } from 'lucide-react';
+import { Users, ArrowLeft, LogOut, Sparkles, Calendar, ClipboardList, Layers, Menu, Code, Award, HeartHandshake, FolderUp, ChevronLeft } from 'lucide-react';
 import { API_BASE_URL } from '../config';
 
 interface AdminLayoutProps {
@@ -10,8 +10,43 @@ interface AdminLayoutProps {
 export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
+  // Persistent sidebar open/close state
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
+    try {
+      const saved = localStorage.getItem('admin_sidebar_open');
+      if (saved !== null) {
+        return saved === 'true';
+      }
+    } catch (e) {}
+    // Default open on desktop (>= 1024px), closed on mobile/tablet (< 1024px)
+    return typeof window !== 'undefined' ? window.innerWidth >= 1024 : true;
+  });
+  
+  const toggleSidebar = () => {
+    setIsSidebarOpen(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem('admin_sidebar_open', String(next));
+      } catch (e) {}
+      return next;
+    });
+  };
+
+  const closeSidebar = () => {
+    setIsSidebarOpen(false);
+    try {
+      localStorage.setItem('admin_sidebar_open', 'false');
+    } catch (e) {}
+  };
+
+  // Close sidebar on mobile navigation change
+  useEffect(() => {
+    if (window.innerWidth < 1024) {
+      setIsSidebarOpen(false);
+    }
+  }, [location.pathname]);
+
   // Get active admin user from localStorage
   const adminUser = JSON.parse(localStorage.getItem('admin_user') || '{}');
   const role = adminUser.role || '';
@@ -41,33 +76,30 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
     return location.pathname === path ? 'active' : '';
   };
 
-  // Close sidebar on navigation change (mobile)
-  React.useEffect(() => {
-    setIsSidebarOpen(false);
-  }, [location.pathname]);
-
   return (
     <div className="admin-container">
-      {/* Mobile Backdrop */}
+      {/* Mobile / Drawer Backdrop */}
       {isSidebarOpen && (
         <div 
-          className="mobile-sidebar-backdrop"
-          onClick={() => setIsSidebarOpen(false)}
+          className="admin-sidebar-overlay mobile-sidebar-backdrop"
+          onClick={closeSidebar}
         />
       )}
 
-      {/* Sidebar */}
-      <aside className={`admin-sidebar ${isSidebarOpen ? 'open' : ''}`}>
+      {/* Sidebar (supports open and closed states) */}
+      <aside className={`admin-sidebar ${isSidebarOpen ? 'open' : 'closed'}`}>
         <div className="admin-sidebar-header">
           <div className="admin-brand">
             <span className="brand-dot"></span>
             <span>Admin Console</span>
           </div>
           <button 
-            className="mobile-sidebar-close" 
-            onClick={() => setIsSidebarOpen(false)}
+            className="admin-sidebar-close-btn" 
+            onClick={toggleSidebar}
+            title="Collapse Sidebar"
+            aria-label="Collapse Sidebar"
           >
-            <X size={20} />
+            <ChevronLeft size={18} />
           </button>
         </div>
 
@@ -149,11 +181,12 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
         <header className="admin-header">
           <div className="header-left-group">
             <button 
-              className="mobile-sidebar-toggle" 
-              onClick={() => setIsSidebarOpen(true)}
-              aria-label="Open menu"
+              className="admin-sidebar-toggle-btn mobile-sidebar-toggle" 
+              onClick={toggleSidebar}
+              aria-label={isSidebarOpen ? "Collapse sidebar" : "Open sidebar"}
+              title={isSidebarOpen ? "Collapse sidebar" : "Open sidebar"}
             >
-              <Menu size={24} />
+              <Menu size={20} />
             </button>
             <div className="admin-header-title">
               <h2>

@@ -1600,7 +1600,7 @@ export const AdminDashboardPage: React.FC = () => {
       ) : error ? (
         <div className="alert alert-danger">{error}</div>
       ) : (
-        <div className="admin-table-container applications-table">
+        <div className={`admin-table-container ${activeTab === 'hackathon' ? 'hackathons-table' : activeTab === 'submission' ? 'submissions-table' : activeTab === 'recognition' ? 'recognitions-table' : activeTab === 'volunteer' ? 'volunteers-table' : 'applications-table'}`}>
           <table className="admin-table">
             <thead>
               {activeTab === 'club' ? (
@@ -1650,9 +1650,8 @@ export const AdminDashboardPage: React.FC = () => {
               ) : (
                 <tr>
                   <th>Team & Leader Info</th>
-                  <th>Project Info</th>
-                  <th>Problem Statement</th>
-                  <th>Members</th>
+                  <th>Academic & Branch Profile</th>
+                  <th>Members Roster</th>
                   <th>Status</th>
                   <th colSpan={2}>Certificate Action / Type</th>
                 </tr>
@@ -2363,22 +2362,29 @@ export const AdminDashboardPage: React.FC = () => {
                           <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                             {reg.leader_email} | {formatDisplayPhone(reg.leader_phone)}
                           </div>
-                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                            Role: {reg.leader_role} {reg.leader_role === 'Student' ? `(${reg.leader_branch})` : `(${reg.leader_company})`}
-                          </div>
                         </td>
                         <td>
-                          {reg.project_title ? (
-                            <strong style={{ display: 'block', fontSize: '0.875rem', color: 'var(--primary)' }}>{reg.project_title}</strong>
-                          ) : null}
-                          {reg.project_description ? (
-                            <div style={{ maxHeight: '60px', overflowY: 'auto', fontSize: '0.8125rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-                              {reg.project_description}
+                          <div style={{ fontWeight: 600, fontSize: '0.875rem', color: 'var(--text-main)' }}>
+                            {reg.leader_role || 'Student'}
+                          </div>
+                          <div style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                            {reg.leader_branch ? `Branch: ${reg.leader_branch}` : reg.leader_company ? `Company: ${reg.leader_company}` : 'Trinity College'}
+                          </div>
+                          {reg.leader_year && (
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                              Year: {reg.leader_year}
                             </div>
-                          ) : (!reg.project_title ? <span style={{ color: 'var(--text-muted)' }}>—</span> : null)}
-                        </td>
-                        <td style={{ maxWidth: '250px', fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
-                          <div style={{ maxHeight: '60px', overflowY: 'auto' }}>{reg.problem_statement || '—'}</div>
+                          )}
+                          {reg.leader_institution && reg.leader_institution !== 'Trinity College of Engineering and Technology' && (
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                              {reg.leader_institution}
+                            </div>
+                          )}
+                          {reg.project_title && (
+                            <div style={{ marginTop: '0.35rem', fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 600 }}>
+                              Project: {reg.project_title}
+                            </div>
+                          )}
                         </td>
                         <td>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', alignItems: 'flex-start' }}>
