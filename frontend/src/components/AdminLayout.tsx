@@ -77,14 +77,14 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
             <span>Club Membership</span>
           </Link>
 
+          <Link to="/admin/volunteers" className={`admin-nav-item ${isActive('/admin/volunteers')}`}>
+            <HeartHandshake size={18} />
+            <span>Volunteers</span>
+          </Link>
+
           <Link to="/admin/events" className={`admin-nav-item ${isActive('/admin/events')}`}>
             <ClipboardList size={18} />
             <span>Event Registration</span>
-          </Link>
-
-          <Link to="/admin/hackathons" className={`admin-nav-item ${isActive('/admin/hackathons')}`}>
-            <Code size={18} />
-            <span>Hackathon Registration</span>
           </Link>
 
           <Link to="/admin/recognition" className={`admin-nav-item ${isActive('/admin/recognition')}`}>
@@ -92,9 +92,9 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
             <span>Judge Recognition</span>
           </Link>
 
-          <Link to="/admin/volunteers" className={`admin-nav-item ${isActive('/admin/volunteers')}`}>
-            <HeartHandshake size={18} />
-            <span>Volunteers</span>
+          <Link to="/admin/hackathons" className={`admin-nav-item ${isActive('/admin/hackathons')}`}>
+            <Code size={18} />
+            <span>Hackathon Registration</span>
           </Link>
 
           <Link to="/admin/submissions" className={`admin-nav-item ${isActive('/admin/submissions')}`}>

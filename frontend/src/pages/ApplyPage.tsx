@@ -1549,6 +1549,7 @@ export const ApplyPage: React.FC = () => {
           </section>
 
           <div className="apply-options-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '2rem' }}>
+            {/* 1. Join the R&D Club */}
             <div className="apply-option-card card hover-lift" onClick={() => handleFormSelect('join-club')}>
               <div className="apply-icon-wrapper club-icon">
                 <Sparkles size={28} />
@@ -1560,6 +1561,19 @@ export const ApplyPage: React.FC = () => {
               <button className="btn btn-primary btn-sm">Start Application</button>
             </div>
 
+            {/* 2. Volunteer Registration */}
+            <div className="apply-option-card card hover-lift" onClick={() => handleFormSelect('volunteer')}>
+              <div className="apply-icon-wrapper volunteer-icon">
+                <HeartHandshake size={28} />
+              </div>
+              <h3>Volunteer Registration</h3>
+              <p>
+                Contribute to event operations, management, and technical logistics.
+              </p>
+              <button className="btn btn-primary btn-sm">Register as Volunteer</button>
+            </div>
+
+            {/* 3. Apply event */}
             <div className="apply-option-card card hover-lift" onClick={() => handleFormSelect('event')}>
               <div className="apply-icon-wrapper event-icon">
                 <Calendar size={28} />
@@ -1571,39 +1585,31 @@ export const ApplyPage: React.FC = () => {
               <button className="btn btn-primary btn-sm">Register for Event</button>
             </div>
 
-            <div className="apply-option-card card hover-lift" onClick={() => handleFormSelect('hackathon')}>
-              <div className="apply-icon-wrapper hackathon-icon">
-                <Code size={28} />
-              </div>
-              <h3>Apply for a Hackathon</h3>
-              <p>
-                Register your team and submit your hackathon project.
-              </p>
-              <button className="btn btn-primary btn-sm">Register for Hackathon</button>
-            </div>
-
+            {/* 4. Judge & Dignitary Recognition */}
             <div className="apply-option-card card hover-lift" onClick={() => handleFormSelect('recognition')}>
               <div className="apply-icon-wrapper recognition-icon">
                 <Award size={28} />
               </div>
-              <h3>Judge Recognition</h3>
+              <h3>Judge & Dignitary Recognition</h3>
               <p>
                 Register as an official Judge, Evaluator, or Guest Dignitary.
               </p>
               <button className="btn btn-primary btn-sm">Register for Recognition</button>
             </div>
 
-            <div className="apply-option-card card hover-lift" onClick={() => handleFormSelect('volunteer')}>
-              <div className="apply-icon-wrapper volunteer-icon">
-                <HeartHandshake size={28} />
+            {/* 5. Hackathon Registration */}
+            <div className="apply-option-card card hover-lift" onClick={() => handleFormSelect('hackathon')}>
+              <div className="apply-icon-wrapper hackathon-icon">
+                <Code size={28} />
               </div>
-              <h3>Join as Volunteer</h3>
+              <h3>Hackathon Registration</h3>
               <p>
-                Contribute to event operations, management, and technical logistics.
+                Register your team and submit your hackathon project.
               </p>
-              <button className="btn btn-primary btn-sm">Apply as Volunteer</button>
+              <button className="btn btn-primary btn-sm">Register for Hackathon</button>
             </div>
 
+            {/* 6. Project Submission */}
             <div className="apply-option-card card hover-lift" onClick={() => handleFormSelect('submission')}>
               <div className="apply-icon-wrapper submission-icon">
                 <FolderUp size={28} />
