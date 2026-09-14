@@ -2056,6 +2056,183 @@ async function postToAppsScript(url: string, payload: any, maxRetries = 3): Prom
   throw lastError;
 }
 
+// In-memory verification code store (expires after 10 minutes)
+interface EmailVerificationEntry {
+  code: string;
+  expiresAt: number;
+  attempts: number;
+  lastSentAt: number;
+}
+
+const emailVerificationStore = new Map<string, EmailVerificationEntry>();
+const verifiedEmailsStore = new Map<string, number>();
+
+async function sendVerificationCodeEmail(toEmail: string, code: string): Promise<boolean> {
+  const subject = 'Your Verification Code - R&D Club TCEK';
+  const text = `Dear Applicant,
+
+Your 6-digit email verification code is: ${code}
+
+This code is valid for 10 minutes. Please enter it on the registration form to verify your email address.
+
+If you did not request this verification code, please ignore this email.
+
+Best regards,
+Research & Development (R&D) Club
+Trinity College of Engineering & Technology, Peddapalli`;
+
+  const html = `
+    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+      <div style="text-align: center; margin-bottom: 24px;">
+        <h2 style="color: #059669; margin: 0; font-size: 22px; font-weight: 700;">R&D Club Application Portal</h2>
+        <p style="color: #64748b; font-size: 13px; margin: 4px 0 0 0;">Trinity College of Engineering & Technology (Autonomous)</p>
+      </div>
+      <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px; text-align: center; margin: 20px 0;">
+        <p style="color: #334155; font-size: 14px; margin: 0 0 12px 0; font-weight: 500;">Your 6-digit email verification code is:</p>
+        <div style="font-size: 34px; font-weight: 800; letter-spacing: 8px; color: #059669; font-family: monospace; background: #ffffff; padding: 12px; border-radius: 6px; border: 1px dashed #cbd5e1; display: inline-block;">
+          ${code}
+        </div>
+        <p style="color: #94a3b8; font-size: 12px; margin: 12px 0 0 0;">Valid for 10 minutes. Do not share this code with anyone.</p>
+      </div>
+      <p style="color: #475569; font-size: 13px; line-height: 1.6; margin: 16px 0;">
+        Please enter this code in the email verification field to complete your application.
+      </p>
+      <hr style="border: none; border-top: 1px solid #f1f5f9; margin: 24px 0 16px 0;" />
+      <p style="color: #94a3b8; font-size: 11px; text-align: center; margin: 0;">
+        © 2026 R&D Cell, Trinity College of Engineering & Technology. All rights reserved.
+      </p>
+    </div>
+  `;
+
+  if (process.env.GMAIL_HTTP_PROXY_URL) {
+    try {
+      const payload = {
+        to: toEmail,
+        subject,
+        text,
+        html
+      };
+      const res = await postToAppsScript(process.env.GMAIL_HTTP_PROXY_URL, payload);
+      if (res && res.success) {
+        return true;
+      }
+    } catch (e: any) {
+      console.warn("[Email Verification] Apps Script Proxy failed, falling back to direct SMTP:", e.message);
+    }
+  }
+
+  // Fallback to direct SMTP via Nodemailer
+  await transporter.sendMail({
+    from: SENDER_EMAIL,
+    to: toEmail,
+    subject,
+    text,
+    html
+  });
+  return true;
+}
+
+// Endpoint: Send verification code to email
+app.post('/api/send-email-verification', sensitiveLimiter, async (req, res) => {
+  const { email } = req.body;
+
+  if (!email || typeof email !== 'string') {
+    return res.status(400).json({ error: 'Please enter a valid email address.' });
+  }
+
+  const trimmed = email.trim().toLowerCase();
+  const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+
+  if (!emailRegex.test(trimmed)) {
+    return res.status(400).json({ error: 'The email address entered is incorrect. Please enter the correct email address (e.g. name@domain.com).' });
+  }
+
+  // Rate limiting per email: require 30s cooldown between sends
+  const existing = emailVerificationStore.get(trimmed);
+  const now = Date.now();
+  if (existing && (now - existing.lastSentAt) < 30000) {
+    const waitSecs = Math.ceil((30000 - (now - existing.lastSentAt)) / 1000);
+    return res.status(429).json({ error: `Please wait ${waitSecs} seconds before requesting another code.` });
+  }
+
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  const expiresAt = now + 10 * 60 * 1000; // 10 minutes
+
+  emailVerificationStore.set(trimmed, {
+    code,
+    expiresAt,
+    attempts: 0,
+    lastSentAt: now
+  });
+
+  try {
+    await sendVerificationCodeEmail(trimmed, code);
+    console.log(`[Email Verification] Verification code dispatched to: ${trimmed}`);
+    return res.json({
+      success: true,
+      message: `Verification code sent to ${trimmed}. Please check your inbox (and spam folder).`
+    });
+  } catch (err: any) {
+    console.error(`[Email Verification] Failed to send code to ${trimmed}:`, err);
+    emailVerificationStore.delete(trimmed);
+    return res.status(500).json({ error: `Failed to deliver verification code email: ${err.message}` });
+  }
+});
+
+// Endpoint: Verify the 6-digit code
+app.post('/api/verify-email-code', sensitiveLimiter, async (req, res) => {
+  const { email, code } = req.body;
+
+  if (!email || typeof email !== 'string') {
+    return res.status(400).json({ error: 'Email address is required. Please enter the correct email address.' });
+  }
+  if (!code || typeof code !== 'string') {
+    return res.status(400).json({ error: 'Please enter the 6-digit verification code.' });
+  }
+
+  const trimmedEmail = email.trim().toLowerCase();
+  const trimmedCode = code.trim();
+
+  const record = emailVerificationStore.get(trimmedEmail);
+
+  if (!record) {
+    return res.status(400).json({
+      error: 'No active verification code found for this email. Please enter the correct email address and click Check.'
+    });
+  }
+
+  if (Date.now() > record.expiresAt) {
+    emailVerificationStore.delete(trimmedEmail);
+    return res.status(400).json({
+      error: 'Verification code has expired. Please enter the correct email address and click Check to request a new code.'
+    });
+  }
+
+  record.attempts += 1;
+
+  if (record.code !== trimmedCode) {
+    if (record.attempts >= 5) {
+      emailVerificationStore.delete(trimmedEmail);
+      return res.status(400).json({
+        error: 'Too many incorrect attempts. Please enter the correct email address and click Check to receive a new code.'
+      });
+    }
+    return res.status(400).json({
+      error: `Incorrect verification code (${5 - record.attempts} attempts remaining). Please enter the correct code, or enter the correct email address.`
+    });
+  }
+
+  // Verification succeeded!
+  emailVerificationStore.delete(trimmedEmail);
+  verifiedEmailsStore.set(trimmedEmail, Date.now() + 60 * 60 * 1000); // verified for 1 hour
+
+  return res.json({
+    success: true,
+    verified: true,
+    message: 'Email address verified successfully!'
+  });
+});
+
 // 14. Bulk Send Offer Letters to Approved Coordinators
 app.post('/api/admin/bulk-send/offers', authenticateToken, async (req: AuthenticatedRequest, res) => {
   res.setHeader('Content-Type', 'text/event-stream');

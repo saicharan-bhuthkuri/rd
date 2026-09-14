@@ -237,107 +237,165 @@ interface VerifiedEmailInputProps {
   id?: string;
   value: string;
   onChange: (value: string) => void;
+  isVerified?: boolean;
+  onVerifiedChange?: (verified: boolean) => void;
   required?: boolean;
   placeholder?: string;
   disabled?: boolean;
   label?: string;
 }
 
-const TRUSTED_EMAIL_DOMAINS = new Set([
-  'gmail.com',
-  'yahoo.com',
-  'outlook.com',
-  'hotmail.com',
-  'icloud.com',
-  'proton.me',
-  'protonmail.com',
-  'zoho.com',
-  'tcek.ac.in',
-  'google.com',
-  'microsoft.com',
-  'live.com',
-  'aol.com',
-  'mail.com'
-]);
-
 export const VerifiedEmailInput: React.FC<VerifiedEmailInputProps> = ({
   id = 'email',
   value,
   onChange,
+  isVerified = false,
+  onVerifiedChange,
   required = true,
   placeholder = 'user@university.edu',
   disabled = false,
   label = 'Email Address'
 }) => {
-  const [touched, setTouched] = useState(false);
-  const [status, setStatus] = useState<'idle' | 'validating' | 'valid' | 'invalid'>('idle');
-  const [errorMessage, setErrorMessage] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [showOtpInput, setShowOtpInput] = useState(false);
+  const [verifiedEmail, setVerifiedEmail] = useState('');
+  const [feedbackMessage, setFeedbackMessage] = useState('');
+  const [feedbackType, setFeedbackType] = useState<'error' | 'success' | 'info' | ''>('');
+  const [cooldownSeconds, setCooldownSeconds] = useState(0);
+
+  const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
 
   useEffect(() => {
+    if (!isVerified && verifiedEmail) {
+      setVerifiedEmail('');
+    }
+  }, [isVerified]);
+
+  useEffect(() => {
+    let timer: any = null;
+    if (cooldownSeconds > 0) {
+      timer = setInterval(() => {
+        setCooldownSeconds((prev) => (prev > 0 ? prev - 1 : 0));
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [cooldownSeconds]);
+
+  const handleEmailInputChange = (newVal: string) => {
+    onChange(newVal);
+    // If user changes email after verification, revoke verified state
+    if (isVerified || verifiedEmail) {
+      if (newVal.trim().toLowerCase() !== verifiedEmail.toLowerCase()) {
+        onVerifiedChange?.(false);
+        setVerifiedEmail('');
+        setShowOtpInput(false);
+        setCooldownSeconds(0);
+        setFeedbackMessage('Email address changed. Please click Check to verify your new email address.');
+        setFeedbackType('info');
+      }
+    }
+  };
+
+  const handleSendVerificationCode = async () => {
     const trimmed = value.trim();
     if (!trimmed) {
-      if (touched && required) {
-        setStatus('invalid');
-        setErrorMessage('Please enter an email address');
-      } else {
-        setStatus('idle');
-        setErrorMessage('');
-      }
+      setFeedbackMessage('Please enter an email address before clicking Check.');
+      setFeedbackType('error');
       return;
     }
 
-    const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
     if (!emailRegex.test(trimmed)) {
-      setStatus('invalid');
-      setErrorMessage('Please enter a valid email address (e.g. name@domain.com)');
+      setFeedbackMessage('The email address entered is incorrect. Please enter the correct email address (e.g. name@domain.com).');
+      setFeedbackType('error');
       return;
     }
 
-    const domain = trimmed.split('@')[1]?.toLowerCase();
-    if (domain && TRUSTED_EMAIL_DOMAINS.has(domain)) {
-      setStatus('valid');
-      setErrorMessage('');
+    if (cooldownSeconds > 0) {
+      setFeedbackMessage(`Please wait ${cooldownSeconds} seconds before requesting another code.`);
+      setFeedbackType('info');
       return;
     }
 
-    let isCancelled = false;
-    setStatus('validating');
+    setIsSending(true);
+    setFeedbackMessage('');
+    setFeedbackType('');
 
-    const timer = setTimeout(async () => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/verify-email-domain`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: trimmed })
-        });
-        if (isCancelled) return;
-        if (res.ok) {
-          const data = await res.json();
-          if (data.valid) {
-            setStatus('valid');
-            setErrorMessage('');
-          } else {
-            setStatus('invalid');
-            setErrorMessage(data.message || 'Email domain does not exist. Please enter a valid email address.');
-          }
-        } else {
-          // If server fails or is offline, fallback to regex validity
-          setStatus('valid');
-          setErrorMessage('');
-        }
-      } catch (e) {
-        if (!isCancelled) {
-          setStatus('valid');
-          setErrorMessage('');
-        }
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/send-email-verification`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: trimmed })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setShowOtpInput(true);
+        setOtpCode('');
+        setCooldownSeconds(30); // 30-second cooldown period
+        setFeedbackMessage(data.message || `Verification code sent to ${trimmed}. Please check your inbox or spam folder.`);
+        setFeedbackType('info');
+      } else {
+        setFeedbackMessage(data.error || 'Failed to send verification code. Please enter the correct email address.');
+        setFeedbackType('error');
       }
-    }, 350);
+    } catch (err: any) {
+      setFeedbackMessage('Network error sending verification code. Please try again.');
+      setFeedbackType('error');
+    } finally {
+      setIsSending(false);
+    }
+  };
 
-    return () => {
-      isCancelled = true;
-      clearTimeout(timer);
-    };
-  }, [value, touched, required]);
+  const handleVerifyOtp = async () => {
+    const trimmedEmail = value.trim();
+    const trimmedCode = otpCode.trim();
+
+    if (!trimmedEmail) {
+      setFeedbackMessage('Please enter an email address.');
+      setFeedbackType('error');
+      return;
+    }
+
+    if (trimmedCode.length !== 6) {
+      setFeedbackMessage('Please enter the 6-digit verification code.');
+      setFeedbackType('error');
+      return;
+    }
+
+    setIsVerifying(true);
+    setFeedbackMessage('');
+    setFeedbackType('');
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/verify-email-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: trimmedEmail, code: trimmedCode })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.verified) {
+        setVerifiedEmail(trimmedEmail);
+        setShowOtpInput(false);
+        setFeedbackMessage('Email address verified successfully!');
+        setFeedbackType('success');
+        onVerifiedChange?.(true);
+      } else {
+        setFeedbackMessage(data.error || 'Verification failed. Please enter the correct verification code or enter the correct email address.');
+        setFeedbackType('error');
+        onVerifiedChange?.(false);
+      }
+    } catch (err: any) {
+      setFeedbackMessage('Network error during verification. Please try again.');
+      setFeedbackType('error');
+    } finally {
+      setIsVerifying(false);
+    }
+  };
 
   return (
     <div className="form-group">
@@ -346,53 +404,117 @@ export const VerifiedEmailInput: React.FC<VerifiedEmailInputProps> = ({
           {label} {required && <span className="req">*</span>}
         </label>
       )}
-      <div className="input-with-icon" style={{ position: 'relative' }}>
-        <Mail size={16} />
-        <input
-          type="email"
-          id={id}
-          required={required}
-          disabled={disabled}
-          placeholder={placeholder}
-          value={value}
-          onChange={(e) => {
-            setTouched(true);
-            onChange(e.target.value);
-          }}
-          onBlur={() => setTouched(true)}
-          className={`input-validated ${status === 'valid' ? 'is-valid' : status === 'invalid' && touched ? 'is-invalid' : ''}`}
-          style={{ paddingRight: '2.5rem' }}
-        />
-        <div
-          style={{
-            position: 'absolute',
-            right: '0.75rem',
-            top: '50%',
-            transform: 'translateY(-50%)',
-            display: 'flex',
-            alignItems: 'center',
-            pointerEvents: 'none'
-          }}
-        >
-          {status === 'validating' && (
-            <Loader2 size={16} className="spinner-icon" style={{ color: 'var(--text-muted)' }} />
-          )}
-          {status === 'valid' && (
-            <CheckCircle2 size={18} style={{ color: '#16a34a' }} />
-          )}
-          {status === 'invalid' && touched && (
-            <AlertTriangle size={18} style={{ color: '#dc2626' }} />
+
+      <div className="email-input-action-wrapper">
+        <div className="input-with-icon" style={{ width: '100%', position: 'relative' }}>
+          <Mail size={16} />
+          <input
+            type="email"
+            id={id}
+            required={required}
+            disabled={disabled}
+            placeholder={placeholder}
+            value={value}
+            onChange={(e) => handleEmailInputChange(e.target.value)}
+            className={`input-validated ${isVerified ? 'is-valid' : feedbackType === 'error' ? 'is-invalid' : ''}`}
+            style={{ paddingRight: isVerified ? '6.5rem' : '5rem' }}
+          />
+
+          {isVerified ? (
+            <div className="email-verified-pill">
+              <CheckCircle2 size={16} style={{ color: '#16a34a' }} />
+              <span>Verified</span>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="email-check-btn"
+              onClick={handleSendVerificationCode}
+              disabled={disabled || isSending || !value.trim() || cooldownSeconds > 0}
+              title={cooldownSeconds > 0 ? `Please wait ${cooldownSeconds}s before requesting a new code` : "Verify this email address"}
+            >
+              {isSending ? (
+                <>
+                  <Loader2 size={13} className="spinner-icon" /> Sending...
+                </>
+              ) : cooldownSeconds > 0 ? (
+                `${cooldownSeconds}s`
+              ) : (
+                'Check'
+              )}
+            </button>
           )}
         </div>
       </div>
-      {status === 'valid' && (
+
+      {/* OTP Code Entry Section */}
+      {showOtpInput && !isVerified && (
+        <div className="email-otp-card">
+          <div className="email-otp-header">
+            Enter the 6-digit verification code sent to <strong>{value.trim()}</strong>:
+          </div>
+          <div className="email-otp-row">
+            <input
+              type="text"
+              maxLength={6}
+              inputMode="numeric"
+              placeholder="123456"
+              value={otpCode}
+              onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              className="email-otp-input"
+              autoFocus
+            />
+            <button
+              type="button"
+              className="btn btn-primary btn-sm email-verify-btn"
+              onClick={handleVerifyOtp}
+              disabled={isVerifying || otpCode.trim().length !== 6}
+            >
+              {isVerifying ? (
+                <>
+                  <Loader2 size={13} className="spinner-icon" /> Verifying...
+                </>
+              ) : (
+                'Verify Code'
+              )}
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm email-resend-btn"
+              onClick={handleSendVerificationCode}
+              disabled={isSending || cooldownSeconds > 0}
+              title={cooldownSeconds > 0 ? `Resend available in ${cooldownSeconds}s` : "Resend verification code"}
+            >
+              {isSending ? (
+                <>
+                  <Loader2 size={13} className="spinner-icon" /> Sending...
+                </>
+              ) : cooldownSeconds > 0 ? (
+                `Resend in ${cooldownSeconds}s`
+              ) : (
+                'Resend OTP'
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Status Feedback Messages */}
+      {isVerified && (
         <span className="field-hint-success">
-          <CheckCircle2 size={12} /> Valid Email Address
+          <CheckCircle2 size={12} /> Email verified successfully
         </span>
       )}
-      {status === 'invalid' && touched && errorMessage && (
+
+      {!isVerified && feedbackType === 'error' && feedbackMessage && (
         <span className="field-hint-error">
-          <AlertTriangle size={12} /> {errorMessage}
+          <AlertTriangle size={12} /> {feedbackMessage}
+        </span>
+      )}
+
+      {!isVerified && feedbackType === 'info' && feedbackMessage && (
+        <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', color: 'var(--primary)', marginTop: '0.375rem' }}>
+          <Mail size={12} /> {feedbackMessage}
         </span>
       )}
     </div>
@@ -586,6 +708,7 @@ export const ApplyPage: React.FC = () => {
   const [fullName, setFullName] = useState('');
   const [pinNumber, setPinNumber] = useState('');
   const [email, setEmail] = useState('');
+  const [isEmailVerified, setIsEmailVerified] = useState(false);
   const [countryCode, setCountryCode] = useState('+91');
   const [mobile, setMobile] = useState('');
   const [branch, setBranch] = useState('');
@@ -629,6 +752,7 @@ export const ApplyPage: React.FC = () => {
     id: string;
     fullName: string;
     email: string;
+    emailVerified?: boolean;
     countryCode: string;
     phone: string;
     role: 'Student' | 'Professional' | 'Other';
@@ -774,6 +898,7 @@ export const ApplyPage: React.FC = () => {
     setFullName('');
     setPinNumber('');
     setEmail('');
+    setIsEmailVerified(false);
     setCountryCode('+91');
     setMobile('');
     setBranch('');
@@ -834,6 +959,7 @@ export const ApplyPage: React.FC = () => {
       id: Math.random().toString(36).substring(2, 9),
       fullName: '',
       email: '',
+      emailVerified: false,
       countryCode: '+91',
       phone: '',
       role: 'Student',
@@ -851,7 +977,16 @@ export const ApplyPage: React.FC = () => {
   };
 
   const handleMemberChange = (id: string, field: keyof Member, value: any) => {
-    setMembers(members.map(m => m.id === id ? { ...m, [field]: value } : m));
+    setMembers(members.map(m => {
+      if (m.id === id) {
+        const updated = { ...m, [field]: value };
+        if (field === 'email') {
+          updated.emailVerified = false;
+        }
+        return updated;
+      }
+      return m;
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -869,6 +1004,10 @@ export const ApplyPage: React.FC = () => {
         alert("Please enter a valid Email Address.");
         return;
       }
+      if (!isEmailVerified) {
+        alert("Please verify your email address. Click 'Check' next to the Email Address field and enter the 6-digit verification code sent to your email.");
+        return;
+      }
       const phoneValidation = validatePhone(mobile, countryCode);
       if (!phoneValidation.isValid) {
         alert(phoneValidation.message);
@@ -883,6 +1022,10 @@ export const ApplyPage: React.FC = () => {
         alert("Please enter a valid Email Address.");
         return;
       }
+      if (!isEmailVerified) {
+        alert("Please verify your email address. Click 'Check' next to the Email Address field and enter the 6-digit verification code sent to your email.");
+        return;
+      }
       const phoneValidation = validatePhone(mobile, countryCode);
       if (!phoneValidation.isValid) {
         alert(phoneValidation.message);
@@ -895,6 +1038,10 @@ export const ApplyPage: React.FC = () => {
       }
       if (!emailRegex.test(email.trim())) {
         alert("Please enter a valid Email Address.");
+        return;
+      }
+      if (!isEmailVerified) {
+        alert("Please verify your email address. Click 'Check' next to the Email Address field and enter the 6-digit verification code sent to your email.");
         return;
       }
       const phoneValidation = validatePhone(mobile, countryCode);
@@ -925,6 +1072,10 @@ export const ApplyPage: React.FC = () => {
       }
       if (!emailRegex.test(email.trim())) {
         alert("Please enter a valid Email Address for the Team Leader.");
+        return;
+      }
+      if (!isEmailVerified) {
+        alert("Please verify the Team Leader's email address. Click 'Check' next to the Email Address field and enter the 6-digit verification code.");
         return;
       }
       if (!mobile.trim()) {
@@ -978,6 +1129,10 @@ export const ApplyPage: React.FC = () => {
         }
         if (!emailRegex.test(m.email.trim())) {
           alert(`Please enter a valid Email Address for Member ${num}.`);
+          return;
+        }
+        if (!m.emailVerified) {
+          alert(`Please verify Member ${num}'s email address (${m.email}). Click 'Check' and enter the 6-digit verification code sent to their email.`);
           return;
         }
         if (!m.phone.trim()) {
@@ -1289,6 +1444,8 @@ export const ApplyPage: React.FC = () => {
                         id="email"
                         value={email}
                         onChange={setEmail}
+                        isVerified={isEmailVerified}
+                        onVerifiedChange={setIsEmailVerified}
                         placeholder="user@university.edu"
                         label="Email Address"
                         required
@@ -1469,6 +1626,8 @@ export const ApplyPage: React.FC = () => {
                         id="judgeEmail"
                         value={email}
                         onChange={setEmail}
+                        isVerified={isEmailVerified}
+                        onVerifiedChange={setIsEmailVerified}
                         placeholder="e.g. judge@institution.edu or expert@company.com"
                         label="Email Address"
                         required
@@ -1696,6 +1855,8 @@ export const ApplyPage: React.FC = () => {
                         id="leaderEmail"
                         value={email}
                         onChange={setEmail}
+                        isVerified={isEmailVerified}
+                        onVerifiedChange={setIsEmailVerified}
                         placeholder="leader@domain.com"
                         label="Email Address"
                         required
@@ -1842,6 +2003,8 @@ export const ApplyPage: React.FC = () => {
                             id={`member-email-${member.id}`}
                             value={member.email}
                             onChange={(val) => handleMemberChange(member.id, 'email', val)}
+                            isVerified={member.emailVerified || false}
+                            onVerifiedChange={(verified) => handleMemberChange(member.id, 'emailVerified', verified)}
                             placeholder="jane@domain.com"
                             label="Email Address"
                             required
