@@ -907,8 +907,8 @@ app.post('/api/apply/recognition', sensitiveLimiter, async (req, res) => {
   } = req.body;
 
   // Validation
-  if (!fullName || !email || !mobile || !designation || !organization || !eventName) {
-    return res.status(400).json({ error: "Missing required fields: Name, Email, Mobile, Designation, Organization, and Event Name are required." });
+  if (!fullName || !email || !mobile || !designation || !organization || !eventName || !domainExpertise || !experienceYears) {
+    return res.status(400).json({ error: "Missing required fields: Name, Email, Mobile, Designation, Organization, Event, Domain/Specialization, and Experience are required." });
   }
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

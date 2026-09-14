@@ -501,8 +501,8 @@ export const ApplyPage: React.FC = () => {
         return;
       }
     } else if (formType === 'recognition') {
-      if (!fullName.trim() || !email.trim() || !mobile.trim() || !judgeDesignation.trim() || !judgeOrganization.trim() || !judgeEventName.trim()) {
-        alert("Please fill in all required fields (Full Name, Email, Mobile, Designation, Organization, and Event).");
+      if (!fullName.trim() || !email.trim() || !mobile.trim() || !judgeDesignation.trim() || !judgeOrganization.trim() || !judgeEventName.trim() || !judgeDomain.trim() || !judgeExperience.trim()) {
+        alert("Please fill in all required fields (Full Name, Email, Mobile, Designation, Organization, Event, Domain/Specialization, and Experience).");
         return;
       }
       if (!emailRegex.test(email.trim())) {
@@ -1164,10 +1164,11 @@ export const ApplyPage: React.FC = () => {
                       </div>
 
                       <div className="form-group">
-                        <label htmlFor="judgeDomain">Area of Domain / Specialization <span className="opt">(Optional)</span></label>
+                        <label htmlFor="judgeDomain">Area of Domain / Specialization <span className="req">*</span></label>
                         <input
                           type="text"
                           id="judgeDomain"
+                          required
                           placeholder="e.g. AI/ML, Cloud Architecture, Robotics, Embedded Systems"
                           value={judgeDomain}
                           onChange={(e) => setJudgeDomain(e.target.value)}
@@ -1175,10 +1176,11 @@ export const ApplyPage: React.FC = () => {
                       </div>
 
                       <div className="form-group">
-                        <label htmlFor="judgeExperience">Experience (Years in Industry / Academia) <span className="opt">(Optional)</span></label>
+                        <label htmlFor="judgeExperience">Experience (Years in Industry / Academia) <span className="req">*</span></label>
                         <input
                           type="text"
                           id="judgeExperience"
+                          required
                           placeholder="e.g. 10+ Years / 15 Years in Research"
                           value={judgeExperience}
                           onChange={(e) => setJudgeExperience(e.target.value)}
