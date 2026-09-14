@@ -2073,7 +2073,7 @@ async function sendVerificationCodeEmail(toEmail: string, code: string): Promise
 
 Your 6-digit email verification code is: ${code}
 
-This code is valid for 10 minutes. Please enter it on the registration form to verify your email address.
+This code is valid for 15 minutes. Please enter it on the registration form to verify your email address.
 
 If you did not request this verification code, please ignore this email.
 
@@ -2092,7 +2092,7 @@ Trinity College of Engineering & Technology, Peddapalli`;
         <div style="font-size: 34px; font-weight: 800; letter-spacing: 8px; color: #059669; font-family: monospace; background: #ffffff; padding: 12px; border-radius: 6px; border: 1px dashed #cbd5e1; display: inline-block;">
           ${code}
         </div>
-        <p style="color: #94a3b8; font-size: 12px; margin: 12px 0 0 0;">Valid for 10 minutes. Do not share this code with anyone.</p>
+        <p style="color: #94a3b8; font-size: 12px; margin: 12px 0 0 0;">Valid for 15 minutes. Do not share this code with anyone.</p>
       </div>
       <p style="color: #475569; font-size: 13px; line-height: 1.6; margin: 16px 0;">
         Please enter this code in the email verification field to complete your application.
@@ -2156,7 +2156,7 @@ app.post('/api/send-email-verification', sensitiveLimiter, async (req, res) => {
   }
 
   const code = Math.floor(100000 + Math.random() * 900000).toString();
-  const expiresAt = now + 10 * 60 * 1000; // 10 minutes
+  const expiresAt = now + 15 * 60 * 1000; // 15 minutes
 
   emailVerificationStore.set(trimmed, {
     code,
@@ -2167,10 +2167,10 @@ app.post('/api/send-email-verification', sensitiveLimiter, async (req, res) => {
 
   try {
     await sendVerificationCodeEmail(trimmed, code);
-    console.log(`[Email Verification] Verification code dispatched to: ${trimmed}`);
+    console.log(`[Email Verification] Verification code dispatched to: ${trimmed} (valid for 15 mins)`);
     return res.json({
       success: true,
-      message: `Verification code sent to ${trimmed}. Please check your inbox (and spam folder).`
+      message: `Verification code sent to ${trimmed} (valid for 15 minutes). Please check your inbox (and spam folder).`
     });
   } catch (err: any) {
     console.error(`[Email Verification] Failed to send code to ${trimmed}:`, err);
@@ -2197,14 +2197,14 @@ app.post('/api/verify-email-code', sensitiveLimiter, async (req, res) => {
 
   if (!record) {
     return res.status(400).json({
-      error: 'No active verification code found for this email. Please enter the correct email address and click Check.'
+      error: 'No active verification code found for this email. Please enter the correct email address and click Send OTP.'
     });
   }
 
   if (Date.now() > record.expiresAt) {
     emailVerificationStore.delete(trimmedEmail);
     return res.status(400).json({
-      error: 'Verification code has expired. Please enter the correct email address and click Check to request a new code.'
+      error: 'Verification code has expired. Please enter the correct email address and click Send OTP to request a new code.'
     });
   }
 
@@ -2214,7 +2214,7 @@ app.post('/api/verify-email-code', sensitiveLimiter, async (req, res) => {
     if (record.attempts >= 5) {
       emailVerificationStore.delete(trimmedEmail);
       return res.status(400).json({
-        error: 'Too many incorrect attempts. Please enter the correct email address and click Check to receive a new code.'
+        error: 'Too many incorrect attempts. Please enter the correct email address and click Send OTP to receive a new code.'
       });
     }
     return res.status(400).json({

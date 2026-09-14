@@ -294,7 +294,7 @@ export const VerifiedEmailInput: React.FC<VerifiedEmailInputProps> = ({
         setVerifiedEmail('');
         setShowOtpInput(false);
         setCooldownSeconds(0);
-        setFeedbackMessage('Email address changed. Please click Check to verify your new email address.');
+        setFeedbackMessage('Email address changed. Please click Send OTP to verify your new email address.');
         setFeedbackType('info');
       }
     }
@@ -303,7 +303,7 @@ export const VerifiedEmailInput: React.FC<VerifiedEmailInputProps> = ({
   const handleSendVerificationCode = async () => {
     const trimmed = value.trim();
     if (!trimmed) {
-      setFeedbackMessage('Please enter an email address before clicking Check.');
+      setFeedbackMessage('Please enter an email address before clicking Send OTP.');
       setFeedbackType('error');
       return;
     }
@@ -336,7 +336,7 @@ export const VerifiedEmailInput: React.FC<VerifiedEmailInputProps> = ({
         setShowOtpInput(true);
         setOtpCode('');
         setCooldownSeconds(30); // 30-second cooldown period
-        setFeedbackMessage(data.message || `Verification code sent to ${trimmed}. Please check your inbox or spam folder.`);
+        setFeedbackMessage(data.message || `Verification code sent to ${trimmed} (valid for 15 minutes). Please check your inbox or spam folder.`);
         setFeedbackType('info');
       } else {
         setFeedbackMessage(data.error || 'Failed to send verification code. Please enter the correct email address.');
@@ -417,7 +417,7 @@ export const VerifiedEmailInput: React.FC<VerifiedEmailInputProps> = ({
             value={value}
             onChange={(e) => handleEmailInputChange(e.target.value)}
             className={`input-validated ${isVerified ? 'is-valid' : feedbackType === 'error' ? 'is-invalid' : ''}`}
-            style={{ paddingRight: isVerified ? '6.5rem' : '5rem' }}
+            style={{ paddingRight: isVerified ? '6.5rem' : cooldownSeconds > 0 ? '9.5rem' : '7.5rem' }}
           />
 
           {isVerified ? (
@@ -431,16 +431,18 @@ export const VerifiedEmailInput: React.FC<VerifiedEmailInputProps> = ({
               className="email-check-btn"
               onClick={handleSendVerificationCode}
               disabled={disabled || isSending || !value.trim() || cooldownSeconds > 0}
-              title={cooldownSeconds > 0 ? `Please wait ${cooldownSeconds}s before requesting a new code` : "Verify this email address"}
+              title={cooldownSeconds > 0 ? `Resend OTP available in ${cooldownSeconds}s` : showOtpInput ? 'Resend OTP' : 'Send OTP to this email'}
             >
               {isSending ? (
                 <>
                   <Loader2 size={13} className="spinner-icon" /> Sending...
                 </>
               ) : cooldownSeconds > 0 ? (
-                `${cooldownSeconds}s`
+                `Sent OTP (${cooldownSeconds}s)`
+              ) : showOtpInput ? (
+                'Resend OTP'
               ) : (
-                'Check'
+                'Send OTP'
               )}
             </button>
           )}
@@ -451,7 +453,7 @@ export const VerifiedEmailInput: React.FC<VerifiedEmailInputProps> = ({
       {showOtpInput && !isVerified && (
         <div className="email-otp-card">
           <div className="email-otp-header">
-            Enter the 6-digit verification code sent to <strong>{value.trim()}</strong>:
+            Enter the 6-digit verification code sent to <strong>{value.trim()}</strong> (valid for 15 minutes):
           </div>
           <div className="email-otp-row">
             <input
@@ -1005,7 +1007,7 @@ export const ApplyPage: React.FC = () => {
         return;
       }
       if (!isEmailVerified) {
-        alert("Please verify your email address. Click 'Check' next to the Email Address field and enter the 6-digit verification code sent to your email.");
+        alert("Please verify your email address. Click 'Send OTP' next to the Email Address field and enter the 6-digit verification code sent to your email.");
         return;
       }
       const phoneValidation = validatePhone(mobile, countryCode);
@@ -1023,7 +1025,7 @@ export const ApplyPage: React.FC = () => {
         return;
       }
       if (!isEmailVerified) {
-        alert("Please verify your email address. Click 'Check' next to the Email Address field and enter the 6-digit verification code sent to your email.");
+        alert("Please verify your email address. Click 'Send OTP' next to the Email Address field and enter the 6-digit verification code sent to your email.");
         return;
       }
       const phoneValidation = validatePhone(mobile, countryCode);
@@ -1041,7 +1043,7 @@ export const ApplyPage: React.FC = () => {
         return;
       }
       if (!isEmailVerified) {
-        alert("Please verify your email address. Click 'Check' next to the Email Address field and enter the 6-digit verification code sent to your email.");
+        alert("Please verify your email address. Click 'Send OTP' next to the Email Address field and enter the 6-digit verification code sent to your email.");
         return;
       }
       const phoneValidation = validatePhone(mobile, countryCode);
@@ -1075,7 +1077,7 @@ export const ApplyPage: React.FC = () => {
         return;
       }
       if (!isEmailVerified) {
-        alert("Please verify the Team Leader's email address. Click 'Check' next to the Email Address field and enter the 6-digit verification code.");
+        alert("Please verify the Team Leader's email address. Click 'Send OTP' next to the Email Address field and enter the 6-digit verification code.");
         return;
       }
       if (!mobile.trim()) {
@@ -1132,7 +1134,7 @@ export const ApplyPage: React.FC = () => {
           return;
         }
         if (!m.emailVerified) {
-          alert(`Please verify Member ${num}'s email address (${m.email}). Click 'Check' and enter the 6-digit verification code sent to their email.`);
+          alert(`Please verify Member ${num}'s email address (${m.email}). Click 'Send OTP' and enter the 6-digit verification code sent to their email.`);
           return;
         }
         if (!m.phone.trim()) {

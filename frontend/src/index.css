@@ -4863,6 +4863,7 @@ select option {
   height: 32px;
   z-index: 2;
   box-shadow: var(--shadow-sm);
+  white-space: nowrap;
 }
 
 .email-check-btn:hover:not(:disabled) {
