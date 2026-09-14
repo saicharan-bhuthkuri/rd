@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams, useParams, useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '../config';
 import { formatDisplayPhone, getPhoneParts } from '../utils/phone';
-import { ArrowLeft, User, Mail, Phone, GraduationCap, Calendar, Sparkles, Check, CheckCircle2, Loader2, Code, Users, Server, ChevronDown, Plus, Trash2, AlertTriangle, Award, Briefcase, Building2, HeartHandshake, FolderUp, FileText, UploadCloud, ExternalLink, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, ArrowRight, User, Mail, Phone, GraduationCap, Calendar, Sparkles, Check, CheckCircle2, Loader2, Code, Users, Server, ChevronDown, Plus, Trash2, AlertTriangle, Award, Briefcase, Building2, HeartHandshake, FolderUp, FileText, UploadCloud, ExternalLink, ShieldCheck } from 'lucide-react';
 
 type FormType = 'none' | 'join-club' | 'event' | 'hackathon' | 'recognition' | 'volunteer' | 'submission';
 
@@ -708,6 +708,13 @@ export const ApplyPage: React.FC = () => {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [registrationSuccessData, setRegistrationSuccessData] = useState<{
+    referenceId?: string;
+    email?: string;
+    name?: string;
+    teamName?: string;
+    eventName?: string;
+  } | null>(null);
 
   // Common fields state
   const [fullName, setFullName] = useState('');
@@ -1022,6 +1029,7 @@ export const ApplyPage: React.FC = () => {
     setSubmissionFile(null);
     setSubmissionFileBase64('');
     setSubmissionSuccessData(null);
+    setRegistrationSuccessData(null);
   };
 
   const handleFormSelect = (type: FormType) => {
@@ -1521,6 +1529,15 @@ export const ApplyPage: React.FC = () => {
         throw new Error(errData.error || 'Server error occurred');
       }
 
+      const resData = await response.json();
+      setRegistrationSuccessData({
+        referenceId: resData.referenceId || (resData.id ? `TCEK/REF/${resData.id}` : undefined),
+        email: email.trim(),
+        name: fullName.trim(),
+        teamName: teamName.trim(),
+        eventName: selectedHackathonName || eventName || judgeEventName || volunteerEvent
+      });
+
       setIsSuccess(true);
     } catch (err: any) {
       alert(`Submission failed: ${err.message}`);
@@ -1604,9 +1621,9 @@ export const ApplyPage: React.FC = () => {
               </div>
               <h3>Hackathon Registration</h3>
               <p>
-                Register your team and submit your hackathon project.
+                Register your team for the hackathon. Official presentation template will be emailed upon registration.
               </p>
-              <button className="btn btn-primary btn-sm">Register for Hackathon</button>
+              <button className="btn btn-primary btn-sm">Register Team</button>
             </div>
 
             {/* 6. Project Submission */}
@@ -1616,9 +1633,9 @@ export const ApplyPage: React.FC = () => {
               </div>
               <h3>Project Submission</h3>
               <p>
-                Submit your project info, problem statement, and presentation (PPT/PDF).
+                Submit your completed project presentation (PDF) after team registration is completed.
               </p>
-              <button className="btn btn-primary btn-sm">Submit Project</button>
+              <button className="btn btn-primary btn-sm">Submit Presentation</button>
             </div>
           </div>
         </div>
@@ -1717,54 +1734,142 @@ export const ApplyPage: React.FC = () => {
               </div>
 
               {isSuccess ? (
-                <div className="success-state">
-                  <div className="success-icon-wrapper">
-                    <Check size={48} />
-                  </div>
-                  <h3>
-                    {formType === 'submission'
-                      ? 'Project Submitted Successfully!'
-                      : formType === 'recognition'
-                      ? 'Recognition Details Recorded!'
-                      : formType === 'volunteer'
-                      ? 'Volunteer Application Submitted!'
-                      : 'Application Submitted!'}
-                  </h3>
-                  <p>
-                    {formType === 'submission' ? (
-                      <>
-                        Your project presentation and documentation have been securely saved and uploaded directly to Google Drive.
-                        {submissionSuccessData?.referenceNumber && (
-                          <div style={{ marginTop: '0.75rem', fontWeight: 600, color: 'var(--primary)', fontSize: '0.9375rem' }}>
-                            Submission Reference: {submissionSuccessData.referenceNumber}
-                          </div>
-                        )}
-                      </>
-                    ) : formType === 'recognition'
-                      ? 'Thank you for your valuable contribution. Your information has been saved. Your official Certificate of Recognition will be issued by the administration.'
-                      : formType === 'volunteer'
-                      ? 'Thank you for stepping forward! Your volunteer application has been submitted. Our organizing committee will review your profile and contact you soon.'
-                      : 'Your request has been saved. An email confirmation has been sent to your university address.'}
-                  </p>
-
-                  {formType === 'submission' && submissionSuccessData?.driveFileUrl && (
-                    <div style={{ marginTop: '1rem', display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-                      <a
-                        href={submissionSuccessData.driveFileUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="btn btn-primary btn-sm"
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
-                      >
-                        <ExternalLink size={15} /> View in Google Drive
-                      </a>
+                formType === 'hackathon' ? (
+                  <div className="success-state">
+                    <div className="success-icon-wrapper" style={{ backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#10b981' }}>
+                      <Check size={48} />
                     </div>
-                  )}
+                    <h2 style={{ fontSize: '1.625rem', fontWeight: 700, color: 'var(--text-primary)', margin: '0.75rem 0 0.5rem 0' }}>
+                      Registration Successful!
+                    </h2>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.35rem 0.85rem', borderRadius: '20px', backgroundColor: 'rgba(16, 185, 129, 0.12)', color: '#059669', fontSize: '0.875rem', fontWeight: 600, marginBottom: '1.25rem' }}>
+                      <CheckCircle2 size={16} /> Team Registered: {registrationSuccessData?.teamName || teamName}
+                    </div>
 
-                  <button onClick={() => handleFormSelect('none')} className="btn btn-secondary btn-sm" style={{ marginTop: '1.25rem' }}>
-                    Back to Options
-                  </button>
-                </div>
+                    <div style={{ backgroundColor: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.25)', borderRadius: '12px', padding: '1.25rem 1.5rem', maxWidth: '36rem', margin: '0 auto 1.25rem auto', textAlign: 'left', lineHeight: 1.65 }}>
+                      <div style={{ fontWeight: 700, color: '#1d4ed8', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9375rem' }}>
+                        <FileText size={18} /> Official Presentation Template Notice
+                      </div>
+                      <p style={{ margin: '0 0 0.75rem 0', color: 'var(--text-primary)', fontSize: '0.9375rem' }}>
+                        The official PPT/PPTX presentation format/template will be sent to your registered email address (<strong>{registrationSuccessData?.email || email}</strong>) shortly.
+                      </p>
+                      <p style={{ margin: 0, color: 'var(--text-primary)', fontSize: '0.9375rem' }}>
+                        Please complete the presentation using the provided format and submit it through <strong>Project Submission</strong>.
+                      </p>
+                    </div>
+
+                    {registrationSuccessData?.referenceId && (
+                      <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '1.25rem' }}>
+                        Registration Reference: <strong style={{ color: 'var(--primary)' }}>{registrationSuccessData.referenceId}</strong>
+                      </div>
+                    )}
+
+                    <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                      <button
+                        onClick={() => handleFormSelect('submission')}
+                        className="btn btn-primary"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.625rem 1.35rem' }}
+                      >
+                        Proceed to Project Submission <ArrowRight size={16} />
+                      </button>
+                      <button
+                        onClick={() => handleFormSelect('none')}
+                        className="btn btn-secondary btn-sm"
+                      >
+                        Back to Options
+                      </button>
+                    </div>
+                  </div>
+                ) : formType === 'submission' ? (
+                  <div className="success-state">
+                    <div className="success-icon-wrapper" style={{ backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#10b981' }}>
+                      <Check size={48} />
+                    </div>
+                    <h2 style={{ fontSize: '1.625rem', fontWeight: 700, color: 'var(--text-primary)', margin: '0.75rem 0 0.5rem 0' }}>
+                      Submission Successful!
+                    </h2>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.35rem 0.85rem', borderRadius: '20px', backgroundColor: 'rgba(16, 185, 129, 0.12)', color: '#059669', fontSize: '0.875rem', fontWeight: 600, marginBottom: '1.25rem' }}>
+                      <CheckCircle2 size={16} /> Presentation Saved Directly to Google Drive
+                    </div>
+
+                    <div style={{ backgroundColor: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)', borderRadius: '12px', padding: '1.25rem 1.5rem', maxWidth: '36rem', margin: '0 auto 1.25rem auto', textAlign: 'left', lineHeight: 1.65 }}>
+                      <p style={{ margin: '0 0 0.75rem 0', color: 'var(--text-primary)', fontSize: '0.9375rem' }}>
+                        Your completed project presentation (PDF) has been uploaded and stored directly in the event's <strong>Google Drive folder</strong> (not in the database).
+                      </p>
+                      <p style={{ margin: 0, color: 'var(--text-primary)', fontSize: '0.9375rem' }}>
+                        An automatic confirmation email has been sent to your registered email address (<strong>{verifiedTeam?.leaderEmail || email}</strong>) with submission and presentation details.
+                      </p>
+                      {submissionSuccessData?.referenceNumber && (
+                        <div style={{ marginTop: '0.875rem', paddingTop: '0.75rem', borderTop: '1px solid rgba(16, 185, 129, 0.2)', fontSize: '0.875rem', color: '#047857', fontWeight: 600 }}>
+                          Submission Reference ID: {submissionSuccessData.referenceNumber}
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                      {submissionSuccessData?.driveFileUrl && (
+                        <a
+                          href={submissionSuccessData.driveFileUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="btn btn-primary"
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.625rem 1.35rem' }}
+                        >
+                          <ExternalLink size={16} /> View Presentation in Google Drive
+                        </a>
+                      )}
+                      <button
+                        onClick={() => handleFormSelect('none')}
+                        className="btn btn-secondary btn-sm"
+                      >
+                        Back to Options
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="success-state">
+                    <div className="success-icon-wrapper" style={{ backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#10b981' }}>
+                      <Check size={48} />
+                    </div>
+                    <h2 style={{ fontSize: '1.625rem', fontWeight: 700, color: 'var(--text-primary)', margin: '0.75rem 0 0.5rem 0' }}>
+                      Submission Successful!
+                    </h2>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.35rem 0.85rem', borderRadius: '20px', backgroundColor: 'rgba(16, 185, 129, 0.12)', color: '#059669', fontSize: '0.875rem', fontWeight: 600, marginBottom: '1.25rem' }}>
+                      <CheckCircle2 size={16} />
+                      {formType === 'join-club'
+                        ? 'Club Membership Application Submitted'
+                        : formType === 'volunteer'
+                        ? 'Volunteer Registration Submitted'
+                        : formType === 'event'
+                        ? 'Event Registration Confirmed'
+                        : 'Recognition Details Recorded'}
+                    </div>
+
+                    <div style={{ backgroundColor: 'var(--card-bg, #ffffff)', border: '1px solid var(--border-color, #e2e8f0)', borderRadius: '12px', padding: '1.25rem 1.5rem', maxWidth: '36rem', margin: '0 auto 1.25rem auto', textAlign: 'center', lineHeight: 1.65 }}>
+                      <p style={{ margin: '0 0 0.75rem 0', color: 'var(--text-primary)', fontSize: '0.9375rem' }}>
+                        {formType === 'join-club'
+                          ? 'Your application to join the R&D Club has been submitted successfully.'
+                          : formType === 'volunteer'
+                          ? 'Thank you for stepping forward to volunteer! Your registration has been submitted successfully.'
+                          : formType === 'event'
+                          ? 'Your registration for the event has been officially recorded.'
+                          : 'Thank you for your valuable contribution. Your judge/dignitary recognition details have been saved.'}
+                      </p>
+                      <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+                        An automatic confirmation email has been sent to your registered email address (<strong>{registrationSuccessData?.email || email}</strong>).
+                      </p>
+                      {registrationSuccessData?.referenceId && (
+                        <div style={{ marginTop: '0.875rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-color, #f1f5f9)', fontSize: '0.875rem', color: 'var(--primary)', fontWeight: 600 }}>
+                          Registration Reference: {registrationSuccessData.referenceId}
+                        </div>
+                      )}
+                    </div>
+
+                    <button onClick={() => handleFormSelect('none')} className="btn btn-secondary btn-sm">
+                      Back to Options
+                    </button>
+                  </div>
+                )
               ) : (
                 <form onSubmit={formType === 'submission' ? handleSubmitProject : handleSubmit} className="apply-detailed-form">
                   {/* Academic & Contact Section */}
@@ -2909,24 +3014,24 @@ export const ApplyPage: React.FC = () => {
                       <div className="form-section-title" style={{ marginTop: '1.75rem' }}>4. Upload Presentation</div>
                       
                       <div className="form-group">
-                        <label>Presentation File (PPT / PPTX / PDF) <span className="req">*</span></label>
-                        <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>
-                          Uploaded presentations are transferred and saved directly to <strong>Google Drive</strong> inside dedicated event and team folders. Presentation files are not stored in the database.
-                        </p>
+                        <label>Upload Presentation (PPT/PPTX converted to PDF format) <span className="req">*</span></label>
+                        <div style={{ backgroundColor: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.25)', borderRadius: '8px', padding: '0.75rem 1rem', marginBottom: '0.875rem', fontSize: '0.8125rem', color: 'var(--text-primary)', lineHeight: 1.5 }}>
+                          <strong>Important:</strong> Please convert your completed PPT/PPTX presentation to <strong>PDF format (.pdf)</strong> before uploading. All presentations are saved directly into the event's <strong>Google Drive folder</strong> and are <strong>not stored in the database</strong>.
+                        </div>
 
                         {!submissionFile ? (
                           <div className="file-upload-dropzone">
                             <input
                               type="file"
                               id="submissionFileInput"
-                              accept=".ppt,.pptx,.pdf,application/pdf,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                              accept=".pdf,.ppt,.pptx,application/pdf,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
                               onChange={handleFileChange}
                               style={{ display: 'none' }}
                             />
                             <label htmlFor="submissionFileInput" className="dropzone-label">
                               <UploadCloud size={36} className="dropzone-icon" />
-                              <span className="dropzone-title">Click or Drag to Upload Presentation</span>
-                              <span className="dropzone-subtitle">Supported formats: PPT, PPTX, PDF (Max 35MB)</span>
+                              <span className="dropzone-title">Click or Drag to Upload Presentation (PDF)</span>
+                              <span className="dropzone-subtitle">Preferred format: PDF (.pdf) • Converted from PPT/PPTX (Max 35MB)</span>
                             </label>
                           </div>
                         ) : (

@@ -852,10 +852,168 @@ app.post('/api/verify-email-domain', async (req, res) => {
 
     domainCache.set(domain, false);
     return res.status(400).json({ valid: false, error: `The domain "${domain}" does not exist or does not accept emails.` });
-  } catch (err: any) {
-    return res.status(400).json({ valid: false, error: `Unable to verify email domain "${domain}".` });
+  } catch (error: any) {
+    return res.status(400).json({ valid: false, error: 'Could not verify domain mail servers.' });
   }
 });
+
+// Email & Apps Script Notification Services
+const SENDER_EMAIL = process.env.SENDER_EMAIL || 'tcekrdcell@gmail.com';
+const SENDER_PASSWORD = process.env.SENDER_PASSWORD || 'qtptqrywkyctekzo';
+
+const transporter = nodemailer.createTransport({
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false,
+  family: 4,
+  connectionTimeout: 10000,
+  greetingTimeout: 10000,
+  auth: {
+    user: SENDER_EMAIL,
+    pass: SENDER_PASSWORD.replace(/\s+/g, '')
+  }
+} as any);
+
+async function postToAppsScript(url: string, payload: any, maxRetries = 3): Promise<any> {
+  let lastError: any = null;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+
+      const data = await res.json();
+      return data;
+    } catch (err: any) {
+      lastError = err;
+      if (attempt < maxRetries) {
+        const delayMs = attempt * 1500;
+        console.warn(`[Apps Script Proxy] Attempt ${attempt} failed (${err.message}). Retrying in ${delayMs}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      }
+    }
+  }
+  throw lastError;
+}
+
+interface ConfirmationEmailOptions {
+  to: string;
+  subject: string;
+  applicantName: string;
+  formTitle: string;
+  referenceId: string;
+  details: { label: string; value: string }[];
+  noticeTitle?: string;
+  noticeText?: string;
+  actionUrl?: string;
+  actionText?: string;
+}
+
+async function sendApplicationConfirmationEmail(options: ConfirmationEmailOptions): Promise<boolean> {
+  const { to, subject, applicantName, formTitle, referenceId, details, noticeTitle, noticeText, actionUrl, actionText } = options;
+  if (!to || !to.includes('@')) return false;
+
+  const rowsText = details.map(d => `- ${d.label}: ${d.value}`).join('\n');
+  const plainText = `Dear ${applicantName},
+
+Your registration for "${formTitle}" at Trinity College of Engineering & Technology has been received and confirmed.
+
+Registration Summary:
+- Reference ID: ${referenceId}
+${rowsText}
+
+${noticeTitle ? `${noticeTitle}:\n${noticeText}\n\n` : ''}${actionUrl ? `Portal Link: ${actionUrl}\n\n` : ''}With best wishes,
+Research & Development (R&D) Cell
+Trinity College of Engineering & Technology (Autonomous), Peddapalli`;
+
+  const rowsHtml = details.map(d => `
+    <tr>
+      <td style="padding: 8px 12px; font-weight: 600; color: #475569; width: 35%; border-bottom: 1px solid #f1f5f9;">${d.label}</td>
+      <td style="padding: 8px 12px; color: #0f172a; border-bottom: 1px solid #f1f5f9;">${d.value}</td>
+    </tr>
+  `).join('');
+
+  const html = `
+    <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+      <div style="text-align: center; margin-bottom: 20px;">
+        <h2 style="color: #059669; margin: 0; font-size: 22px; font-weight: 700;">Trinity College of Engineering & Technology</h2>
+        <p style="color: #64748b; font-size: 13px; margin: 4px 0 0 0;">(An Autonomous Institution) • Research & Development (R&D) Cell</p>
+      </div>
+
+      <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
+        <div style="font-size: 16px; font-weight: 700; color: #15803d; margin-bottom: 4px;">✓ ${formTitle} Confirmed</div>
+        <div style="font-size: 13px; color: #166534;">Reference ID: <strong>${referenceId}</strong></div>
+      </div>
+
+      <p style="color: #334155; font-size: 14px; line-height: 1.6; margin-bottom: 16px;">
+        Dear <strong>${applicantName}</strong>,<br/>
+        Thank you for submitting your details. Your registration has been officially recorded in our central portal.
+      </p>
+
+      <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 13px;">
+        <tbody>
+          ${rowsHtml}
+        </tbody>
+      </table>
+
+      ${noticeText ? `
+        <div style="background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 14px 16px; margin: 20px 0;">
+          ${noticeTitle ? `<div style="font-weight: 700; color: #1e40af; font-size: 13px; margin-bottom: 4px;">${noticeTitle}</div>` : ''}
+          <div style="color: #1e3a8a; font-size: 13px; line-height: 1.5;">${noticeText}</div>
+        </div>
+      ` : ''}
+
+      ${actionUrl && actionText ? `
+        <div style="text-align: center; margin: 24px 0;">
+          <a href="${actionUrl}" style="background-color: #059669; color: #ffffff; padding: 10px 22px; border-radius: 6px; font-size: 14px; font-weight: 600; text-decoration: none; display: inline-block;">
+            ${actionText}
+          </a>
+        </div>
+      ` : ''}
+
+      <hr style="border: none; border-top: 1px solid #f1f5f9; margin: 24px 0 16px 0;" />
+      <p style="color: #94a3b8; font-size: 11px; text-align: center; margin: 0; line-height: 1.4;">
+        Research & Development (R&D) Cell<br/>
+        Trinity College of Engineering & Technology, Peddapalli, Telangana 505172<br/>
+        © 2026 R&D Cell TCEK. All rights reserved.
+      </p>
+    </div>
+  `;
+
+  try {
+    if (process.env.GMAIL_HTTP_PROXY_URL) {
+      await postToAppsScript(process.env.GMAIL_HTTP_PROXY_URL, {
+        to: to.trim(),
+        subject,
+        text: plainText,
+        html
+      }, 1);
+      return true;
+    } else {
+      await transporter.sendMail({
+        from: SENDER_EMAIL,
+        to: to.trim(),
+        subject,
+        text: plainText,
+        html
+      });
+      return true;
+    }
+  } catch (err: any) {
+    console.warn(`[Confirmation Email] Could not deliver to ${to}:`, err.message);
+    return false;
+  }
+}
+
+
 
 // 1. Club Membership Application endpoint
 app.post('/api/apply/club', sensitiveLimiter, async (req, res) => {
@@ -895,11 +1053,36 @@ app.post('/api/apply/club', sensitiveLimiter, async (req, res) => {
       ]
     });
 
+    const newId = Number(result.lastInsertRowid);
+    const refId = `TCEK/RD/CLUB/${String(newId).padStart(4, '0')}`;
+
+    // Send automatic confirmation email to applicant
+    sendApplicationConfirmationEmail({
+      to: email,
+      subject: `Registration Confirmed: R&D Club Membership (${refId})`,
+      applicantName: fullName,
+      formTitle: 'Join the R&D Club',
+      referenceId: refId,
+      details: [
+        { label: 'Full Name', value: fullName },
+        { label: 'PIN / Roll Number', value: pinNumber },
+        { label: 'Department / Branch', value: branch },
+        { label: 'Year of Study', value: yearOfStudy },
+        { label: 'Contact Phone', value: mobile },
+        { label: 'Email Address', value: email },
+        { label: 'Areas of Interest', value: interests },
+        { label: 'Key Skills', value: skills }
+      ],
+      noticeTitle: 'Next Steps & Orientation',
+      noticeText: 'Welcome to the R&D Club! Your registration has been confirmed. Our team will review your application and keep you updated on upcoming technical events, workshops, and orientations.'
+    }).catch(err => console.warn('[Club Email] Delivery failed:', err.message));
+
     notifySyncClients("REFRESH_APPLICATIONS");
     return res.status(201).json({
       success: true,
       message: "Application recorded successfully.",
-      id: Number(result.lastInsertRowid)
+      id: newId,
+      referenceId: refId
     });
   } catch (error: any) {
     console.error("Error inserting club application:", error);
@@ -943,11 +1126,35 @@ app.post('/api/apply/event', sensitiveLimiter, async (req, res) => {
       ]
     });
 
+    const newId = Number(result.lastInsertRowid);
+    const refId = `TCEK/RD/EVT/${String(newId).padStart(4, '0')}`;
+
+    // Send automatic confirmation email to participant
+    sendApplicationConfirmationEmail({
+      to: email,
+      subject: `Registration Confirmed: ${eventName} (${refId})`,
+      applicantName: fullName,
+      formTitle: 'Apply for Event',
+      referenceId: refId,
+      details: [
+        { label: 'Event Name', value: eventName },
+        { label: 'Participant Name', value: fullName },
+        { label: 'PIN / Roll Number', value: pinNumber },
+        { label: 'Department / Branch', value: branch },
+        { label: 'Year of Study', value: yearOfStudy },
+        { label: 'Mobile Number', value: mobile },
+        { label: 'Email Address', value: email }
+      ],
+      noticeTitle: 'Event Participation Guidelines',
+      noticeText: `Your seat for "${eventName}" has been confirmed. Please arrive on time at the designated campus venue and carry your official college ID card.`
+    }).catch(err => console.warn('[Event Email] Delivery failed:', err.message));
+
     notifySyncClients("REFRESH_APPLICATIONS");
     return res.status(201).json({
       success: true,
       message: "Event registration recorded successfully.",
-      id: Number(result.lastInsertRowid)
+      id: newId,
+      referenceId: refId
     });
   } catch (error: any) {
     console.error("Error inserting event registration:", error);
@@ -1008,11 +1215,48 @@ app.post('/api/apply/hackathon', sensitiveLimiter, async (req, res) => {
       ]
     });
 
+    const newId = Number(result.lastInsertRowid);
+    const refId = `TCEK/RD/HACK/${String(newId).padStart(4, '0')}`;
+
+    // Format member count or summary
+    let parsedMembers: any[] = [];
+    try {
+      parsedMembers = typeof members === 'string' ? JSON.parse(members) : members;
+    } catch {
+      parsedMembers = [];
+    }
+    const memberSummary = Array.isArray(parsedMembers) && parsedMembers.length > 0
+      ? parsedMembers.map((m: any, idx: number) => `Member ${idx + 2}: ${m.fullName || 'N/A'} (${m.email || 'N/A'})`).join(', ')
+      : 'No additional members';
+
+    // Send automatic confirmation email to Team Leader
+    sendApplicationConfirmationEmail({
+      to: leaderEmail,
+      subject: `Registration Successful: ${hackathonName || 'R&D AlphaQuest Hackathon'} – Team ${teamName}`,
+      applicantName: leaderName,
+      formTitle: 'Hackathon Team Registration',
+      referenceId: refId,
+      details: [
+        { label: 'Hackathon Event', value: hackathonName || 'R&D AlphaQuest Hackathon' },
+        { label: 'Registered Team Name', value: teamName },
+        { label: 'Team Leader', value: `${leaderName} (${leaderRole})` },
+        { label: 'Leader Email', value: leaderEmail },
+        { label: 'Leader Phone', value: leaderPhone },
+        { label: 'Institution / College', value: leaderInstitution || leaderCompany || 'Trinity College of Engineering & Technology' },
+        { label: 'Registered Members', value: memberSummary }
+      ],
+      noticeTitle: 'IMPORTANT PRESENTATION INSTRUCTIONS',
+      noticeText: 'The official PPT/PPTX presentation format/template will be sent to your registered email address shortly.\n\nPlease complete the presentation using the provided format and submit it through Project Submission (converted to PDF format).',
+      actionUrl: 'https://tcek-rd.web.app/apply?type=submission',
+      actionText: 'Go to Project Submission'
+    }).catch(err => console.warn('[Hackathon Email] Delivery failed:', err.message));
+
     notifySyncClients("REFRESH_APPLICATIONS");
     return res.status(201).json({
       success: true,
       message: "Hackathon team registration recorded successfully.",
-      id: Number(result.lastInsertRowid)
+      id: newId,
+      referenceId: refId
     });
   } catch (error: any) {
     console.error("Error inserting hackathon registration:", error);
@@ -1078,11 +1322,36 @@ app.post('/api/apply/recognition', sensitiveLimiter, async (req, res) => {
       ]
     });
 
+    const newId = Number(result.lastInsertRowid);
+    const refId = `TCEK/RD/JUDGE/${String(newId).padStart(4, '0')}`;
+
+    // Send automatic confirmation email to Judge / Dignitary
+    sendApplicationConfirmationEmail({
+      to: email.trim(),
+      subject: `Registration Confirmed: Judge & Dignitary Recognition (${refId})`,
+      applicantName: fullName.trim(),
+      formTitle: 'Judge & Dignitary Recognition',
+      referenceId: refId,
+      details: [
+        { label: 'Honorable Dignitary / Judge', value: fullName.trim() },
+        { label: 'Designation', value: designation.trim() },
+        { label: 'Organization / Institution', value: organization.trim() },
+        { label: 'Associated Event', value: eventName.trim() },
+        { label: 'Event Date', value: resolvedDate },
+        { label: 'Domain / Specialization', value: domainExpertise ? domainExpertise.trim() : 'N/A' },
+        { label: 'Years of Experience', value: experienceYears ? `${experienceYears.trim()} Years` : 'N/A' },
+        { label: 'Contact Phone', value: mobile.trim() }
+      ],
+      noticeTitle: 'Certificate & Formal Itinerary',
+      noticeText: 'Thank you for your valuable support to our institution. Our organizing committee will coordinate with you regarding the schedule, evaluation rubrics, and formal itinerary.'
+    }).catch(err => console.warn('[Recognition Email] Delivery failed:', err.message));
+
     notifySyncClients("REFRESH_APPLICATIONS");
     return res.status(201).json({
       success: true,
       message: "Judge / Recognition registration recorded successfully.",
-      id: Number(result.lastInsertRowid)
+      id: newId,
+      referenceId: refId
     });
   } catch (error: any) {
     console.error("Error inserting recognition application:", error);
@@ -1133,11 +1402,37 @@ app.post('/api/apply/volunteer', sensitiveLimiter, async (req, res) => {
       ]
     });
 
+    const newId = Number(result.lastInsertRowid);
+    const refId = `TCEK/RD/VOL/${String(newId).padStart(4, '0')}`;
+
+    // Send automatic confirmation email to Volunteer
+    sendApplicationConfirmationEmail({
+      to: email.trim().toLowerCase(),
+      subject: `Registration Confirmed: Volunteer Application (${refId})`,
+      applicantName: fullName.trim(),
+      formTitle: 'Volunteer Registration',
+      referenceId: refId,
+      details: [
+        { label: 'Volunteer Name', value: fullName.trim() },
+        { label: 'PIN / Roll Number', value: pinNumber.trim() },
+        { label: 'Department / Branch', value: branch.trim() },
+        { label: 'Year of Study', value: yearOfStudy.trim() },
+        { label: 'Volunteer Role', value: volunteerRole.trim() },
+        { label: 'Assigned Event', value: eventName ? eventName.trim() : 'General / All Events' },
+        { label: 'Contact Phone', value: mobile.trim() },
+        { label: 'Key Skills', value: skills.trim() },
+        { label: 'Availability', value: availability ? availability.trim() : 'Flexible / Event Days' }
+      ],
+      noticeTitle: 'Volunteer Briefing & Schedule',
+      noticeText: 'Thank you for volunteering! Our coordinating committee will review your application and contact you soon with your volunteer briefing and schedule.'
+    }).catch(err => console.warn('[Volunteer Email] Delivery failed:', err.message));
+
     notifySyncClients("REFRESH_APPLICATIONS");
     return res.status(201).json({
       success: true,
       message: "Volunteer application submitted successfully.",
-      id: Number(result.lastInsertRowid)
+      id: newId,
+      referenceId: refId
     });
   } catch (error: any) {
     console.error("Error inserting volunteer application:", error);
@@ -1404,43 +1699,26 @@ app.post('/api/project-submission/submit', sensitiveLimiter, async (req, res) =>
 
     // 5. Send confirmation email to Team Leader if email exists
     if (teamLeaderEmail) {
-      const emailSubject = `Project Submission Confirmation | ${teamName} – ${eventName}`;
-      const emailText = `Dear ${teamLeaderName},
-
-Thank you for submitting your project documentation and presentation for ${eventName}.
-
-Submission Summary:
-- Submission ID: ${refNumber}
-- Team Name: ${teamName}
-- Project Title: ${projectTitle}
-- File Uploaded: ${fileName}
-- Presentation Drive Reference: ${driveFileUrl}
-
-Your presentation has been registered in the official Google Drive repository for ${eventName}.
-
-With best wishes,
-
-Research & Development (R&D) Cell
-Trinity College of Engineering & Technology (Autonomous), Peddapalli`;
-
-      try {
-        if (process.env.GMAIL_HTTP_PROXY_URL) {
-          await postToAppsScript(process.env.GMAIL_HTTP_PROXY_URL, {
-            to: teamLeaderEmail,
-            subject: emailSubject,
-            text: emailText
-          }, 1);
-        } else {
-          await transporter.sendMail({
-            from: SENDER_EMAIL,
-            to: teamLeaderEmail,
-            subject: emailSubject,
-            text: emailText
-          });
-        }
-      } catch (mailErr) {
-        console.warn("Could not dispatch submission receipt email:", mailErr);
-      }
+      sendApplicationConfirmationEmail({
+        to: teamLeaderEmail,
+        subject: `Project Submission Confirmed: Team ${teamName} – ${eventName}`,
+        applicantName: teamLeaderName,
+        formTitle: 'Project Submission',
+        referenceId: refNumber,
+        details: [
+          { label: 'Event Name', value: String(eventName) },
+          { label: 'Registered Team Name', value: String(teamName) },
+          { label: 'Team Leader', value: `${teamLeaderName} (${teamLeaderPhone || 'N/A'})` },
+          { label: 'Institution / College', value: institution || 'Trinity College of Engineering & Technology' },
+          { label: 'Project Title', value: String(projectTitle) },
+          { label: 'Uploaded Presentation', value: `${fileName} (Saved to Google Drive)` },
+          { label: 'Google Drive Repository', value: driveFileUrl }
+        ],
+        noticeTitle: 'Official Google Drive Repository',
+        noticeText: 'Your presentation has been uploaded and registered directly into the event Google Drive repository. The evaluation panel will review your submission based on the official guidelines.',
+        actionUrl: driveFileUrl,
+        actionText: 'View Presentation in Google Drive'
+      }).catch(mailErr => console.warn("[Project Submission Email] Delivery failed:", mailErr.message));
     }
 
     notifySyncClients("REFRESH_SUBMISSIONS");
@@ -2220,21 +2498,6 @@ app.delete('/api/admin/events/:id', authenticateToken, async (req: Authenticated
     return res.status(500).json({ error: "Failed to delete technical event.", details: err.message });
   }
 });
-const SENDER_EMAIL = process.env.SENDER_EMAIL || 'tcekrdcell@gmail.com';
-const SENDER_PASSWORD = process.env.SENDER_PASSWORD || 'qtptqrywkyctekzo';
-
-const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 587,
-  secure: false, // true for 465, false for other ports. Port 587 uses STARTTLS and is not blocked by Render
-  family: 4, // Force connection to use IPv4 to bypass unreachable IPv6 routes
-  connectionTimeout: 10000, // 10 seconds connection timeout
-  greetingTimeout: 10000, // 10 seconds greeting timeout
-  auth: {
-    user: SENDER_EMAIL,
-    pass: SENDER_PASSWORD.replace(/\s+/g, '')
-  }
-} as any);
 
 // XML-aware text replacement inside PPTX files
 function replacePlaceholdersInPptx(templateBuffer: Buffer, outputPath: string, replacements: Record<string, string>) {
@@ -2470,37 +2733,6 @@ async function runWithConcurrency<T, R>(
 
   await Promise.all(promises);
   return results;
-}
-
-// Helper function to send email via Google Apps Script proxy (bypassing Render SMTP block) with automatic retry
-async function postToAppsScript(url: string, payload: any, maxRetries = 3): Promise<any> {
-  let lastError: any = null;
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
-
-      if (!res.ok) {
-        throw new Error(`HTTP error! status: ${res.status}`);
-      }
-
-      const data = await res.json();
-      return data;
-    } catch (err: any) {
-      lastError = err;
-      if (attempt < maxRetries) {
-        const delayMs = attempt * 1500;
-        console.warn(`[Apps Script Proxy] Attempt ${attempt} failed (${err.message}). Retrying in ${delayMs}ms...`);
-        await new Promise(resolve => setTimeout(resolve, delayMs));
-      }
-    }
-  }
-  throw lastError;
 }
 
 // In-memory verification code store (expires after 10 minutes)
