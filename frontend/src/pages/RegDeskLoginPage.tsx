@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '../config';
-import { ClipboardCheck, Loader2, Eye, EyeOff, ShieldCheck, ArrowLeft } from 'lucide-react';
+import { Shield, Loader2, Eye, EyeOff } from 'lucide-react';
 
 export const RegDeskLoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -48,10 +48,10 @@ export const RegDeskLoginPage: React.FC = () => {
       <div className="admin-login-card card">
         <div className="login-header">
           <div className="login-header-logo">
-            <ClipboardCheck size={28} />
+            <Shield size={28} />
           </div>
-          <h2>Registration Desk</h2>
-          <p>Participant Check-in & Live Attendance Portal</p>
+          <h2>Registration Desk Gate</h2>
+          <p>Sign in to manage participant attendance & room desks</p>
         </div>
 
         {error && (
@@ -75,15 +75,7 @@ export const RegDeskLoginPage: React.FC = () => {
           </div>
 
           <div className="form-group">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-              <label htmlFor="password" style={{ margin: 0 }}>Password</label>
-              <Link 
-                to="/reg-desk/forgot-password" 
-                style={{ fontSize: '0.8rem', color: 'var(--primary)', textDecoration: 'none', fontWeight: 500 }}
-              >
-                Forgot Password?
-              </Link>
-            </div>
+            <label htmlFor="password">Password</label>
             <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
               <input
                 type={showPassword ? 'text' : 'password'}
@@ -116,38 +108,28 @@ export const RegDeskLoginPage: React.FC = () => {
             </div>
           </div>
 
-          <button 
-            type="submit" 
-            disabled={isSubmitting} 
-            className="btn btn-primary" 
-            style={{ 
-              width: '100%', 
-              marginTop: '1.5rem',
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center', 
-              gap: '0.5rem'
-            }}
-          >
+          <button type="submit" disabled={isSubmitting} className="btn btn-primary" style={{ width: '100%', marginTop: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
             {isSubmitting ? (
               <>
-                <Loader2 className="spinner-icon" size={18} /> Signing In...
+                <Loader2 className="spinner-icon" size={16} /> Authenticating...
               </>
             ) : (
-              <>
-                <ShieldCheck size={18} /> Access Desk Dashboard
-              </>
+              'Access Desk Console'
             )}
           </button>
+
+          <div style={{ marginTop: '1.25rem', textAlign: 'center' }}>
+            <span 
+              onClick={() => navigate('/reg-desk/forgot-password')} 
+              style={{ fontSize: '0.875rem', color: 'var(--primary)', fontWeight: 500, cursor: 'pointer', textDecoration: 'underline' }}
+            >
+              Forgot Password?
+            </span>
+          </div>
         </form>
 
-        <div style={{ marginTop: '2rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-          <Link to="/" style={{ color: 'var(--text-muted)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontWeight: 500 }}>
-            <ArrowLeft size={14} /> Back to Site
-          </Link>
-          <Link to="/admin/login" style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: 600 }}>
-            Main Admin Login &rarr;
-          </Link>
+        <div style={{ marginTop: '2rem', textAlign: 'center', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+          <p>Protected by Role-Based Access Control policies.</p>
         </div>
       </div>
     </div>

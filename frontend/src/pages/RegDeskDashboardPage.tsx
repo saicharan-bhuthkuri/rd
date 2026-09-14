@@ -2,31 +2,22 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '../config';
 import { 
-  ClipboardCheck, 
-  LogOut, 
   Check, 
   X, 
   RotateCcw, 
-  Search, 
-  Users, 
-  UserCheck, 
-  UserX, 
-  DoorOpen, 
+  Layers, 
   Calendar, 
-  ArrowUpDown, 
   Loader2, 
-  Sparkles,
-  ShieldAlert
+  DoorOpen, 
+  Eye, 
+  Download, 
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
+import { AdminLayout } from '../components/AdminLayout';
 import { AdminPagination } from '../components/AdminPagination';
-
-interface DeskUser {
-  id?: number;
-  deskId: string;
-  name: string;
-  email?: string;
-  role?: string;
-}
+import { AdminFilterDropdown } from '../components/AdminFilterDropdown';
+import { formatDisplayPhone } from '../utils/phone';
 
 interface Room {
   id: number;
@@ -39,246 +30,195 @@ interface Room {
   assigned_desk_name?: string;
 }
 
-interface EventOption {
-  title: string;
-  date?: string;
-  location?: string;
-}
-
-interface ParticipantRecord {
+interface HackathonRegistration {
   id: number;
-  full_name?: string;
-  team_name?: string;
-  leader_name?: string;
-  leader_email?: string;
-  leader_phone?: string;
+  hackathon_name?: string;
+  team_name: string;
+  leader_name: string;
+  leader_email: string;
+  leader_phone: string;
+  leader_role?: string;
   leader_branch?: string;
   leader_year?: string;
+  leader_institution?: string;
+  leader_company?: string;
+  leader_job_title?: string;
   pin_number?: string;
-  email?: string;
-  mobile?: string;
   branch?: string;
   year_of_study?: string;
   section?: string;
-  event_name?: string;
-  hackathon_name?: string;
-  members?: string;
   project_title?: string;
+  project_description?: string;
+  problem_statement?: string;
+  members?: string;
+  status?: string;
   attendance?: 'present' | 'absent' | 'pending';
   attendance_marked_by?: string;
   attendance_marked_at?: string;
   room_code?: string;
-}
-
-interface AttendanceStats {
-  total: number;
-  present: number;
-  absent: number;
-  pending: number;
-  branches: { name: string; count: number }[];
+  created_at?: string;
 }
 
 export const RegDeskDashboardPage: React.FC = () => {
   const navigate = useNavigate();
 
-  // Auth User state
-  const [deskUser, setDeskUser] = useState<DeskUser>(() => {
-    try {
-      const saved = localStorage.getItem('reg_desk_user');
-      return saved ? JSON.parse(saved) : { deskId: '', name: '' };
-    } catch {
-      return { deskId: '', name: '' };
-    }
-  });
-
-  // Assignments & Event selection states
+  // Registrations state
+  const [registrations, setRegistrations] = useState<HackathonRegistration[]>([]);
   const [assignedRooms, setAssignedRooms] = useState<Room[]>([]);
-  const [eventsList, setEventsList] = useState<EventOption[]>([]);
-  const [hackathonsList, setHackathonsList] = useState<EventOption[]>([]);
-  
-  const [selectedType, setSelectedType] = useState<'hackathon' | 'event'>('hackathon');
-  const [selectedEventName, setSelectedEventName] = useState<string>('');
-  const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
-  const [isEventConfirmed, setIsEventConfirmed] = useState<boolean>(false);
-  const [showEventSelectorModal, setShowEventSelectorModal] = useState<boolean>(false);
+  const [distinctHackathons, setDistinctHackathons] = useState<string[]>([]);
+  const [managedBranches, setManagedBranches] = useState<string[]>([]);
 
-  // Participant list & stats states
-  const [participants, setParticipants] = useState<ParticipantRecord[]>([]);
-  const [stats, setStats] = useState<AttendanceStats>({
-    total: 0,
-    present: 0,
-    absent: 0,
-    pending: 0,
-    branches: []
-  });
+  // Selected Detail Modal
+  const [selectedHackathon, setSelectedHackathon] = useState<HackathonRegistration | null>(null);
 
-  // Filters & Search
+  // Filters
   const [searchTerm, setSearchTerm] = useState('');
+  const [hackathonFilter, setHackathonFilter] = useState('all');
   const [branchFilter, setBranchFilter] = useState('all');
   const [attendanceFilter, setAttendanceFilter] = useState<'all' | 'present' | 'absent' | 'pending'>('all');
-  
+  const [roomFilter, setRoomFilter] = useState('all');
+
   // Loading & Updating
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [isUpdatingId, setIsUpdatingId] = useState<number | null>(null);
   const [error, setError] = useState('');
   const [successToast, setSuccessToast] = useState('');
 
-  // Pagination
+  // Pagination (PAGE_SIZE = 20)
   const [currentPage, setCurrentPage] = useState(1);
   const PAGE_SIZE = 20;
 
-  // Check auth on mount
+  // Auto-scroll table container on page change
   useEffect(() => {
-    const token = localStorage.getItem('reg_desk_token');
-    if (!token) {
+    const tableContainer = document.querySelector('.admin-table-container');
+    if (tableContainer) {
+      tableContainer.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [currentPage]);
+
+  // Auth check & data load on mount
+  useEffect(() => {
+    const regDeskToken = localStorage.getItem('reg_desk_token');
+    const adminToken = localStorage.getItem('admin_token');
+    if (!regDeskToken && !adminToken) {
       navigate('/reg-desk/login');
       return;
     }
-    fetchAssignments();
-  }, []);
 
-  // Fetch desk user's assigned rooms and all events
-  const fetchAssignments = async () => {
-    const token = localStorage.getItem('reg_desk_token');
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/reg-desk/assignments`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (!res.ok) {
-        if (res.status === 401 || res.status === 403) {
-          handleLogout();
-          return;
-        }
-        throw new Error('Failed to load assignments.');
-      }
-      const data = await res.json();
-      setAssignedRooms(data.assignedRooms || []);
-      setEventsList(data.events || []);
-      setHackathonsList(data.hackathons || []);
-
-      if (data.deskUser) {
-        setDeskUser(data.deskUser);
-      }
-
-      // Auto-select initial assignment if available
-      if (data.assignedRooms && data.assignedRooms.length > 0) {
-        const firstRoom = data.assignedRooms[0];
-        setSelectedRoom(firstRoom);
-        setSelectedType(firstRoom.event_type);
-        setSelectedEventName(firstRoom.event_name);
-        setIsEventConfirmed(true);
-      } else if (data.hackathons && data.hackathons.length > 0) {
-        setSelectedType('hackathon');
-        setSelectedEventName(data.hackathons[0].title);
-        setIsEventConfirmed(true);
-      } else if (data.events && data.events.length > 0) {
-        setSelectedType('event');
-        setSelectedEventName(data.events[0].title);
-        setIsEventConfirmed(true);
-      }
-    } catch (err: any) {
-      setError(err.message);
-    }
-  };
-
-  // Fetch participants when selected event changes or is confirmed
-  const fetchParticipants = async () => {
-    if (!selectedEventName) return;
-    setIsLoading(true);
-    setError('');
-
-    const token = localStorage.getItem('reg_desk_token');
-    try {
-      const url = `${API_BASE_URL}/api/reg-desk/participants?type=${selectedType}&name=${encodeURIComponent(selectedEventName)}`;
-      const res = await fetch(url, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      if (!res.ok) {
-        throw new Error('Failed to load participants list.');
-      }
-
-      const data = await res.json();
-      setParticipants(data.participants || []);
-      setStats(data.stats || {
-        total: 0,
-        present: 0,
-        absent: 0,
-        pending: 0,
-        branches: []
-      });
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (isEventConfirmed && selectedEventName) {
-      fetchParticipants();
-    }
-  }, [isEventConfirmed, selectedType, selectedEventName]);
+    loadDashboardData();
+  }, [navigate]);
 
   // Real-time SSE listener
   useEffect(() => {
     const handleSync = (e: Event) => {
       const eventType = (e as CustomEvent).detail;
-      if (eventType === 'REFRESH_ATTENDANCE' && isEventConfirmed && selectedEventName) {
-        fetchParticipants();
+      if (eventType === 'REFRESH_ATTENDANCE' || eventType === 'REFRESH_APPLICATIONS') {
+        loadDashboardData(false);
       }
     };
     window.addEventListener('app-sync', handleSync);
     return () => window.removeEventListener('app-sync', handleSync);
-  }, [isEventConfirmed, selectedEventName]);
+  }, []);
 
-  // Logout handler
-  const handleLogout = () => {
-    localStorage.removeItem('reg_desk_token');
-    localStorage.removeItem('reg_desk_user');
-    navigate('/reg-desk/login');
+  // Primary Data Loader
+  const loadDashboardData = async (showLoadingSpinner = true) => {
+    if (showLoadingSpinner) setIsLoading(true);
+    setError('');
+
+    const regDeskToken = localStorage.getItem('reg_desk_token');
+    const adminToken = localStorage.getItem('admin_token');
+    const token = regDeskToken || adminToken;
+
+    try {
+      // 1. Fetch participants from reg-desk API
+      let participantsData: HackathonRegistration[] = [];
+      const res = await fetch(`${API_BASE_URL}/api/reg-desk/participants?type=hackathon&name=all`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (res.ok) {
+        const json = await res.json();
+        participantsData = json.participants || [];
+      } else if (adminToken) {
+        // Fallback to admin applications endpoint if accessed by admin
+        const adminRes = await fetch(`${API_BASE_URL}/api/admin/applications`, {
+          headers: { 'Authorization': `Bearer ${adminToken}` }
+        });
+        if (adminRes.ok) {
+          const adminData = await adminRes.json();
+          participantsData = adminData.hackathonRegistrations || [];
+        }
+      }
+
+      setRegistrations(participantsData);
+
+      // Extract distinct hackathon names
+      const hSet = new Set<string>();
+      participantsData.forEach(r => {
+        if (r.hackathon_name && r.hackathon_name.trim()) {
+          hSet.add(r.hackathon_name.trim());
+        }
+      });
+      setDistinctHackathons(Array.from(hSet));
+
+      // 2. Fetch assigned rooms
+      try {
+        const roomsRes = await fetch(`${API_BASE_URL}/api/reg-desk/assignments`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (roomsRes.ok) {
+          const rData = await roomsRes.json();
+          setAssignedRooms(rData.assignedRooms || []);
+        }
+      } catch (e) {}
+
+      // 3. Fetch managed branches
+      try {
+        const branchRes = await fetch(`${API_BASE_URL}/api/branches`);
+        if (branchRes.ok) {
+          const bData = await branchRes.json();
+          if (Array.isArray(bData)) {
+            setManagedBranches(bData.map((b: any) => b.name));
+          }
+        }
+      } catch (e) {}
+
+    } catch (err: any) {
+      console.error('Error loading registration desk data:', err);
+      setError(err.message || 'Failed to load registrations.');
+    } finally {
+      if (showLoadingSpinner) setIsLoading(false);
+    }
   };
+
+  // Distinct branches (managed branches + participant branches)
+  const branchOptions = useMemo(() => {
+    const bSet = new Set<string>(managedBranches);
+    registrations.forEach(r => {
+      const b = r.leader_branch || r.branch;
+      if (b && b.trim()) bSet.add(b.trim().toUpperCase());
+    });
+    return Array.from(bSet).sort();
+  }, [managedBranches, registrations]);
 
   // Update Attendance Action
   const handleMarkAttendance = async (participantId: number, targetAttendance: 'present' | 'absent' | 'pending') => {
     setIsUpdatingId(participantId);
-    const token = localStorage.getItem('reg_desk_token');
+    const token = localStorage.getItem('reg_desk_token') || localStorage.getItem('admin_token');
 
     // Optimistic UI update
-    setParticipants(prev => prev.map(p => {
+    setRegistrations(prev => prev.map(p => {
       if (p.id === participantId) {
         return { ...p, attendance: targetAttendance };
       }
       return p;
     }));
 
-    // Optimistic stats update
-    setStats(prev => {
-      const prevParticipant = participants.find(p => p.id === participantId);
-      const oldAtt = (prevParticipant?.attendance || 'pending').toLowerCase();
-      const newAtt = targetAttendance.toLowerCase();
-
-      if (oldAtt === newAtt) return prev;
-
-      let nextPresent = prev.present;
-      let nextAbsent = prev.absent;
-      let nextPending = prev.pending;
-
-      if (oldAtt === 'present') nextPresent--;
-      else if (oldAtt === 'absent') nextAbsent--;
-      else nextPending--;
-
-      if (newAtt === 'present') nextPresent++;
-      else if (newAtt === 'absent') nextAbsent++;
-      else nextPending++;
-
-      return {
-        ...prev,
-        present: Math.max(0, nextPresent),
-        absent: Math.max(0, nextAbsent),
-        pending: Math.max(0, nextPending)
-      };
-    });
+    if (selectedHackathon && selectedHackathon.id === participantId) {
+      setSelectedHackathon(prev => prev ? { ...prev, attendance: targetAttendance } : null);
+    }
 
     try {
       const res = await fetch(`${API_BASE_URL}/api/reg-desk/attendance`, {
@@ -288,7 +228,7 @@ export const RegDeskDashboardPage: React.FC = () => {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          type: selectedType,
+          type: 'hackathon',
           id: participantId,
           attendance: targetAttendance
         })
@@ -298,855 +238,796 @@ export const RegDeskDashboardPage: React.FC = () => {
         throw new Error('Failed to record attendance on server.');
       }
 
-      await res.json();
-      setSuccessToast(`Attendance updated to ${targetAttendance.toUpperCase()}`);
-      setTimeout(() => setSuccessToast(''), 2500);
+      setSuccessToast(`Attendance marked as ${targetAttendance.toUpperCase()}`);
+      setTimeout(() => setSuccessToast(''), 2200);
     } catch (err: any) {
       setError(err.message || 'Error updating attendance.');
-      // Re-fetch to sync state if network/server failed
-      fetchParticipants();
+      loadDashboardData(false);
     } finally {
       setIsUpdatingId(null);
     }
   };
 
-  // Filtered participants list
-  const filteredParticipants = useMemo(() => {
-    return participants.filter(p => {
-      // 1. Attendance filter
-      const pAtt = (p.attendance || 'pending').toLowerCase();
-      if (attendanceFilter !== 'all' && pAtt !== attendanceFilter) {
+  // Filtered registrations
+  const filteredRegistrations = useMemo(() => {
+    return registrations.filter(r => {
+      // 1. Hackathon filter
+      if (hackathonFilter !== 'all' && (r.hackathon_name || '').trim() !== hackathonFilter.trim()) {
         return false;
       }
 
       // 2. Branch filter
-      const pBranch = (p.leader_branch || p.branch || '').toUpperCase().trim();
-      if (branchFilter !== 'all' && pBranch !== branchFilter.toUpperCase().trim()) {
-        return false;
+      if (branchFilter !== 'all') {
+        const studentBranch = (r.leader_branch || r.branch || '').toUpperCase().trim();
+        if (studentBranch !== branchFilter.toUpperCase().trim()) {
+          return false;
+        }
       }
 
-      // 3. Search query
+      // 3. Attendance filter
+      if (attendanceFilter !== 'all') {
+        const att = (r.attendance || 'pending').toLowerCase();
+        if (att !== attendanceFilter) {
+          return false;
+        }
+      }
+
+      // 4. Room filter
+      if (roomFilter !== 'all') {
+        if ((r.room_code || '').toUpperCase().trim() !== roomFilter.toUpperCase().trim()) {
+          return false;
+        }
+      }
+
+      // 5. Search query
       if (searchTerm.trim() !== '') {
         const q = searchTerm.toLowerCase().trim();
-        const team = (p.team_name || '').toLowerCase();
-        const leader = (p.leader_name || '').toLowerCase();
-        const name = (p.full_name || '').toLowerCase();
-        const pin = (p.pin_number || '').toLowerCase();
-        const email = (p.leader_email || p.email || '').toLowerCase();
-        const phone = (p.leader_phone || p.mobile || '').toLowerCase();
-        const proj = (p.project_title || '').toLowerCase();
-        return team.includes(q) || leader.includes(q) || name.includes(q) || pin.includes(q) || email.includes(q) || phone.includes(q) || proj.includes(q);
+        const team = (r.team_name || '').toLowerCase();
+        const leader = (r.leader_name || '').toLowerCase();
+        const email = (r.leader_email || '').toLowerCase();
+        const phone = (r.leader_phone || '').toLowerCase();
+        const pin = (r.pin_number || '').toLowerCase();
+        const proj = (r.project_title || '').toLowerCase();
+        const prob = (r.problem_statement || '').toLowerCase();
+        return team.includes(q) || leader.includes(q) || email.includes(q) || phone.includes(q) || pin.includes(q) || proj.includes(q) || prob.includes(q);
       }
 
       return true;
     });
-  }, [participants, attendanceFilter, branchFilter, searchTerm]);
+  }, [registrations, hackathonFilter, branchFilter, attendanceFilter, roomFilter, searchTerm]);
 
-  // Reset pagination on filter changes
+  // Compute live statistics (matches /admin/hackathons)
+  const stats = useMemo(() => {
+    const total = filteredRegistrations.length;
+    let present = 0;
+    let absent = 0;
+    let pending = 0;
+
+    filteredRegistrations.forEach(r => {
+      const att = (r.attendance || 'pending').toLowerCase();
+      if (att === 'present') present++;
+      else if (att === 'absent') absent++;
+      else pending++;
+    });
+
+    return { total, present, absent, pending };
+  }, [filteredRegistrations]);
+
+  // Reset pagination on filter change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, branchFilter, attendanceFilter]);
+  }, [searchTerm, hackathonFilter, branchFilter, attendanceFilter, roomFilter]);
 
-  // Paginated participants
-  const paginatedParticipants = useMemo(() => {
+  // Paginated records
+  const paginatedRegistrations = useMemo(() => {
     const start = (currentPage - 1) * PAGE_SIZE;
-    return filteredParticipants.slice(start, start + PAGE_SIZE);
-  }, [filteredParticipants, currentPage, PAGE_SIZE]);
+    return filteredRegistrations.slice(start, start + PAGE_SIZE);
+  }, [filteredRegistrations, currentPage, PAGE_SIZE]);
 
-  const totalPages = Math.ceil(filteredParticipants.length / PAGE_SIZE);
+  const totalPages = Math.ceil(filteredRegistrations.length / PAGE_SIZE);
 
-  // Distinct branches for dropdown
-  const branchOptions = useMemo(() => {
-    const set = new Set<string>();
-    participants.forEach(p => {
-      const b = (p.leader_branch || p.branch || '').trim();
-      if (b) set.add(b.toUpperCase());
-    });
-    return Array.from(set).sort();
-  }, [participants]);
+  // CSV Export Utility (same as /admin/hackathons)
+  const handleExportCSV = () => {
+    const filename = `Hackathon_Registrations_Attendance.csv`;
+    const headers = [
+      'ID',
+      'Hackathon Name',
+      'Team Name',
+      'Project Title',
+      'Leader Name',
+      'Leader Email',
+      'Leader Phone',
+      'Leader Role',
+      'Branch',
+      'Year',
+      'Institution',
+      'Room Desk',
+      'Attendance',
+      'Status',
+      'Registered At'
+    ];
+
+    const rows = filteredRegistrations.map(reg => [
+      reg.id.toString(),
+      reg.hackathon_name || 'R&D AlphaQuest Hackathon',
+      reg.team_name,
+      reg.project_title || 'N/A',
+      reg.leader_name,
+      reg.leader_email,
+      reg.leader_phone,
+      reg.leader_role || 'Student',
+      reg.leader_branch || reg.branch || 'N/A',
+      reg.leader_year || reg.year_of_study || 'N/A',
+      reg.leader_institution || 'Trinity College',
+      reg.room_code || 'Main Desk',
+      (reg.attendance || 'pending').toUpperCase(),
+      reg.status || 'approved',
+      reg.created_at ? new Date(reg.created_at).toLocaleString() : 'N/A'
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(val => `"${val.replace(/"/g, '""')}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   return (
-    <div style={{ minHeight: 'calc(100vh / 0.9)', backgroundColor: 'var(--bg-main, #f8fafc)', color: 'var(--text-main, #0f172a)', display: 'flex', flexDirection: 'column' }}>
-      {/* Top Professional Sticky Header */}
-      <header style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderBottom: '1px solid var(--border, #e2e8f0)', padding: '0.85rem 1.5rem', position: 'sticky', top: 0, zIndex: 40, boxShadow: 'var(--shadow-sm)' }}>
-        <div style={{ maxWidth: '1440px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
-          
-          {/* Brand & Desk ID */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <div style={{ width: '2.5rem', height: '2.5rem', backgroundColor: 'var(--primary)', borderRadius: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff', boxShadow: 'var(--shadow-primary)' }}>
-              <ClipboardCheck size={20} />
-            </div>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-main)' }}>Registration Desk</span>
-                <span style={{ fontSize: '0.75rem', backgroundColor: 'var(--primary-light)', color: 'var(--primary)', padding: '0.15rem 0.5rem', borderRadius: '4px', fontWeight: 700 }}>
-                  {deskUser.deskId || 'ACTIVE'}
-                </span>
-              </div>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                Coordinator: <strong style={{ color: 'var(--text-main)' }}>{deskUser.name || 'Desk Team'}</strong>
-              </span>
-            </div>
+    <AdminLayout>
+      {/* Toast Notification */}
+      {successToast && (
+        <div style={{
+          position: 'fixed',
+          bottom: '2rem',
+          right: '2rem',
+          backgroundColor: '#059669',
+          color: '#ffffff',
+          padding: '0.75rem 1.25rem',
+          borderRadius: 'var(--radius-md)',
+          zIndex: 9999,
+          boxShadow: 'var(--shadow-lg)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem',
+          fontSize: '0.875rem',
+          fontWeight: 600,
+          animation: 'fadeIn 0.2s'
+        }}>
+          <CheckCircle2 size={18} /> {successToast}
+        </div>
+      )}
+
+      {/* Error Banner */}
+      {error && (
+        <div className="alert alert-danger" style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <AlertCircle size={16} />
+            <span>{error}</span>
           </div>
+          <button onClick={() => setError('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit' }}>
+            <X size={16} />
+          </button>
+        </div>
+      )}
 
-          {/* Assigned Room & Event Info Banner */}
-          {isEventConfirmed && selectedEventName && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', backgroundColor: 'var(--bg-subtle, #f1f5f9)', padding: '0.4rem 1rem', borderRadius: '0.5rem', border: '1px solid var(--border, #e2e8f0)', flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.825rem' }}>
-                <Calendar size={15} color="var(--primary)" />
-                <span style={{ color: 'var(--text-muted)' }}>Event:</span>
-                <strong style={{ color: 'var(--text-main)', maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {selectedEventName}
-                </strong>
-              </div>
-
-              <div style={{ width: '1px', height: '16px', backgroundColor: 'var(--border)' }} />
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.825rem' }}>
-                <DoorOpen size={15} color="var(--primary)" />
-                <span style={{ color: 'var(--text-muted)' }}>Room:</span>
-                <strong style={{ color: 'var(--text-main)' }}>
-                  {selectedRoom ? `${selectedRoom.room_code} - ${selectedRoom.room_name}` : 'Main Desk'}
-                </strong>
-              </div>
-
-              <button
-                onClick={() => setShowEventSelectorModal(true)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: 'var(--primary)',
-                  fontSize: '0.75rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  padding: '0.2rem 0.5rem',
-                  borderRadius: '4px',
-                  backgroundColor: 'var(--primary-light)',
-                  transition: 'background-color 0.2s'
-                }}
-              >
-                Switch Event / Room
-              </button>
-            </div>
-          )}
-
-          {/* Right Action buttons */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <button
-              onClick={handleLogout}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.4rem',
-                backgroundColor: '#fef2f2',
-                color: '#ef4444',
-                border: '1px solid #fecaca',
-                padding: '0.45rem 0.85rem',
-                borderRadius: '0.4rem',
-                fontSize: '0.825rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-                transition: 'all 0.2s'
-              }}
-            >
-              <LogOut size={15} /> Sign Out
-            </button>
+      {/* Stats Cards (Exact same as /admin/hackathons) */}
+      <div className="admin-stats-grid">
+        <div className="admin-stat-card">
+          <div className="admin-stat-info">
+            <span>Total Submissions</span>
+            <h2>{stats.total}</h2>
+          </div>
+          <div className="admin-stat-icon total">
+            <Layers size={22} />
           </div>
         </div>
-      </header>
 
-      {/* Main Content Area */}
-      <main style={{ maxWidth: '1440px', width: '100%', margin: '0 auto', padding: '1.5rem', flex: 1 }}>
-        
-        {/* Error notification banner */}
-        {error && (
-          <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', padding: '0.85rem 1.25rem', borderRadius: '0.5rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.875rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <ShieldAlert size={18} />
-              <span>{error}</span>
-            </div>
-            <button onClick={() => setError('')} style={{ background: 'none', border: 'none', color: '#b91c1c', cursor: 'pointer' }}>
-              <X size={16} />
-            </button>
+        <div className="admin-stat-card">
+          <div className="admin-stat-info">
+            <span>Pending Audits</span>
+            <h2>{stats.pending}</h2>
           </div>
-        )}
-
-        {/* Success Toast */}
-        {successToast && (
-          <div style={{ position: 'fixed', bottom: '2rem', right: '2rem', backgroundColor: 'var(--primary)', border: '1px solid var(--primary-hover)', color: '#ffffff', padding: '0.75rem 1.25rem', borderRadius: '0.5rem', zIndex: 100, boxShadow: 'var(--shadow-lg)', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', fontWeight: 600, animation: 'fadeIn 0.2s' }}>
-            <Check size={18} /> {successToast}
+          <div className="admin-stat-icon pending">
+            <Calendar size={22} />
           </div>
-        )}
+        </div>
 
-        {/* If no event is confirmed or event selector modal is open */}
-        {(!isEventConfirmed || showEventSelectorModal) && (
+        <div className="admin-stat-card">
+          <div className="admin-stat-info">
+            <span>Approved / Present</span>
+            <h2 style={{ color: '#10b981' }}>{stats.present}</h2>
+          </div>
+          <div className="admin-stat-icon approved">
+            <Check size={22} />
+          </div>
+        </div>
+
+        <div className="admin-stat-card">
+          <div className="admin-stat-info">
+            <span>Absent</span>
+            <h2 style={{ color: '#ef4444' }}>{stats.absent}</h2>
+          </div>
+          <div className="admin-stat-icon rejected">
+            <X size={22} />
+          </div>
+        </div>
+      </div>
+
+      {/* Filters & Actions Row (Exact same as /admin/hackathons) */}
+      <div className="table-controls">
+        <div className="search-filter-box">
+          <input
+            type="text"
+            className="admin-search-input"
+            placeholder="Search team, leader, project..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+
+          {/* Hackathons Filter Dropdown */}
+          <AdminFilterDropdown
+            value={hackathonFilter}
+            onChange={setHackathonFilter}
+            options={[
+              { value: 'all', label: 'All Hackathons' },
+              ...distinctHackathons.map(h => ({ value: h, label: h }))
+            ]}
+            placeholder="All Hackathons"
+            minWidth="140px"
+            maxWidth="190px"
+            menuWidth="240px"
+            title="Filter by Hackathon"
+          />
+
+          {/* Branch Filter Dropdown */}
+          <AdminFilterDropdown
+            value={branchFilter}
+            onChange={setBranchFilter}
+            options={[
+              { value: 'all', label: 'All Branches' },
+              ...branchOptions.map(b => ({ value: b, label: b }))
+            ]}
+            placeholder="All Branches"
+            minWidth="135px"
+            maxWidth="195px"
+            menuWidth="240px"
+            title="Filter by Branch"
+          />
+
+          {/* Attendance Status Filter Dropdown */}
+          <AdminFilterDropdown
+            value={attendanceFilter}
+            onChange={(val) => setAttendanceFilter(val as any)}
+            options={[
+              { value: 'all', label: 'All Statuses' },
+              { value: 'present', label: 'Present' },
+              { value: 'absent', label: 'Absent' },
+              { value: 'pending', label: 'Pending' }
+            ]}
+            placeholder="All Statuses"
+            minWidth="130px"
+            maxWidth="160px"
+            menuWidth="180px"
+            title="Filter by Attendance"
+          />
+
+          {/* Assigned Room Filter Dropdown */}
+          {assignedRooms.length > 0 && (
+            <AdminFilterDropdown
+              value={roomFilter}
+              onChange={setRoomFilter}
+              options={[
+                { value: 'all', label: 'All Rooms' },
+                ...assignedRooms.map(r => ({ value: r.room_code, label: `${r.room_code} - ${r.room_name}` }))
+              ]}
+              placeholder="All Rooms"
+              minWidth="135px"
+              maxWidth="185px"
+              menuWidth="220px"
+              title="Filter by Room"
+            />
+          )}
+        </div>
+
+        {/* Action Buttons: Refresh & Export */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <button
+            type="button"
+            onClick={() => loadDashboardData(true)}
+            className="admin-btn-export"
+            title="Refresh List"
+          >
+            <RotateCcw size={15} />
+            <span>Refresh</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleExportCSV}
+            className="admin-btn-export"
+            title="Export CSV"
+          >
+            <Download size={15} />
+            <span>Export CSV</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Submissions Table Container (Only this area scrolls, exact same as /admin/hackathons) */}
+      <div className="admin-table-container hackathons-table">
+        {isLoading ? (
+          <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+            <Loader2 className="spinner-icon" size={32} style={{ margin: '0 auto 1rem auto', color: 'var(--primary)' }} />
+            <p>Loading hackathon registrations directory...</p>
+          </div>
+        ) : filteredRegistrations.length === 0 ? (
+          <div style={{ padding: '3.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+            <Layers size={40} style={{ margin: '0 auto 1rem auto', opacity: 0.4 }} />
+            <h4 style={{ color: 'var(--text-main)', margin: '0 0 0.5rem 0' }}>No hackathon registrations match criteria</h4>
+            <p style={{ margin: 0, fontSize: '0.875rem' }}>Try modifying your search query or branch filter.</p>
+          </div>
+        ) : (
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th style={{ width: '45px' }}>#</th>
+                <th>Team & Leader Info</th>
+                <th>Academic & Branch Profile</th>
+                <th>Members Roster</th>
+                <th>Attendance</th>
+                <th>Status</th>
+                <th style={{ textAlign: 'center', minWidth: '150px' }}>Actions & Attendance</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paginatedRegistrations.map((reg, idx) => {
+                const rowNum = (currentPage - 1) * PAGE_SIZE + idx + 1;
+                const isUpdating = isUpdatingId === reg.id;
+
+                let membersCount = 1;
+                try {
+                  const parsed = JSON.parse(reg.members || '[]');
+                  membersCount = parsed.length + 1;
+                } catch (e) {}
+
+                const att = (reg.attendance || 'pending').toLowerCase();
+                const badgeStyles: Record<string, { bg: string; color: string; border: string; label: string }> = {
+                  present: { bg: '#ecfdf5', color: '#047857', border: '#a7f3d0', label: '✓ Present' },
+                  absent: { bg: '#fef2f2', color: '#b91c1c', border: '#fecaca', label: '✕ Absent' },
+                  pending: { bg: '#f3f4f6', color: '#4b5563', border: '#e5e7eb', label: '⏳ Pending' }
+                };
+                const s = badgeStyles[att] || badgeStyles.pending;
+
+                return (
+                  <tr key={reg.id}>
+                    {/* # */}
+                    <td style={{ color: 'var(--text-muted)', fontSize: '0.8125rem' }}>
+                      {rowNum}
+                    </td>
+
+                    {/* Team & Leader Info */}
+                    <td>
+                      <span style={{
+                        fontSize: '0.6875rem',
+                        fontWeight: 700,
+                        color: '#4f46e5',
+                        backgroundColor: '#e0e7ff',
+                        padding: '0.125rem 0.375rem',
+                        borderRadius: '4px',
+                        textTransform: 'uppercase',
+                        display: 'inline-block',
+                        marginBottom: '0.25rem'
+                      }}>
+                        {reg.hackathon_name || 'R&D AlphaQuest Hackathon'}
+                      </span>
+                      <div><strong>{reg.team_name}</strong></div>
+                      <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                        Leader: {reg.leader_name}
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                        {reg.leader_email} | {formatDisplayPhone(reg.leader_phone)}
+                      </div>
+                    </td>
+
+                    {/* Academic & Branch Profile */}
+                    <td>
+                      <div style={{ fontWeight: 600, fontSize: '0.875rem', color: 'var(--text-main)' }}>
+                        {reg.leader_role || 'Student'}
+                      </div>
+                      <div style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                        {reg.leader_branch ? `Branch: ${reg.leader_branch}` : reg.leader_company ? `Company: ${reg.leader_company}` : 'Trinity College'}
+                      </div>
+                      {(reg.leader_year || reg.year_of_study) && (
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                          Year: {reg.leader_year || reg.year_of_study}
+                        </div>
+                      )}
+                      {reg.project_title && (
+                        <div style={{ marginTop: '0.35rem', fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 600 }}>
+                          Project: {reg.project_title}
+                        </div>
+                      )}
+                    </td>
+
+                    {/* Members Roster */}
+                    <td>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', alignItems: 'flex-start' }}>
+                        <span style={{ fontSize: '0.875rem', fontWeight: 600 }}>{membersCount} Member(s)</span>
+                        <button 
+                          onClick={() => setSelectedHackathon(reg)}
+                          className="btn btn-secondary btn-sm"
+                          style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', padding: '0.25rem 0.5rem', fontSize: '0.75rem', cursor: 'pointer' }}
+                        >
+                          <Eye size={12} /> View Details
+                        </button>
+                      </div>
+                    </td>
+
+                    {/* Attendance Status */}
+                    <td>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', alignItems: 'flex-start' }}>
+                        <span style={{
+                          fontSize: '0.6875rem',
+                          fontWeight: 700,
+                          color: s.color,
+                          backgroundColor: s.bg,
+                          border: `1px solid ${s.border}`,
+                          padding: '0.15rem 0.45rem',
+                          borderRadius: '9999px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.25rem'
+                        }}>
+                          {s.label}
+                        </span>
+                        {reg.room_code && (
+                          <span style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
+                            <DoorOpen size={11} color="var(--primary)" /> Room: {reg.room_code}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+
+                    {/* Status */}
+                    <td>
+                      <span className={`status-pill status-${reg.status || 'approved'}`}>
+                        {reg.status || 'approved'}
+                      </span>
+                    </td>
+
+                    {/* Actions & Attendance */}
+                    <td style={{ textAlign: 'center' }}>
+                      <div className="actions-cell" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', justifyContent: 'center' }}>
+                        {/* Mark Present */}
+                        <button
+                          type="button"
+                          disabled={isUpdating || att === 'present'}
+                          onClick={() => handleMarkAttendance(reg.id, 'present')}
+                          className="btn-action approve"
+                          title="Mark Present"
+                          style={{ opacity: att === 'present' ? 0.35 : 1, cursor: att === 'present' ? 'default' : 'pointer' }}
+                        >
+                          <Check size={14} />
+                        </button>
+
+                        {/* Mark Absent */}
+                        <button
+                          type="button"
+                          disabled={isUpdating || att === 'absent'}
+                          onClick={() => handleMarkAttendance(reg.id, 'absent')}
+                          className="btn-action reject"
+                          title="Mark Absent"
+                          style={{ opacity: att === 'absent' ? 0.35 : 1, cursor: att === 'absent' ? 'default' : 'pointer' }}
+                        >
+                          <X size={14} />
+                        </button>
+
+                        {/* Reset Attendance */}
+                        <button
+                          type="button"
+                          disabled={isUpdating || att === 'pending'}
+                          onClick={() => handleMarkAttendance(reg.id, 'pending')}
+                          className="btn-action"
+                          title="Reset Attendance"
+                          style={{ opacity: att === 'pending' ? 0.35 : 1, cursor: att === 'pending' ? 'default' : 'pointer', color: '#64748b' }}
+                        >
+                          <RotateCcw size={12} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* Pagination Strip (PAGE_SIZE = 20, smooth scroll to top) */}
+      <AdminPagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        totalRecords={filteredRegistrations.length}
+        pageSize={PAGE_SIZE}
+        onPageChange={(page) => setCurrentPage(page)}
+        itemName="teams"
+      />
+
+      {/* View Details Modal (Exact same layout & styling as /admin/hackathons) */}
+      {selectedHackathon && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.65)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: '1.5rem',
+          backdropFilter: 'blur(4px)'
+        }}>
           <div style={{
-            position: isEventConfirmed ? 'fixed' : 'static',
-            top: 0, left: 0, right: 0, bottom: 0,
-            backgroundColor: isEventConfirmed ? 'rgba(15, 23, 42, 0.5)' : 'transparent',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            zIndex: 50, padding: '1.5rem'
+            backgroundColor: '#ffffff',
+            borderRadius: 'var(--radius-lg)',
+            width: '100%',
+            maxWidth: '620px',
+            maxHeight: '90vh',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            boxShadow: 'var(--shadow-xl)',
+            border: '1px solid var(--border)'
           }}>
+            {/* Sticky Header */}
             <div style={{
-              backgroundColor: 'var(--bg-card, #ffffff)',
-              border: '1px solid var(--border, #e2e8f0)',
-              borderRadius: '1rem',
-              maxWidth: '520px',
-              width: '100%',
-              padding: '2rem',
-              boxShadow: 'var(--shadow-xl)',
-              color: 'var(--text-main, #0f172a)'
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              borderBottom: '1px solid var(--border)',
+              padding: '1.25rem 1.75rem',
+              backgroundColor: '#ffffff'
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <div style={{ width: '2.5rem', height: '2.5rem', borderRadius: '0.5rem', backgroundColor: 'var(--primary-light)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Calendar size={20} />
-                  </div>
-                  <div>
-                    <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-main)' }}>Select Event / Hackathon</h3>
-                    <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>Choose the session you are managing attendance for</p>
-                  </div>
-                </div>
-                {isEventConfirmed && (
-                  <button onClick={() => setShowEventSelectorModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
-                    <X size={20} />
-                  </button>
-                )}
-              </div>
-
-              {/* Event Type selector toggle */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1.25rem' }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedType('hackathon');
-                    if (hackathonsList.length > 0) setSelectedEventName(hackathonsList[0].title);
-                  }}
-                  style={{
-                    padding: '0.75rem',
-                    borderRadius: '0.5rem',
-                    border: '1px solid',
-                    borderColor: selectedType === 'hackathon' ? 'var(--primary)' : 'var(--border)',
-                    backgroundColor: selectedType === 'hackathon' ? 'var(--primary-light)' : 'var(--bg-main)',
-                    color: selectedType === 'hackathon' ? 'var(--primary)' : 'var(--text-secondary)',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.5rem'
-                  }}
-                >
-                  <Sparkles size={16} /> Hackathons ({hackathonsList.length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedType('event');
-                    if (eventsList.length > 0) setSelectedEventName(eventsList[0].title);
-                  }}
-                  style={{
-                    padding: '0.75rem',
-                    borderRadius: '0.5rem',
-                    border: '1px solid',
-                    borderColor: selectedType === 'event' ? 'var(--primary)' : 'var(--border)',
-                    backgroundColor: selectedType === 'event' ? 'var(--primary-light)' : 'var(--bg-main)',
-                    color: selectedType === 'event' ? 'var(--primary)' : 'var(--text-secondary)',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.5rem'
-                  }}
-                >
-                  <Calendar size={16} /> Events / Workshops ({eventsList.length})
-                </button>
-              </div>
-
-              {/* Event dropdown */}
-              <div style={{ marginBottom: '1.25rem' }}>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
-                  Choose {selectedType === 'hackathon' ? 'Hackathon' : 'Event'} Name
-                </label>
-                <select
-                  value={selectedEventName}
-                  onChange={(e) => setSelectedEventName(e.target.value)}
-                  style={{
-                    width: '100%',
-                    backgroundColor: 'var(--bg-main)',
-                    border: '1px solid var(--border)',
-                    color: 'var(--text-main)',
-                    borderRadius: '0.5rem',
-                    padding: '0.75rem 1rem',
-                    fontSize: '0.9rem',
-                    cursor: 'pointer'
-                  }}
-                >
-                  <option value="" disabled>-- Select an option --</option>
-                  {(selectedType === 'hackathon' ? hackathonsList : eventsList).map((opt, idx) => (
-                    <option key={idx} value={opt.title}>
-                      {opt.title} {opt.date ? `(${opt.date})` : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Room assignment selection (optional) */}
-              <div style={{ marginBottom: '1.75rem' }}>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
-                  Assigned Room (Optional)
-                </label>
-                <select
-                  value={selectedRoom?.id || ''}
-                  onChange={(e) => {
-                    const id = Number(e.target.value);
-                    const matched = assignedRooms.find(r => r.id === id) || null;
-                    setSelectedRoom(matched);
-                  }}
-                  style={{
-                    width: '100%',
-                    backgroundColor: 'var(--bg-main)',
-                    border: '1px solid var(--border)',
-                    color: 'var(--text-main)',
-                    borderRadius: '0.5rem',
-                    padding: '0.75rem 1rem',
-                    fontSize: '0.9rem',
-                    cursor: 'pointer'
-                  }}
-                >
-                  <option value="">General Check-In (All Rooms / Main Desk)</option>
-                  {assignedRooms.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.room_code} - {r.room_name} ({r.event_name})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Continue button */}
-              <button
-                type="button"
-                disabled={!selectedEventName}
-                onClick={() => {
-                  setIsEventConfirmed(true);
-                  setShowEventSelectorModal(false);
-                }}
-                className="btn btn-primary"
-                style={{
-                  width: '100%',
-                  padding: '0.8rem',
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                <span style={{
+                  fontSize: '0.6875rem',
                   fontWeight: 700,
-                  fontSize: '1rem',
-                  borderRadius: '0.5rem',
-                  cursor: !selectedEventName ? 'not-allowed' : 'pointer',
-                  opacity: !selectedEventName ? 0.6 : 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.5rem'
-                }}
+                  color: '#4f46e5',
+                  backgroundColor: '#e0e7ff',
+                  padding: '0.125rem 0.375rem',
+                  borderRadius: '4px',
+                  alignSelf: 'flex-start',
+                  textTransform: 'uppercase'
+                }}>
+                  {selectedHackathon.hackathon_name || 'R&D AlphaQuest Hackathon'}
+                </span>
+                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'var(--primary)' }}>
+                  Team Details: {selectedHackathon.team_name}
+                </h3>
+              </div>
+              <button
+                onClick={() => setSelectedHackathon(null)}
+                className="btn btn-secondary btn-sm"
+                style={{ padding: '0.35rem 0.75rem', fontSize: '0.8125rem', cursor: 'pointer', borderRadius: '0.375rem' }}
               >
-                Continue to Participant Attendance &rarr;
+                Close
               </button>
             </div>
-          </div>
-        )}
 
-        {/* Active Participant Attendance Interface */}
-        {isEventConfirmed && selectedEventName && (
-          <div>
-            {/* Top Live Statistics Cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
-              
-              {/* Total Registered Card */}
-              <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '0.75rem', padding: '1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: 'var(--shadow-sm)' }}>
+            {/* Scrollable Content Body */}
+            <div style={{
+              padding: '1.75rem',
+              overflowY: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1.5rem',
+              flex: 1
+            }}>
+              {/* Project Details */}
+              {(selectedHackathon.project_title || selectedHackathon.project_description || selectedHackathon.problem_statement) && (
                 <div>
-                  <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Total Participants
-                  </span>
-                  <div style={{ fontSize: '2rem', fontWeight: 900, color: 'var(--text-main)', marginTop: '0.25rem' }}>
-                    {stats.total}
-                  </div>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Registered for session</span>
-                </div>
-                <div style={{ width: '3rem', height: '3rem', borderRadius: '0.75rem', backgroundColor: 'var(--primary-light)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Users size={24} />
-                </div>
-              </div>
-
-              {/* Present (Checked-in) Card */}
-              <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid #bbf7d0', borderRadius: '0.75rem', padding: '1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: 'var(--shadow-sm)' }}>
-                <div>
-                  <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#059669', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Present (Checked In)
-                  </span>
-                  <div style={{ fontSize: '2rem', fontWeight: 900, color: '#059669', marginTop: '0.25rem' }}>
-                    {stats.present}
-                  </div>
-                  <span style={{ fontSize: '0.75rem', color: '#10b981' }}>
-                    {stats.total > 0 ? `${Math.round((stats.present / stats.total) * 100)}% Attendance` : '0%'}
-                  </span>
-                </div>
-                <div style={{ width: '3rem', height: '3rem', borderRadius: '0.75rem', backgroundColor: '#ecfdf5', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <UserCheck size={24} />
-                </div>
-              </div>
-
-              {/* Absent Card */}
-              <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid #fecaca', borderRadius: '0.75rem', padding: '1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: 'var(--shadow-sm)' }}>
-                <div>
-                  <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#dc2626', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Absent
-                  </span>
-                  <div style={{ fontSize: '2rem', fontWeight: 900, color: '#dc2626', marginTop: '0.25rem' }}>
-                    {stats.absent}
-                  </div>
-                  <span style={{ fontSize: '0.75rem', color: '#ef4444' }}>
-                    {stats.total > 0 ? `${Math.round((stats.absent / stats.total) * 100)}% Absent` : '0%'}
-                  </span>
-                </div>
-                <div style={{ width: '3rem', height: '3rem', borderRadius: '0.75rem', backgroundColor: '#fef2f2', color: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <UserX size={24} />
-                </div>
-              </div>
-
-              {/* Unmarked / Pending Card */}
-              <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '0.75rem', padding: '1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: 'var(--shadow-sm)' }}>
-                <div>
-                  <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Unmarked / Pending
-                  </span>
-                  <div style={{ fontSize: '2rem', fontWeight: 900, color: 'var(--text-main)', marginTop: '0.25rem' }}>
-                    {stats.pending}
-                  </div>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Awaiting check-in</span>
-                </div>
-                <div style={{ width: '3rem', height: '3rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-subtle)', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <ArrowUpDown size={24} />
-                </div>
-              </div>
-            </div>
-
-            {/* Branch Summary Pills */}
-            {stats.branches && stats.branches.length > 0 && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1.5rem', backgroundColor: 'var(--bg-card)', padding: '0.75rem 1rem', borderRadius: '0.5rem', border: '1px solid var(--border)' }}>
-                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                  Branches:
-                </span>
-                {stats.branches.map((b, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => setBranchFilter(branchFilter === b.name ? 'all' : b.name)}
-                    style={{
-                      border: '1px solid',
-                      borderColor: branchFilter === b.name ? 'var(--primary)' : 'var(--border)',
-                      backgroundColor: branchFilter === b.name ? 'var(--primary)' : 'var(--bg-subtle)',
-                      color: branchFilter === b.name ? '#ffffff' : 'var(--text-secondary)',
-                      padding: '0.2rem 0.6rem',
-                      borderRadius: '999px',
-                      fontSize: '0.75rem',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      transition: 'all 0.2s',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.35rem'
-                    }}
-                  >
-                    <span>{b.name}</span>
-                    <span style={{ opacity: 0.85, fontSize: '0.7rem' }}>({b.count})</span>
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* Filter & Fast Search Bar */}
-            <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '0.75rem', padding: '1rem', marginBottom: '1rem', display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center', justifyContent: 'space-between', boxShadow: 'var(--shadow-sm)' }}>
-              
-              {/* Quick Search Input */}
-              <div style={{ position: 'relative', flex: '1 1 280px', maxWidth: '480px' }}>
-                <Search size={16} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                <input
-                  type="text"
-                  placeholder="Quick check-in: Name, PIN/Roll No, Team, Email..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  style={{
-                    width: '100%',
-                    backgroundColor: 'var(--bg-main)',
-                    border: '1px solid var(--border)',
+                  <h4 style={{
+                    fontSize: '0.9375rem',
+                    fontWeight: 600,
                     color: 'var(--text-main)',
-                    borderRadius: '0.5rem',
-                    padding: '0.6rem 2.25rem 0.6rem 2.5rem',
-                    fontSize: '0.875rem'
-                  }}
-                />
-                {searchTerm && (
-                  <button
-                    onClick={() => setSearchTerm('')}
-                    style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
-                  >
-                    <X size={14} />
-                  </button>
-                )}
-              </div>
-
-              {/* Attendance Filter Tabs */}
-              <div style={{ display: 'flex', alignItems: 'center', backgroundColor: 'var(--bg-subtle)', padding: '0.25rem', borderRadius: '0.5rem', border: '1px solid var(--border)', gap: '0.25rem' }}>
-                <button
-                  type="button"
-                  onClick={() => setAttendanceFilter('all')}
-                  style={{
-                    backgroundColor: attendanceFilter === 'all' ? 'var(--bg-card)' : 'transparent',
-                    color: attendanceFilter === 'all' ? 'var(--text-main)' : 'var(--text-muted)',
-                    border: 'none',
-                    padding: '0.4rem 0.75rem',
-                    borderRadius: '0.35rem',
-                    fontSize: '0.8rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    boxShadow: attendanceFilter === 'all' ? 'var(--shadow-sm)' : 'none'
-                  }}
-                >
-                  All ({stats.total})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAttendanceFilter('present')}
-                  style={{
-                    backgroundColor: attendanceFilter === 'present' ? '#ecfdf5' : 'transparent',
-                    color: attendanceFilter === 'present' ? '#059669' : 'var(--text-muted)',
-                    border: 'none',
-                    padding: '0.4rem 0.75rem',
-                    borderRadius: '0.35rem',
-                    fontSize: '0.8rem',
-                    fontWeight: 600,
-                    cursor: 'pointer'
-                  }}
-                >
-                  Present ({stats.present})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAttendanceFilter('absent')}
-                  style={{
-                    backgroundColor: attendanceFilter === 'absent' ? '#fef2f2' : 'transparent',
-                    color: attendanceFilter === 'absent' ? '#dc2626' : 'var(--text-muted)',
-                    border: 'none',
-                    padding: '0.4rem 0.75rem',
-                    borderRadius: '0.35rem',
-                    fontSize: '0.8rem',
-                    fontWeight: 600,
-                    cursor: 'pointer'
-                  }}
-                >
-                  Absent ({stats.absent})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAttendanceFilter('pending')}
-                  style={{
-                    backgroundColor: attendanceFilter === 'pending' ? 'var(--bg-card)' : 'transparent',
-                    color: attendanceFilter === 'pending' ? 'var(--text-secondary)' : 'var(--text-muted)',
-                    border: 'none',
-                    padding: '0.4rem 0.75rem',
-                    borderRadius: '0.35rem',
-                    fontSize: '0.8rem',
-                    fontWeight: 600,
-                    cursor: 'pointer'
-                  }}
-                >
-                  Pending ({stats.pending})
-                </button>
-              </div>
-
-              {/* Branch Filter Dropdown */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <select
-                  value={branchFilter}
-                  onChange={(e) => setBranchFilter(e.target.value)}
-                  style={{
-                    backgroundColor: 'var(--bg-main)',
-                    border: '1px solid var(--border)',
-                    color: 'var(--text-main)',
-                    borderRadius: '0.5rem',
-                    padding: '0.55rem 0.85rem',
-                    fontSize: '0.825rem',
-                    cursor: 'pointer'
-                  }}
-                >
-                  <option value="all">All Branches</option>
-                  {branchOptions.map(b => (
-                    <option key={b} value={b}>{b}</option>
-                  ))}
-                </select>
-
-                <button
-                  onClick={fetchParticipants}
-                  title="Refresh List"
-                  style={{
-                    backgroundColor: 'var(--bg-main)',
-                    border: '1px solid var(--border)',
-                    color: 'var(--text-muted)',
-                    padding: '0.55rem 0.75rem',
-                    borderRadius: '0.5rem',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}
-                >
-                  <RotateCcw size={15} />
-                </button>
-              </div>
-            </div>
-
-            {/* Attendance Data Table */}
-            <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '0.75rem', overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
-              {isLoading ? (
-                <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                  <Loader2 className="spinner-icon" size={32} style={{ margin: '0 auto 1rem auto', color: 'var(--primary)' }} />
-                  <p>Loading registered participants list...</p>
-                </div>
-              ) : filteredParticipants.length === 0 ? (
-                <div style={{ padding: '3.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                  <Users size={40} style={{ margin: '0 auto 1rem auto', opacity: 0.4 }} />
-                  <h4 style={{ color: 'var(--text-main)', margin: '0 0 0.5rem 0' }}>No participants match criteria</h4>
-                  <p style={{ margin: 0, fontSize: '0.875rem' }}>Try modifying your search query, branch filter, or attendance status.</p>
-                </div>
-              ) : (
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.875rem' }}>
-                    <thead>
-                      <tr style={{ backgroundColor: 'var(--bg-subtle)', borderBottom: '1px solid var(--border)', color: 'var(--text-muted)', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: '0.05em' }}>
-                        <th style={{ padding: '0.85rem 1.25rem' }}>Participant / Team</th>
-                        <th style={{ padding: '0.85rem 1.25rem' }}>Branch</th>
-                        <th style={{ padding: '0.85rem 1.25rem' }}>Contact Info</th>
-                        <th style={{ padding: '0.85rem 1.25rem' }}>Status</th>
-                        <th style={{ padding: '0.85rem 1.25rem', textAlign: 'center' }}>Mark Attendance</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {paginatedParticipants.map((p) => {
-                        const att = (p.attendance || 'pending').toLowerCase();
-                        const isUpdating = isUpdatingId === p.id;
-                        const isPresent = att === 'present';
-                        const isAbsent = att === 'absent';
-                        const isPending = att === 'pending';
-
-                        const participantTitle = selectedType === 'hackathon' 
-                          ? (p.team_name || p.leader_name || 'Unnamed Team')
-                          : (p.full_name || 'Participant');
-
-                        const branchDisplay = p.leader_branch || p.branch || '—';
-
-                        return (
-                          <tr 
-                            key={p.id}
-                            style={{ 
-                              borderBottom: '1px solid var(--border-light, #f1f5f9)', 
-                              backgroundColor: isPresent ? 'rgba(16, 185, 129, 0.04)' : isAbsent ? 'rgba(239, 68, 68, 0.04)' : 'transparent',
-                              transition: 'background-color 0.15s'
-                            }}
-                          >
-                            {/* Participant / Team */}
-                            <td style={{ padding: '1rem 1.25rem' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                <strong style={{ color: 'var(--text-main)', fontSize: '0.95rem' }}>{participantTitle}</strong>
-                                {selectedType === 'hackathon' && p.leader_name && (
-                                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                                    (Leader: {p.leader_name})
-                                  </span>
-                                )}
-                              </div>
-                              {p.pin_number && (
-                                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-                                  PIN: <span style={{ color: 'var(--text-secondary)', fontFamily: 'monospace' }}>{p.pin_number}</span>
-                                </div>
-                              )}
-                              {selectedType === 'hackathon' && p.project_title && (
-                                <div style={{ fontSize: '0.75rem', color: 'var(--primary)', marginTop: '0.2rem', maxWidth: '340px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>
-                                  Project: {p.project_title}
-                                </div>
-                              )}
-                            </td>
-
-                            {/* Branch */}
-                            <td style={{ padding: '1rem 1.25rem' }}>
-                              <span style={{ 
-                                backgroundColor: 'var(--bg-subtle)', 
-                                border: '1px solid var(--border)', 
-                                padding: '0.25rem 0.5rem', 
-                                borderRadius: '4px', 
-                                fontWeight: 700, 
-                                fontSize: '0.8rem',
-                                color: 'var(--text-main)'
-                              }}>
-                                {branchDisplay}
-                              </span>
-                              {p.year_of_study && (
-                                <div style={{ fontSize: '0.725rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-                                  Year {p.year_of_study}
-                                </div>
-                              )}
-                            </td>
-
-                            {/* Contact Info */}
-                            <td style={{ padding: '1rem 1.25rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                              <div>{p.leader_email || p.email || '—'}</div>
-                              <div style={{ color: 'var(--text-muted)', marginTop: '0.15rem' }}>{p.leader_phone || p.mobile || '—'}</div>
-                            </td>
-
-                            {/* Current Attendance Status Badge */}
-                            <td style={{ padding: '1rem 1.25rem' }}>
-                              {isPresent ? (
-                                <span style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '0.35rem',
-                                  backgroundColor: '#ecfdf5',
-                                  border: '1px solid #a7f3d0',
-                                  color: '#059669',
-                                  padding: '0.3rem 0.65rem',
-                                  borderRadius: '999px',
-                                  fontSize: '0.75rem',
-                                  fontWeight: 700
-                                }}>
-                                  <Check size={13} /> PRESENT
-                                </span>
-                              ) : isAbsent ? (
-                                <span style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '0.35rem',
-                                  backgroundColor: '#fef2f2',
-                                  border: '1px solid #fecaca',
-                                  color: '#dc2626',
-                                  padding: '0.3rem 0.65rem',
-                                  borderRadius: '999px',
-                                  fontSize: '0.75rem',
-                                  fontWeight: 700
-                                }}>
-                                  <X size={13} /> ABSENT
-                                </span>
-                              ) : (
-                                <span style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '0.35rem',
-                                  backgroundColor: 'var(--bg-subtle)',
-                                  border: '1px solid var(--border)',
-                                  color: 'var(--text-muted)',
-                                  padding: '0.3rem 0.65rem',
-                                  borderRadius: '999px',
-                                  fontSize: '0.75rem',
-                                  fontWeight: 600
-                                }}>
-                                  PENDING
-                                </span>
-                              )}
-                            </td>
-
-                            {/* One-Click Action Buttons */}
-                            <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
-                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-                                {/* Present Button */}
-                                <button
-                                  type="button"
-                                  disabled={isUpdating || isPresent}
-                                  onClick={() => handleMarkAttendance(p.id, 'present')}
-                                  title="Mark as Present"
-                                  style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '0.25rem',
-                                    padding: '0.4rem 0.75rem',
-                                    borderRadius: '0.4rem',
-                                    fontSize: '0.8rem',
-                                    fontWeight: 700,
-                                    cursor: isPresent ? 'default' : 'pointer',
-                                    border: '1px solid',
-                                    borderColor: 'var(--primary)',
-                                    backgroundColor: isPresent ? 'var(--primary)' : 'var(--primary-light)',
-                                    color: isPresent ? '#ffffff' : 'var(--primary)',
-                                    transition: 'all 0.15s'
-                                  }}
-                                >
-                                  <Check size={14} /> Present
-                                </button>
-
-                                {/* Absent Button */}
-                                <button
-                                  type="button"
-                                  disabled={isUpdating || isAbsent}
-                                  onClick={() => handleMarkAttendance(p.id, 'absent')}
-                                  title="Mark as Absent"
-                                  style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '0.25rem',
-                                    padding: '0.4rem 0.75rem',
-                                    borderRadius: '0.4rem',
-                                    fontSize: '0.8rem',
-                                    fontWeight: 700,
-                                    cursor: isAbsent ? 'default' : 'pointer',
-                                    border: '1px solid #ef4444',
-                                    backgroundColor: isAbsent ? '#ef4444' : '#fef2f2',
-                                    color: isAbsent ? '#ffffff' : '#ef4444',
-                                    transition: 'all 0.15s'
-                                  }}
-                                >
-                                  <X size={14} /> Absent
-                                </button>
-
-                                {/* Reset Button */}
-                                <button
-                                  type="button"
-                                  disabled={isUpdating || isPending}
-                                  onClick={() => handleMarkAttendance(p.id, 'pending')}
-                                  title="Reset Attendance"
-                                  style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '0.25rem',
-                                    padding: '0.4rem 0.55rem',
-                                    borderRadius: '0.4rem',
-                                    fontSize: '0.75rem',
-                                    fontWeight: 600,
-                                    cursor: isPending ? 'not-allowed' : 'pointer',
-                                    border: '1px solid var(--border)',
-                                    backgroundColor: 'var(--bg-subtle)',
-                                    color: isPending ? 'var(--text-muted)' : 'var(--text-secondary)',
-                                    opacity: isPending ? 0.5 : 1,
-                                    transition: 'all 0.15s'
-                                  }}
-                                >
-                                  <RotateCcw size={12} /> Reset
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                    marginBottom: '0.75rem',
+                    borderBottom: '1px solid var(--border)',
+                    paddingBottom: '0.5rem'
+                  }}>
+                    Project Details
+                  </h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.875rem' }}>
+                    {selectedHackathon.project_title && (
+                      <div><strong>Project Title:</strong> {selectedHackathon.project_title}</div>
+                    )}
+                    {selectedHackathon.project_description && (
+                      <div>
+                        <strong>Project Description:</strong>
+                        <div style={{
+                          padding: '0.75rem',
+                          backgroundColor: 'var(--bg-main)',
+                          borderRadius: 'var(--radius-md)',
+                          whiteSpace: 'pre-wrap',
+                          color: 'var(--text-secondary)',
+                          fontSize: '0.8125rem',
+                          marginTop: '0.25rem',
+                          border: '1px solid var(--border)'
+                        }}>
+                          {selectedHackathon.project_description}
+                        </div>
+                      </div>
+                    )}
+                    {selectedHackathon.problem_statement && (
+                      <div>
+                        <strong>Problem Statement:</strong>
+                        <div style={{
+                          padding: '0.75rem',
+                          backgroundColor: 'var(--bg-main)',
+                          borderRadius: 'var(--radius-md)',
+                          whiteSpace: 'pre-wrap',
+                          color: 'var(--text-secondary)',
+                          fontSize: '0.8125rem',
+                          marginTop: '0.25rem',
+                          border: '1px solid var(--border)'
+                        }}>
+                          {selectedHackathon.problem_statement}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 
-              {/* Bottom Pagination */}
-              <AdminPagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                totalRecords={filteredParticipants.length}
-                pageSize={PAGE_SIZE}
-                onPageChange={(page) => setCurrentPage(page)}
-                itemName="participants"
-              />
+              {/* Team Leader Section */}
+              <div>
+                <h4 style={{
+                  fontSize: '0.9375rem',
+                  fontWeight: 600,
+                  color: 'var(--text-main)',
+                  marginBottom: '0.75rem',
+                  borderBottom: '1px solid var(--border)',
+                  paddingBottom: '0.5rem'
+                }}>
+                  Team Leader Information
+                </h4>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', fontSize: '0.875rem' }}>
+                  <div><strong>Name:</strong> {selectedHackathon.leader_name}</div>
+                  <div><strong>Role:</strong> {selectedHackathon.leader_role || 'Student'}</div>
+                  <div><strong>Email:</strong> {selectedHackathon.leader_email}</div>
+                  <div><strong>Phone:</strong> {formatDisplayPhone(selectedHackathon.leader_phone)}</div>
+                  <div><strong>Branch:</strong> {selectedHackathon.leader_branch || 'N/A'}</div>
+                  <div><strong>Year:</strong> {selectedHackathon.leader_year || 'N/A'}</div>
+                </div>
+              </div>
+
+              {/* Team Members */}
+              {selectedHackathon.members && (() => {
+                try {
+                  const mList = JSON.parse(selectedHackathon.members);
+                  if (Array.isArray(mList) && mList.length > 0) {
+                    return (
+                      <div>
+                        <h4 style={{
+                          fontSize: '0.9375rem',
+                          fontWeight: 600,
+                          color: 'var(--text-main)',
+                          marginBottom: '0.75rem',
+                          borderBottom: '1px solid var(--border)',
+                          paddingBottom: '0.5rem'
+                        }}>
+                          Team Members ({mList.length})
+                        </h4>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                          {mList.map((m: any, i: number) => (
+                            <div key={i} style={{
+                              padding: '0.6rem 0.85rem',
+                              backgroundColor: 'var(--bg-main)',
+                              borderRadius: 'var(--radius-md)',
+                              border: '1px solid var(--border)',
+                              fontSize: '0.8125rem',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center'
+                            }}>
+                              <div>
+                                <strong>{m.name || m.full_name || `Member #${i + 1}`}</strong>
+                                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                  {m.email} | {m.phone || m.mobile}
+                                </div>
+                              </div>
+                              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                                {m.pin || m.branch || ''}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  }
+                } catch (e) {}
+                return null;
+              })()}
+
+              {/* Attendance Quick Action Inside Modal */}
+              <div>
+                <h4 style={{
+                  fontSize: '0.9375rem',
+                  fontWeight: 600,
+                  color: 'var(--text-main)',
+                  marginBottom: '0.75rem',
+                  borderBottom: '1px solid var(--border)',
+                  paddingBottom: '0.5rem'
+                }}>
+                  Mark Attendance
+                </h4>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => handleMarkAttendance(selectedHackathon.id, 'present')}
+                    className="btn btn-primary"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      padding: '0.45rem 1rem',
+                      fontSize: '0.8125rem',
+                      fontWeight: 700,
+                      backgroundColor: selectedHackathon.attendance === 'present' ? '#059669' : undefined
+                    }}
+                  >
+                    <Check size={15} /> Mark Present
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleMarkAttendance(selectedHackathon.id, 'absent')}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      padding: '0.45rem 1rem',
+                      fontSize: '0.8125rem',
+                      fontWeight: 700,
+                      borderRadius: 'var(--radius-md)',
+                      cursor: 'pointer',
+                      border: '1px solid #fecaca',
+                      backgroundColor: selectedHackathon.attendance === 'absent' ? '#dc2626' : '#fef2f2',
+                      color: selectedHackathon.attendance === 'absent' ? '#ffffff' : '#dc2626'
+                    }}
+                  >
+                    <X size={15} /> Mark Absent
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleMarkAttendance(selectedHackathon.id, 'pending')}
+                    className="btn btn-secondary"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      padding: '0.45rem 0.85rem',
+                      fontSize: '0.8125rem',
+                      fontWeight: 600
+                    }}
+                  >
+                    <RotateCcw size={13} /> Reset Pending
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
-        )}
-      </main>
-    </div>
+        </div>
+      )}
+    </AdminLayout>
   );
 };

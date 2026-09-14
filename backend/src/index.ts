@@ -2876,26 +2876,33 @@ app.get('/api/reg-desk/assignments', authenticateRegDeskToken, async (req: Authe
 
 // 10.5 Registration Desk Participants List & Statistics
 app.get('/api/reg-desk/participants', authenticateRegDeskToken, async (req: AuthenticatedRequest, res) => {
-  const { type, name, branch, attendance, search } = req.query;
-
-  if (!type || !name) {
-    return res.status(400).json({ error: "Type ('event' | 'hackathon') and Event/Hackathon Name are required." });
-  }
+  const { type = 'hackathon', name = 'all', branch, attendance, search } = req.query;
 
   try {
     let rows: any[] = [];
-    if (type === 'hackathon') {
-      const result = await db.execute({
-        sql: "SELECT * FROM hackathon_registrations WHERE LOWER(hackathon_name) = LOWER(?) ORDER BY id ASC",
-        args: [String(name).trim()]
-      });
-      rows = result.rows;
+    if (type === 'event') {
+      if (name && name !== 'all') {
+        const result = await db.execute({
+          sql: "SELECT * FROM event_registrations WHERE LOWER(event_name) = LOWER(?) ORDER BY id DESC",
+          args: [String(name).trim()]
+        });
+        rows = result.rows;
+      } else {
+        const result = await db.execute("SELECT * FROM event_registrations ORDER BY id DESC");
+        rows = result.rows;
+      }
     } else {
-      const result = await db.execute({
-        sql: "SELECT * FROM event_registrations WHERE LOWER(event_name) = LOWER(?) ORDER BY id ASC",
-        args: [String(name).trim()]
-      });
-      rows = result.rows;
+      // Hackathons
+      if (name && name !== 'all') {
+        const result = await db.execute({
+          sql: "SELECT * FROM hackathon_registrations WHERE LOWER(hackathon_name) = LOWER(?) ORDER BY id DESC",
+          args: [String(name).trim()]
+        });
+        rows = result.rows;
+      } else {
+        const result = await db.execute("SELECT * FROM hackathon_registrations ORDER BY id DESC");
+        rows = result.rows;
+      }
     }
 
     // Compute stats across all records for this event
