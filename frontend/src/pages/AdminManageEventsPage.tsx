@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '../config';
 import { AdminLayout } from '../components/AdminLayout';
 import { Calendar, Plus, Trash2 } from 'lucide-react';
+import { AdminPagination } from '../components/AdminPagination';
 
 interface EventItem {
   id: number;
@@ -22,6 +23,10 @@ export const AdminManageEventsPage: React.FC = () => {
   const [events, setEvents] = useState<EventItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  
+  // Pagination State (Prev / 1 2 3 ... / Next)
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 10;
   
   // Custom styled confirmation modal state
   const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; eventId: number; eventTitle: string }>({
@@ -133,7 +138,7 @@ export const AdminManageEventsPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {events.map((evt) => (
+                {events.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE).map((evt) => (
                   <tr key={evt.id}>
                     <td>
                       <strong>{evt.title}</strong>
@@ -173,6 +178,16 @@ export const AdminManageEventsPage: React.FC = () => {
                 ))}
               </tbody>
             </table>
+
+            {/* Pagination Controls */}
+            <AdminPagination
+              currentPage={currentPage}
+              totalPages={Math.ceil(events.length / PAGE_SIZE)}
+              totalRecords={events.length}
+              pageSize={PAGE_SIZE}
+              onPageChange={(p) => setCurrentPage(p)}
+              itemName="technical events"
+            />
           </div>
         )}
       </div>

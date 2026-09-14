@@ -2191,6 +2191,40 @@ app.post('/api/admin/reset-password', sensitiveLimiter, async (req, res) => {
 // 6. Fetch Submissions (Requires Admin or higher)
 app.get('/api/admin/applications', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
+    const page = req.query.page ? parseInt(req.query.page as string, 10) : undefined;
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
+    const type = req.query.type as string | undefined;
+
+    if (page && limit && type) {
+      let tableName = '';
+      if (type === 'club') tableName = 'club_applications';
+      else if (type === 'event') tableName = 'event_registrations';
+      else if (type === 'hackathon') tableName = 'hackathon_registrations';
+      else if (type === 'recognition') tableName = 'recognition_applications';
+      else if (type === 'volunteer') tableName = 'volunteer_applications';
+      else if (type === 'submission') tableName = 'project_submissions';
+
+      if (tableName) {
+        const countRes = await db.execute(`SELECT COUNT(*) as count FROM ${tableName}`);
+        const total = Number(countRes.rows[0]?.count || 0);
+        const offset = (page - 1) * limit;
+        const dataRes = await db.execute({
+          sql: `SELECT * FROM ${tableName} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+          args: [limit, offset]
+        });
+
+        return res.status(200).json({
+          data: dataRes.rows,
+          pagination: {
+            page,
+            limit,
+            total,
+            totalPages: Math.ceil(total / limit)
+          }
+        });
+      }
+    }
+
     const clubRes = await db.execute("SELECT * FROM club_applications ORDER BY created_at DESC");
     const eventRes = await db.execute("SELECT * FROM event_registrations ORDER BY created_at DESC");
     const hackathonRes = await db.execute("SELECT * FROM hackathon_registrations ORDER BY created_at DESC");

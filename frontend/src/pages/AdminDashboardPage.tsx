@@ -5,6 +5,7 @@ import { AdminLayout } from '../components/AdminLayout';
 import { formatDisplayPhone } from '../utils/phone';
 import { Download, Check, X, Layers, Calendar, Mail, Loader2, Eye, Award, HeartHandshake, FolderUp, ExternalLink, FileText, Trash2, AlertCircle } from 'lucide-react';
 import { AdminFilterDropdown } from '../components/AdminFilterDropdown';
+import { AdminPagination } from '../components/AdminPagination';
 
 interface ProjectSubmission {
   id: number;
@@ -154,6 +155,15 @@ export const AdminDashboardPage: React.FC = () => {
   const [certSentFilter, setCertSentFilter] = useState<'all' | 'sent' | 'pending'>('all');
   const [volunteerRoleFilter, setVolunteerRoleFilter] = useState('all');
   const [managedBranches, setManagedBranches] = useState<string[]>([]);
+
+  // Pagination State (Prev / 1 2 3 ... / Next)
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 10;
+
+  // Reset pagination to page 1 whenever active tab or any filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, searchTerm, branchFilter, statusFilter, eventFilter, hackathonFilter, volunteerRoleFilter, certSentFilter]);
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -958,6 +968,14 @@ export const AdminDashboardPage: React.FC = () => {
     return matchesSearch && matchesStatus && matchesEvent;
   });
 
+  // Paginated slices for each tab (load page-by-page)
+  const paginatedClubApps = filteredClubApps.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const paginatedEventRegs = filteredEventRegs.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const paginatedHackathonRegs = filteredHackathonRegs.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const paginatedRecognitionApps = filteredRecognitionApps.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const paginatedVolunteerApps = filteredVolunteerApps.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const paginatedProjectSubs = filteredProjectSubs.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
   // Calculate quick metrics
   const getStats = () => {
     if (activeTab === 'club') {
@@ -1649,7 +1667,7 @@ export const AdminDashboardPage: React.FC = () => {
                     </td>
                   </tr>
                 ) : (
-                  filteredClubApps.map(app => (
+                  paginatedClubApps.map(app => (
                     <tr key={app.id}>
                       <td>
                         <strong>{app.full_name}</strong>
@@ -1677,7 +1695,7 @@ export const AdminDashboardPage: React.FC = () => {
                         <span className={`status-pill status-${app.status}`}>{app.status}</span>
                       </td>
                       <td>
-                        <div className="actions-cell">
+                        <div className="actions-cell" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                           {app.status === 'pending' && (
                             <>
                               <button onClick={() => handleUpdateStatus('club', app.id, 'approved')} className="btn-action approve" title="Approve Application">
@@ -1688,11 +1706,14 @@ export const AdminDashboardPage: React.FC = () => {
                               </button>
                             </>
                           )}
-                          {app.status !== 'pending' && (
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                              Checked
-                            </span>
-                          )}
+                          <button
+                            onClick={() => handleDeleteApplication('club', app.id, `${app.full_name}`)}
+                            className="btn-action reject"
+                            style={{ color: '#dc2626', borderColor: '#fca5a5', backgroundColor: '#fef2f2' }}
+                            title="Delete / Remove from Database"
+                          >
+                            <Trash2 size={13} />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -1706,7 +1727,7 @@ export const AdminDashboardPage: React.FC = () => {
                     </td>
                   </tr>
                 ) : (
-                  filteredEventRegs.map(reg => (
+                  paginatedEventRegs.map(reg => (
                     <tr key={reg.id}>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -1814,6 +1835,14 @@ export const AdminDashboardPage: React.FC = () => {
                               </span>
                             );
                           })()}
+                          <button
+                            onClick={() => handleDeleteApplication('event', reg.id, `${reg.full_name}`)}
+                            className="btn-action reject"
+                            style={{ color: '#dc2626', borderColor: '#fca5a5', backgroundColor: '#fef2f2' }}
+                            title="Delete / Remove from Database"
+                          >
+                            <Trash2 size={13} />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -1827,7 +1856,7 @@ export const AdminDashboardPage: React.FC = () => {
                     </td>
                   </tr>
                 ) : (
-                  filteredRecognitionApps.map(app => (
+                  paginatedRecognitionApps.map(app => (
                     <tr key={app.id}>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -1900,16 +1929,26 @@ export const AdminDashboardPage: React.FC = () => {
                       <td>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', alignItems: 'flex-start' }}>
                           <span className={`status-pill status-${app.status}`}>{app.status}</span>
-                          {app.status === 'pending' && (
-                            <div className="actions-cell">
-                              <button onClick={() => handleUpdateStatus('recognition', app.id, 'approved')} className="btn-action approve" title="Approve Judge Recognition">
-                                <Check size={14} />
-                              </button>
-                              <button onClick={() => handleUpdateStatus('recognition', app.id, 'rejected')} className="btn-action reject" title="Reject Application">
-                                <X size={14} />
-                              </button>
-                            </div>
-                          )}
+                          <div className="actions-cell" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                            {app.status === 'pending' && (
+                              <>
+                                <button onClick={() => handleUpdateStatus('recognition', app.id, 'approved')} className="btn-action approve" title="Approve Judge Recognition">
+                                  <Check size={14} />
+                                </button>
+                                <button onClick={() => handleUpdateStatus('recognition', app.id, 'rejected')} className="btn-action reject" title="Reject Application">
+                                  <X size={14} />
+                                </button>
+                              </>
+                            )}
+                            <button
+                              onClick={() => handleDeleteApplication('recognition', app.id, `${app.full_name}`)}
+                              className="btn-action reject"
+                              style={{ color: '#dc2626', borderColor: '#fca5a5', backgroundColor: '#fef2f2' }}
+                              title="Delete / Remove from Database"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
                         </div>
                       </td>
                       <td colSpan={2}>
@@ -1964,7 +2003,7 @@ export const AdminDashboardPage: React.FC = () => {
                     </td>
                   </tr>
                 ) : (
-                  filteredVolunteerApps.map(app => (
+                  paginatedVolunteerApps.map(app => (
                     <tr key={app.id}>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -2082,7 +2121,7 @@ export const AdminDashboardPage: React.FC = () => {
                             </span>
                           )}
 
-                          <div className="actions-cell">
+                          <div className="actions-cell" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                             {app.status === 'pending' ? (
                               <>
                                 <button onClick={() => handleUpdateStatus('volunteer', app.id, 'approved')} className="btn-action approve" title="Approve Volunteer">
@@ -2101,6 +2140,14 @@ export const AdminDashboardPage: React.FC = () => {
                                 {app.status === 'approved' ? 'Revoke' : 'Re-Approve'}
                               </button>
                             )}
+                            <button
+                              onClick={() => handleDeleteApplication('volunteer', app.id, `${app.full_name}`)}
+                              className="btn-action reject"
+                              style={{ color: '#dc2626', borderColor: '#fca5a5', backgroundColor: '#fef2f2' }}
+                              title="Delete / Remove from Database"
+                            >
+                              <Trash2 size={13} />
+                            </button>
                           </div>
                         </div>
                       </td>
@@ -2115,7 +2162,7 @@ export const AdminDashboardPage: React.FC = () => {
                     </td>
                   </tr>
                 ) : (
-                  filteredProjectSubs.map(sub => {
+                  paginatedProjectSubs.map(sub => {
                     let membersCount = 1;
                     try {
                       const parsed = JSON.parse(sub.members || '[]');
@@ -2288,7 +2335,7 @@ export const AdminDashboardPage: React.FC = () => {
                     </td>
                   </tr>
                 ) : (
-                  filteredHackathonRegs.map(reg => {
+                  paginatedHackathonRegs.map(reg => {
                     let membersCount = 1;
                     try {
                       const parsed = JSON.parse(reg.members || '[]');
@@ -2451,6 +2498,31 @@ export const AdminDashboardPage: React.FC = () => {
               )}
             </tbody>
           </table>
+
+          {/* Table Pagination (Prev / 1 2 3 ... / Next) */}
+          {(() => {
+            let total = 0;
+            let itemName = 'records';
+            if (activeTab === 'club') { total = filteredClubApps.length; itemName = 'club applications'; }
+            else if (activeTab === 'event') { total = filteredEventRegs.length; itemName = 'event registrations'; }
+            else if (activeTab === 'hackathon') { total = filteredHackathonRegs.length; itemName = 'hackathon teams'; }
+            else if (activeTab === 'recognition') { total = filteredRecognitionApps.length; itemName = 'judge recognitions'; }
+            else if (activeTab === 'volunteer') { total = filteredVolunteerApps.length; itemName = 'volunteer applications'; }
+            else if (activeTab === 'submission') { total = filteredProjectSubs.length; itemName = 'project submissions'; }
+
+            const totalPages = Math.ceil(total / PAGE_SIZE);
+
+            return (
+              <AdminPagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalRecords={total}
+                pageSize={PAGE_SIZE}
+                onPageChange={(p) => setCurrentPage(p)}
+                itemName={itemName}
+              />
+            );
+          })()}
         </div>
       )}
 

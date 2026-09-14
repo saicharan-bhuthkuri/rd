@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '../config';
 import { AdminLayout } from '../components/AdminLayout';
 import { Trash2, UserPlus } from 'lucide-react';
+import { AdminPagination } from '../components/AdminPagination';
 
 interface AdminUser {
   id: number;
@@ -16,6 +17,10 @@ export const AdminUsersPage: React.FC = () => {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+
+  // Pagination State (Prev / 1 2 3 ... / Next)
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 10;
 
   // Custom styled confirmation modal state
   const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; userId: number; username: string }>({
@@ -143,7 +148,7 @@ export const AdminUsersPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {users.map(user => {
+                {users.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE).map(user => {
                   const isSelf = user.username === activeUsername;
                   const isDev = user.role === 'developer';
                   const isSuper = user.role === 'superadmin';
@@ -187,6 +192,16 @@ export const AdminUsersPage: React.FC = () => {
                 })}
               </tbody>
             </table>
+
+            {/* Pagination Controls */}
+            <AdminPagination
+              currentPage={currentPage}
+              totalPages={Math.ceil(users.length / PAGE_SIZE)}
+              totalRecords={users.length}
+              pageSize={PAGE_SIZE}
+              onPageChange={(p) => setCurrentPage(p)}
+              itemName="administrators"
+            />
           </div>
         )}
       </div>

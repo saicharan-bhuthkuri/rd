@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../config';
 import { AdminLayout } from '../components/AdminLayout';
 import { Plus, Trash2, Layers, AlertCircle, Check } from 'lucide-react';
+import { AdminPagination } from '../components/AdminPagination';
 
 interface Branch {
   id: number;
@@ -16,6 +17,10 @@ export const AdminBranchesPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+
+  // Pagination State (Prev / 1 2 3 ... / Next)
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 10;
 
   // Dialog configurations for deletion confirm
   const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; branchId: number; branchName: string }>({
@@ -206,7 +211,7 @@ export const AdminBranchesPage: React.FC = () => {
                       </td>
                     </tr>
                   ) : (
-                    branches.map((b) => (
+                    branches.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE).map((b) => (
                       <tr key={b.id}>
                         <td>
                           <strong>{b.name}</strong>
@@ -234,6 +239,16 @@ export const AdminBranchesPage: React.FC = () => {
                   )}
                 </tbody>
               </table>
+
+              {/* Pagination Controls */}
+              <AdminPagination
+                currentPage={currentPage}
+                totalPages={Math.ceil(branches.length / PAGE_SIZE)}
+                totalRecords={branches.length}
+                pageSize={PAGE_SIZE}
+                onPageChange={(p) => setCurrentPage(p)}
+                itemName="branches"
+              />
             </div>
           </div>
 
