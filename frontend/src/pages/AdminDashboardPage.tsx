@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { API_BASE_URL } from '../config';
 import { AdminLayout } from '../components/AdminLayout';
+import { formatDisplayPhone } from '../utils/phone';
 import { Download, Check, X, Layers, Calendar, Mail, Loader2, Eye, Award, HeartHandshake, FolderUp, ExternalLink, FileText } from 'lucide-react';
 
 interface ProjectSubmission {
@@ -2034,7 +2035,7 @@ export const AdminDashboardPage: React.FC = () => {
                             Leader: {sub.leader_name}
                           </div>
                           <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                            {sub.leader_email} | {sub.leader_phone}
+                            {sub.leader_email} | {formatDisplayPhone(sub.leader_phone)}
                           </div>
                           {sub.institution && (
                             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
@@ -2177,7 +2178,7 @@ export const AdminDashboardPage: React.FC = () => {
                             Leader: {reg.leader_name}
                           </div>
                           <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                            {reg.leader_email} | {reg.leader_phone}
+                            {reg.leader_email} | {formatDisplayPhone(reg.leader_phone)}
                           </div>
                           <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                             Role: {reg.leader_role} {reg.leader_role === 'Student' ? `(${reg.leader_branch})` : `(${reg.leader_company})`}
@@ -2697,7 +2698,7 @@ export const AdminDashboardPage: React.FC = () => {
                   }}>
                     <div><strong>Name:</strong> {selectedHackathon.leader_name}</div>
                     <div><strong>Email:</strong> <a href={`mailto:${selectedHackathon.leader_email}`} style={{ color: 'var(--primary)', textDecoration: 'none' }}>{selectedHackathon.leader_email}</a></div>
-                    <div><strong>Phone:</strong> {selectedHackathon.leader_phone}</div>
+                    <div><strong>Phone:</strong> {formatDisplayPhone(selectedHackathon.leader_phone)}</div>
                     <div><strong>Role:</strong> {selectedHackathon.leader_role}</div>
                     {selectedHackathon.leader_role === 'Student' ? (
                       <>
@@ -3174,7 +3175,7 @@ export const AdminDashboardPage: React.FC = () => {
                     <div><strong>Team Name:</strong> {selectedSubmission.team_name}</div>
                     <div><strong>Team Leader:</strong> {selectedSubmission.leader_name}</div>
                     <div><strong>Leader Email:</strong> <a href={`mailto:${selectedSubmission.leader_email}`} style={{ color: 'var(--primary)', textDecoration: 'none' }}>{selectedSubmission.leader_email}</a></div>
-                    <div><strong>Leader Phone:</strong> {selectedSubmission.leader_phone}</div>
+                    <div><strong>Leader Phone:</strong> <a href={`tel:${selectedSubmission.leader_phone}`} style={{ color: 'var(--primary)', textDecoration: 'none' }}>{formatDisplayPhone(selectedSubmission.leader_phone)}</a></div>
                     {selectedSubmission.institution && (
                       <div style={{ gridColumn: 'span 2' }}><strong>College / Institution:</strong> {selectedSubmission.institution}</div>
                     )}

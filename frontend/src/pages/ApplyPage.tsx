@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useParams, useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '../config';
+import { formatDisplayPhone, getPhoneParts } from '../utils/phone';
 import { ArrowLeft, User, Mail, Phone, GraduationCap, Calendar, Sparkles, Check, CheckCircle2, Loader2, Code, Users, Server, ChevronDown, Plus, Trash2, AlertTriangle, Award, Briefcase, Building2, HeartHandshake, FolderUp, FileText, UploadCloud, ExternalLink, ShieldCheck } from 'lucide-react';
 
 type FormType = 'none' | 'join-club' | 'event' | 'hackathon' | 'recognition' | 'volunteer' | 'submission';
@@ -2798,11 +2799,31 @@ export const ApplyPage: React.FC = () => {
                               <span className="meta-label">Event:</span>
                               <span className="meta-value">{verifiedTeam.eventName}</span>
                             </div>
-                            <div className="team-meta-item">
-                              <span className="meta-label">Team Leader:</span>
-                              <span className="meta-value">{verifiedTeam.leaderName} ({verifiedTeam.leaderEmail} • {verifiedTeam.leaderPhone})</span>
+                            <div className="team-meta-item full-width team-leader-item">
+                              <span className="meta-label">Team Leader</span>
+                              <div className="leader-meta-content">
+                                <span className="leader-name-highlight">{verifiedTeam.leaderName}</span>
+                                <div className="leader-badges-wrap">
+                                  {verifiedTeam.leaderPhone && (() => {
+                                    const parts = getPhoneParts(verifiedTeam.leaderPhone);
+                                    return (
+                                      <a href={`tel:${verifiedTeam.leaderPhone}`} className="leader-contact-chip phone-chip" title="Call Team Leader">
+                                        <Phone size={13} className="chip-icon" />
+                                        <span className="phone-flag-prefix">{parts.countryCode}</span>
+                                        <span className="phone-number-part">{parts.localNumber}</span>
+                                      </a>
+                                    );
+                                  })()}
+                                  {verifiedTeam.leaderEmail && (
+                                    <a href={`mailto:${verifiedTeam.leaderEmail}`} className="leader-contact-chip email-chip" title="Email Team Leader">
+                                      <Mail size={13} className="chip-icon" />
+                                      <span>{verifiedTeam.leaderEmail}</span>
+                                    </a>
+                                  )}
+                                </div>
+                              </div>
                             </div>
-                            <div className="team-meta-item">
+                            <div className="team-meta-item full-width">
                               <span className="meta-label">College / Institution:</span>
                               <span className="meta-value">{verifiedTeam.institution}</span>
                             </div>
@@ -2812,7 +2833,7 @@ export const ApplyPage: React.FC = () => {
                                 <div className="team-members-chips">
                                   {verifiedTeam.members.map((m: any, idx: number) => (
                                     <span key={idx} className="member-chip">
-                                      {m.fullName || m.name || `Member ${idx + 1}`} ({m.role || 'Member'})
+                                      {m.fullName || m.name || `Member ${idx + 1}`} ({m.role || 'Member'}{m.phone ? ` • ${formatDisplayPhone(m.phone)}` : ''})
                                     </span>
                                   ))}
                                 </div>
