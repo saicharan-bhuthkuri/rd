@@ -2292,6 +2292,71 @@ app.post('/api/admin/applications/status', authenticateToken, async (req: Authen
   }
 });
 
+// Delete Application / Submission Record (Requires Admin or higher)
+async function deleteApplicationRecord(type: string, id: number | string, username: string) {
+  let tableName = 'club_applications';
+  if (type === 'event') tableName = 'event_registrations';
+  if (type === 'hackathon') tableName = 'hackathon_registrations';
+  if (type === 'recognition') tableName = 'recognition_applications';
+  if (type === 'volunteer') tableName = 'volunteer_applications';
+  if (type === 'project-submission' || type === 'submission') tableName = 'project_submissions';
+
+  const nameField = (type === 'hackathon' || type === 'project-submission' || type === 'submission') ? 'leader_name' : 'full_name';
+  const checkRes = await db.execute({
+    sql: `SELECT ${nameField} AS name FROM ${tableName} WHERE id = ?`,
+    args: [id]
+  });
+
+  if (checkRes.rows.length === 0) {
+    throw new Error("Record not found.");
+  }
+
+  const recordName = checkRes.rows[0].name;
+
+  await db.execute({
+    sql: `DELETE FROM ${tableName} WHERE id = ?`,
+    args: [id]
+  });
+
+  await db.execute({
+    sql: "INSERT INTO activity_logs (username, action, details) VALUES (?, ?, ?)",
+    args: [
+      username || 'admin',
+      "Delete Application Record",
+      `Deleted ${type} record (ID: ${id}, Name/Leader: ${recordName}) from ${tableName}`
+    ]
+  });
+
+  notifySyncClients("REFRESH_APPLICATIONS");
+  notifySyncClients("REFRESH_SUBMISSIONS");
+  return { success: true, recordName, tableName };
+}
+
+app.delete('/api/admin/applications/:type/:id', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { type, id } = req.params;
+    const result = await deleteApplicationRecord(type, id, req.user?.username || 'admin');
+    return res.status(200).json({ success: true, message: `Successfully deleted record #${id}.` });
+  } catch (err: any) {
+    console.error("Error deleting application record:", err);
+    return res.status(err.message === "Record not found." ? 404 : 500).json({ error: err.message });
+  }
+});
+
+app.post('/api/admin/applications/delete', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { type, id } = req.body;
+    if (!type || !id) {
+      return res.status(400).json({ error: "Type and ID are required." });
+    }
+    const result = await deleteApplicationRecord(type, id, req.user?.username || 'admin');
+    return res.status(200).json({ success: true, message: `Successfully deleted record #${id}.` });
+  } catch (err: any) {
+    console.error("Error deleting application record:", err);
+    return res.status(err.message === "Record not found." ? 404 : 500).json({ error: err.message });
+  }
+});
+
 // 8. List Admin Users (Requires Super Admin or higher)
 app.get('/api/admin/users', authenticateToken, async (req: AuthenticatedRequest, res) => {
   if (req.user?.role !== 'developer' && req.user?.role !== 'superadmin') {

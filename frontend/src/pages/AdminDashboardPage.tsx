@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { API_BASE_URL } from '../config';
 import { AdminLayout } from '../components/AdminLayout';
 import { formatDisplayPhone } from '../utils/phone';
-import { Download, Check, X, Layers, Calendar, Mail, Loader2, Eye, Award, HeartHandshake, FolderUp, ExternalLink, FileText } from 'lucide-react';
+import { Download, Check, X, Layers, Calendar, Mail, Loader2, Eye, Award, HeartHandshake, FolderUp, ExternalLink, FileText, Trash2 } from 'lucide-react';
 
 interface ProjectSubmission {
   id: number;
@@ -726,6 +726,41 @@ export const AdminDashboardPage: React.FC = () => {
       }
 
       // Re-fetch to update states
+      fetchApplications();
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  // Delete application / submission action
+  const handleDeleteApplication = async (type: 'club' | 'event' | 'hackathon' | 'recognition' | 'volunteer' | 'project-submission', id: number, labelName?: string) => {
+    const confirmMsg = labelName 
+      ? `Are you sure you want to permanently remove "${labelName}" from the database? This cannot be undone.`
+      : `Are you sure you want to permanently remove this record (ID: ${id}) from the database? This cannot be undone.`;
+
+    if (!window.confirm(confirmMsg)) return;
+
+    const token = localStorage.getItem('admin_token');
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/admin/applications/${type}/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to delete record.');
+      }
+
+      if (selectedSubmission?.id === id) {
+        setSelectedSubmission(null);
+      }
+      if (selectedHackathon?.id === id) {
+        setSelectedHackathon(null);
+      }
+
       fetchApplications();
     } catch (err: any) {
       alert(err.message);
@@ -2111,7 +2146,7 @@ export const AdminDashboardPage: React.FC = () => {
                           <span className={`status-pill status-${sub.status}`}>{sub.status}</span>
                         </td>
                         <td>
-                          <div className="actions-cell">
+                          <div className="actions-cell" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                             {(sub.status === 'pending' || sub.status === 'submitted') ? (
                               <>
                                 <button
@@ -2138,6 +2173,14 @@ export const AdminDashboardPage: React.FC = () => {
                                 {sub.status === 'approved' ? 'Mark Rejected' : 'Re-Approve'}
                               </button>
                             )}
+                            <button
+                              onClick={() => handleDeleteApplication('project-submission', sub.id, `Team ${sub.team_name} submission`)}
+                              className="btn-action reject"
+                              style={{ color: '#dc2626', borderColor: '#fca5a5', backgroundColor: '#fef2f2' }}
+                              title="Delete / Remove from Database"
+                            >
+                              <Trash2 size={13} />
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -2213,16 +2256,34 @@ export const AdminDashboardPage: React.FC = () => {
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', alignItems: 'flex-start' }}>
                             <span className={`status-pill status-${reg.status}`}>{reg.status}</span>
                             
-                            {reg.status === 'pending' && (
-                              <div className="actions-cell" style={{ marginTop: '0.5rem' }}>
-                                <button onClick={() => handleUpdateStatus('hackathon', reg.id, 'approved')} className="btn-action approve" title="Approve Registration">
-                                  <Check size={14} />
+                            <div className="actions-cell" style={{ marginTop: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                              {reg.status === 'pending' ? (
+                                <>
+                                  <button onClick={() => handleUpdateStatus('hackathon', reg.id, 'approved')} className="btn-action approve" title="Approve Registration">
+                                    <Check size={14} />
+                                  </button>
+                                  <button onClick={() => handleUpdateStatus('hackathon', reg.id, 'rejected')} className="btn-action reject" title="Reject Registration">
+                                    <X size={14} />
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  onClick={() => handleUpdateStatus('hackathon', reg.id, reg.status === 'approved' ? 'rejected' : 'approved')}
+                                  className="btn btn-secondary btn-sm"
+                                  style={{ fontSize: '0.7rem', padding: '0.2rem 0.4rem' }}
+                                >
+                                  {reg.status === 'approved' ? 'Reject' : 'Approve'}
                                 </button>
-                                <button onClick={() => handleUpdateStatus('hackathon', reg.id, 'rejected')} className="btn-action reject" title="Reject Registration">
-                                  <X size={14} />
-                                </button>
-                              </div>
-                            )}
+                              )}
+                              <button
+                                onClick={() => handleDeleteApplication('hackathon', reg.id, `Team ${reg.team_name}`)}
+                                className="btn-action reject"
+                                style={{ color: '#dc2626', borderColor: '#fca5a5', backgroundColor: '#fef2f2' }}
+                                title="Delete Team from Database"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
                           </div>
                         </td>
                         <td colSpan={2}>
@@ -3323,6 +3384,16 @@ export const AdminDashboardPage: React.FC = () => {
                       style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', color: '#dc2626' }}
                     >
                       <X size={14} /> Reject Submission
+                    </button>
+                    <button
+                      onClick={() => {
+                        handleDeleteApplication('project-submission', selectedSubmission.id, `Team ${selectedSubmission.team_name} submission`);
+                      }}
+                      className="btn btn-secondary btn-sm"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', color: '#dc2626', borderColor: '#fca5a5', backgroundColor: '#fef2f2' }}
+                      title="Delete from Database"
+                    >
+                      <Trash2 size={14} /> Delete from DB
                     </button>
                   </div>
                 </div>
