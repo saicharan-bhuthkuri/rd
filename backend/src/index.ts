@@ -688,6 +688,21 @@ async function setupDatabase() {
       } else {
         console.warn("Warning: Template 'CERTIFICATE_TEMPLATE - Recognition .pptx' not found. Skipping sync.");
       }
+
+      // 2f. Volunteer Certificate
+      const volunteerCertPath = findTemplateFile('CERTIFICATE_TEMPLATE - Volunteers.pptx') || findTemplateFile('CERTIFICATE_TEMPLATE - Volunteers .pptx');
+      if (volunteerCertPath) {
+        console.log(`Syncing/updating 'certificate_volunteer' template into database from ${volunteerCertPath}...`);
+        const fileData = fs.readFileSync(volunteerCertPath);
+        const base64 = fileData.toString('base64');
+        await db.execute({
+          sql: "INSERT OR REPLACE INTO templates (name, filename, data_base64) VALUES (?, ?, ?)",
+          args: ["certificate_volunteer", "CERTIFICATE_TEMPLATE - Volunteers.pptx", base64]
+        });
+        console.log("Template 'certificate_volunteer' synced successfully.");
+      } else {
+        console.warn("Warning: Template 'CERTIFICATE_TEMPLATE - Volunteers.pptx' not found. Skipping sync.");
+      }
     } catch (e: any) {
       console.error("Error seeding/syncing templates:", e.message);
     }
@@ -3351,6 +3366,234 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`
   }
 });
 
+// 18. Bulk Send Certificates to Approved Volunteers
+app.post('/api/admin/bulk-send/volunteer-certificates', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  const { eventTitle, volunteerRole } = req.body;
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  const sendLog = (message: string, progress: number, isDone = false) => {
+    res.write(`data: ${JSON.stringify({ message, progress, isDone })}\n\n`);
+  };
+
+  try {
+    sendLog("Initializing email and template services...", 5);
+
+    // 1. Fetch template from DB
+    const templateRes = await db.execute({
+      sql: "SELECT data_base64 FROM templates WHERE name = ?",
+      args: ["certificate_volunteer"]
+    });
+
+    if (templateRes.rows.length === 0) {
+      res.write(`data: ${JSON.stringify({ error: "Certificate of Volunteering template not found in database." })}\n\n`);
+      res.end();
+      return;
+    }
+
+    const templateBase64 = templateRes.rows[0].data_base64 as string;
+    const templateBuffer = Buffer.from(templateBase64, 'base64');
+
+    sendLog("Fetching approved volunteer records...", 10);
+
+    // 2. Fetch approved applications where certificate_sent = 0
+    let querySql = "SELECT * FROM volunteer_applications WHERE status = 'approved' AND (certificate_sent = 0 OR certificate_sent IS NULL)";
+    const queryArgs: any[] = [];
+    if (eventTitle && eventTitle !== 'all') {
+      querySql += " AND event_name = ?";
+      queryArgs.push(eventTitle);
+    }
+    if (volunteerRole && volunteerRole !== 'all') {
+      querySql += " AND volunteer_role = ?";
+      queryArgs.push(volunteerRole);
+    }
+    querySql += " ORDER BY id ASC";
+
+    const appsRes = await db.execute({
+      sql: querySql,
+      args: queryArgs
+    });
+
+    const applications = appsRes.rows;
+
+    if (applications.length === 0) {
+      sendLog(eventTitle && eventTitle !== 'all'
+        ? `No approved volunteers pending certificates found for: ${eventTitle}.`
+        : "No approved volunteers pending certificates found.", 100, true);
+      res.end();
+      return;
+    }
+
+    sendLog(`Found ${applications.length} approved volunteers pending certificates. Starting dispatch...`, 15);
+
+    let successCount = 0;
+
+    // 3. Generate customized PPTX files on disk
+    sendLog("Generating customized PowerPoint templates...", 20);
+    const tasks = applications.map((app: any) => {
+      const id = app.id as number;
+      const volunteerName = app.full_name as string;
+      const recipientEmail = app.email as string;
+      const eventName = app.event_name || 'R&D Technical Symposium';
+      const eventDate = 'September 14, 2026';
+      const volunteerRole = app.volunteer_role as string;
+
+      const safeName = volunteerName.replace(/[^a-zA-Z0-9_\s]/g, '').trim();
+      const tempPptx = path.join(process.cwd(), `Volunteer_Cert_${safeName}_${id}.pptx`);
+      const pdfFilename = path.join(process.cwd(), `Volunteer_Cert_${safeName}_${id}.pdf`);
+
+      const uniqueSuffix = crypto.randomBytes(4).toString('hex').toUpperCase();
+      const certId = `TCEK/RD/2026/VOL-${uniqueSuffix}`;
+
+      const replacements: Record<string, string> = {
+        "{{ Volunteer's Full Name }}": volunteerName,
+        "{{Volunteer's Full Name}}": volunteerName,
+        "Volunteer's Full Name": volunteerName,
+        "{{PARTICIPANT NAME}}": volunteerName,
+        "{{EVENT NAME}}": eventName,
+        "{{DATE}}": eventDate,
+        "{{CERTIFICATE ID}}": certId,
+        "Certificate ID : TCEK/RD/2026/H0001": `Certificate ID : ${certId}`,
+        "TCEK/RD/2026/H0001": certId,
+        "[[ Volunteer's Full Name ]]": volunteerName,
+        "[[Volunteer's Full Name]]": volunteerName,
+        "[[EVENT NAME]]": eventName,
+        "[[DATE]]": eventDate,
+        "[[CERTIFICATE ID]]": certId
+      };
+
+      replacePlaceholdersInPptx(templateBuffer, tempPptx, replacements);
+
+      return {
+        id,
+        volunteerName,
+        recipientEmail,
+        eventName,
+        eventDate,
+        volunteerRole,
+        safeName,
+        tempPptx,
+        pdfFilename,
+        certId
+      };
+    });
+
+    // 4. Batch convert PPTX to PDF using LibreOffice
+    sendLog("Converting templates to PDF in batch...", 30);
+    const pptxPaths = tasks.map(t => t.tempPptx);
+    await convertPptxToPdfBatch(pptxPaths, process.cwd());
+
+    // 5. Dispatch emails concurrently
+    sendLog("Dispatching emails to student volunteers...", 50);
+    let completedTasks = 0;
+
+    const emailConcurrency = process.env.GMAIL_HTTP_PROXY_URL ? 1 : 5;
+    await runWithConcurrency(tasks, emailConcurrency, async (task) => {
+      const { id, volunteerName, recipientEmail, eventName, eventDate, volunteerRole, safeName, tempPptx, pdfFilename, certId } = task;
+      const progressValBefore = Math.floor(50 + (completedTasks / tasks.length) * 45);
+      sendLog(`Sending certificate to ${volunteerName}...`, progressValBefore);
+
+      const mailOptions = {
+        from: SENDER_EMAIL,
+        to: recipientEmail,
+        subject: `Certificate of Appreciation | Volunteer - ${eventName}`,
+        text: `Dear ${volunteerName},
+
+We sincerely appreciate your dedicated service, active participation, and valuable contribution as an official Volunteer for ${eventName}, organized by Trinity College of Engineering and Technology, Peddapalli, and held on ${eventDate}.
+
+Your dedication, teamwork, and valuable support contributed significantly to the successful conduct of the event. We sincerely appreciate your enthusiasm, cooperation, and contribution.
+
+Please find attached your official Certificate of Appreciation (Certificate_${safeName}.pdf).
+Certificate ID: ${certId}
+
+With sincere appreciation and best wishes,
+
+R&D Cell
+Trinity College of Engineering & Technology (Autonomous), Peddapalli`
+      };
+
+      try {
+        if (!fs.existsSync(pdfFilename)) {
+          throw new Error("PDF file generation failed.");
+        }
+
+        if (process.env.GMAIL_HTTP_PROXY_URL) {
+          const attachmentContent = fs.readFileSync(pdfFilename);
+          const attachmentBase64 = attachmentContent.toString('base64');
+          const payload = {
+            to: recipientEmail,
+            subject: mailOptions.subject,
+            text: mailOptions.text,
+            attachments: [
+              {
+                filename: `Certificate_${safeName}.pdf`,
+                base64: attachmentBase64,
+                mimeType: 'application/pdf'
+              }
+            ]
+          };
+          await new Promise(r => setTimeout(r, 600));
+          const proxyRes = await postToAppsScript(process.env.GMAIL_HTTP_PROXY_URL, payload);
+          if (!proxyRes.success) {
+            throw new Error(`Google Apps Script Proxy failed: ${proxyRes.error}`);
+          }
+        } else {
+          await transporter.sendMail({
+            ...mailOptions,
+            attachments: [
+              {
+                filename: `Certificate_${safeName}.pdf`,
+                path: pdfFilename
+              }
+            ]
+          });
+        }
+
+        // Update database
+        await db.execute({
+          sql: "UPDATE volunteer_applications SET certificate_sent = 1, certificate_id = ? WHERE id = ?",
+          args: [certId, id]
+        });
+
+        // Log Activity
+        await db.execute({
+          sql: "INSERT INTO activity_logs (username, action, details) VALUES (?, ?, ?)",
+          args: [
+            req.user?.username || 'unknown',
+            "Send Volunteer Certificate",
+            `Dispatched Volunteer Certificate for "${eventName}" to Volunteer ${volunteerName} (${recipientEmail}) [Cert ID: ${certId}]`
+          ]
+        });
+
+        successCount++;
+      } catch (err: any) {
+        console.error(`Failed to process volunteer certificate for ${volunteerName}:`, err.message);
+        sendLog(`Failed for ${volunteerName}: ${err.message}`, Math.floor(50 + ((completedTasks + 1) / tasks.length) * 45));
+      } finally {
+        completedTasks++;
+        const progressValAfter = Math.floor(50 + (completedTasks / tasks.length) * 45);
+        sendLog(`Completed: ${volunteerName}`, progressValAfter);
+
+        // Cleanup temp files
+        if (fs.existsSync(tempPptx)) fs.unlinkSync(tempPptx);
+        if (fs.existsSync(pdfFilename)) fs.unlinkSync(pdfFilename);
+      }
+    });
+
+    notifySyncClients("REFRESH_APPLICATIONS");
+    sendLog(`Successfully sent ${successCount} volunteer certificates.`, 95);
+    sendLog("Process completed successfully.", 100, true);
+    res.end();
+  } catch (err: any) {
+    console.error("Bulk volunteer certificates error:", err);
+    res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+    res.end();
+  }
+});
+
 // Debug route to list installed fonts
 app.get('/api/debug-fonts', authenticateToken, async (req, res) => {
   if (process.env.NODE_ENV === 'production') {
@@ -3561,6 +3804,7 @@ app.get('/api/verify-certificate/*', sensitiveLimiter, async (req, res) => {
     let reg;
     let isHackathon = false;
     let isRecognition = false;
+    let isVolunteer = false;
     if (parsedId !== null) {
       // Legacy fallback: only match by id if the database row does NOT contain a hyphen/suffix in its certificate_id
       const evRes = await db.execute({
@@ -3603,6 +3847,18 @@ app.get('/api/verify-certificate/*', sensitiveLimiter, async (req, res) => {
         isRecognition = true;
       }
     }
+
+    if (!reg) {
+      // Check volunteer_applications table
+      const volRes = await db.execute({
+        sql: "SELECT * FROM volunteer_applications WHERE certificate_id = ? AND certificate_sent = 1",
+        args: [certificateId]
+      });
+      if (volRes.rows.length > 0) {
+        reg = volRes.rows[0];
+        isVolunteer = true;
+      }
+    }
     
     if (!reg) {
       if (isPdf) {
@@ -3612,12 +3868,18 @@ app.get('/api/verify-certificate/*', sensitiveLimiter, async (req, res) => {
     }
     
     const studentName = isHackathon ? (reg.participant_name as string) : (reg.full_name as string);
-    const eventTitle = isHackathon ? (reg.hackathon_name as string) : (reg.event_name as string);
-    const actionText = isHackathon 
-      ? (reg.certificate_type as string || 'Participation') 
-      : isRecognition 
-        ? 'Certificate of Recognition (Official Judge)' 
-        : (reg.status || 'Participation');
+    const eventTitle = isHackathon 
+      ? (reg.hackathon_name as string) 
+      : isVolunteer 
+        ? (reg.event_name as string || 'R&D Technical Symposium')
+        : (reg.event_name as string);
+    const actionText = isVolunteer
+      ? 'Certificate of Appreciation (Official Volunteer)'
+      : isHackathon 
+        ? (reg.certificate_type as string || 'Participation') 
+        : isRecognition 
+          ? 'Certificate of Recognition (Official Judge)' 
+          : (reg.status || 'Participation');
     const id = reg.id as number;
 
     // Fetch event details to get the exact event date
@@ -3625,16 +3887,23 @@ app.get('/api/verify-certificate/*', sensitiveLimiter, async (req, res) => {
       sql: "SELECT date FROM events WHERE title = ?",
       args: [eventTitle]
     });
-    const eventDate = eventRes.rows.length > 0 
-      ? eventRes.rows[0].date as string 
-      : (reg.event_date || (isHackathon ? 'September 11-13, 2026' : '03 August 2026'));
+    const eventDate = isVolunteer
+      ? 'September 14, 2026'
+      : (eventRes.rows.length > 0 
+          ? eventRes.rows[0].date as string 
+          : (reg.event_date || (isHackathon ? 'September 11-13, 2026' : '03 August 2026')));
 
     const certId = reg.certificate_id || `TCEK/RD/2026/${String(id).padStart(4, '0')}`;
 
     if (isPdf) {
       // Compile and stream the original PDF certificate
       let templateRes;
-      if (isRecognition) {
+      if (isVolunteer) {
+        templateRes = await db.execute({
+          sql: "SELECT data_base64 FROM templates WHERE name = ?",
+          args: ["certificate_volunteer"]
+        });
+      } else if (isRecognition) {
         templateRes = await db.execute({
           sql: "SELECT data_base64 FROM templates WHERE name = ?",
           args: ["certificate_recognition"]
@@ -3685,7 +3954,24 @@ app.get('/api/verify-certificate/*', sensitiveLimiter, async (req, res) => {
       const tempPdf = path.join(process.cwd(), `Verify_Temp_${safeName}_${id}.pdf`);
 
       let replacements: Record<string, string>;
-      if (isRecognition) {
+      if (isVolunteer) {
+        replacements = {
+          "{{ Volunteer's Full Name }}": String(studentName),
+          "{{Volunteer's Full Name}}": String(studentName),
+          "Volunteer's Full Name": String(studentName),
+          "{{PARTICIPANT NAME}}": String(studentName),
+          "{{EVENT NAME}}": String(eventTitle),
+          "{{DATE}}": String(eventDate),
+          "{{CERTIFICATE ID}}": String(certId),
+          "Certificate ID : TCEK/RD/2026/H0001": `Certificate ID : ${certId}`,
+          "TCEK/RD/2026/H0001": String(certId),
+          "[[ Volunteer's Full Name ]]": String(studentName),
+          "[[Volunteer's Full Name]]": String(studentName),
+          "[[EVENT NAME]]": String(eventTitle),
+          "[[DATE]]": String(eventDate),
+          "[[CERTIFICATE ID]]": String(certId)
+        };
+      } else if (isRecognition) {
         replacements = {
           "{{ Judge's Full Name }}": String(studentName),
           "{{Judge's Full Name}}": String(studentName),
@@ -3766,12 +4052,12 @@ app.get('/api/verify-certificate/*', sensitiveLimiter, async (req, res) => {
         data: {
           id: reg.id,
           fullName: isHackathon ? (reg.participant_name as string) : (reg.full_name as string),
-          pinNumber: isRecognition ? (reg.designation as string) : isHackathon ? (reg.participant_phone as string || 'N/A') : (reg.pin_number as string),
+          pinNumber: isRecognition ? (reg.designation as string) : isVolunteer ? (reg.pin_number as string || 'N/A') : isHackathon ? (reg.participant_phone as string || 'N/A') : (reg.pin_number as string),
           email: reg.email || reg.participant_email,
           branch: isRecognition ? (reg.organization as string) : isHackathon ? (reg.branch as string || 'N/A') : (reg.branch as string),
-          yearOfStudy: isRecognition ? (reg.domain_expertise || 'Official Judge / Evaluator') : isHackathon ? (reg.year as string || 'N/A') : (reg.year_of_study as string),
-          section: isRecognition ? reg.organization : isHackathon ? `Team: ${reg.team_name}` : reg.section,
-          eventName: isHackathon ? (reg.hackathon_name as string) : (reg.event_name as string),
+          yearOfStudy: isRecognition ? (reg.domain_expertise || 'Official Judge / Evaluator') : isVolunteer ? (reg.year_of_study || 'Student Volunteer') : isHackathon ? (reg.year as string || 'N/A') : (reg.year_of_study as string),
+          section: isRecognition ? reg.organization : isVolunteer ? (reg.volunteer_role || reg.section || 'Volunteer') : isHackathon ? `Team: ${reg.team_name}` : reg.section,
+          eventName: isHackathon ? (reg.hackathon_name as string) : isVolunteer ? (reg.event_name as string || 'R&D Technical Symposium') : (reg.event_name as string),
           status: isHackathon ? `${reg.role} (${actionText})` : actionText,
           certificateId: certId,
           eventDate: eventDate,

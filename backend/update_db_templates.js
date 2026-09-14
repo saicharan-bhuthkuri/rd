@@ -91,6 +91,23 @@ async function run() {
       console.warn(`Warning: Recognition template not found at ${recognitionPath}`);
     }
 
+    // 5. Load CERTIFICATE_TEMPLATE - Volunteers.pptx
+    const volunteerPath = fs.existsSync(path.join(__dirname, '../CERTIFICATE_TEMPLATE - Volunteers.pptx'))
+      ? path.join(__dirname, '../CERTIFICATE_TEMPLATE - Volunteers.pptx')
+      : path.join(__dirname, 'CERTIFICATE_TEMPLATE - Volunteers.pptx');
+    if (fs.existsSync(volunteerPath)) {
+      console.log(`Reading ${volunteerPath}...`);
+      const volunteerData = fs.readFileSync(volunteerPath);
+      const volunteerBase64 = volunteerData.toString('base64');
+      await db.execute({
+        sql: `INSERT OR REPLACE INTO templates (name, filename, data_base64, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)`,
+        args: ["certificate_volunteer", "CERTIFICATE_TEMPLATE - Volunteers.pptx", volunteerBase64]
+      });
+      console.log("Successfully updated template 'certificate_volunteer'.");
+    } else {
+      console.warn(`Warning: Volunteer template not found at ${volunteerPath}`);
+    }
+
     console.log("All templates updated successfully!");
   } catch (error) {
     console.error("Failed to update database templates:", error);

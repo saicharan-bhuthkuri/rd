@@ -593,6 +593,91 @@ export const AdminDashboardPage: React.FC = () => {
     );
   };
 
+  const executeBulkSendVolunteerCertificates = async () => {
+    // Reset console states
+    setConsoleLogs([]);
+    setConsoleProgress(0);
+    setConsoleStatus('running');
+    setConsoleTitle("Bulk Dispatch: All Approved Volunteer Certificates");
+    setIsConsoleOpen(true);
+    setIsSendingBulk(true);
+
+    const token = localStorage.getItem('admin_token');
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/admin/bulk-send/volunteer-certificates`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({})
+      });
+
+      if (!response.ok) {
+        const errBody = await response.json().catch(() => null);
+        const errMsg = errBody?.error || errBody?.message || 'Failed to establish stream connection.';
+        throw new Error(`${errMsg} (Status: ${response.status})`);
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('Readable stream not supported.');
+      }
+
+      const decoder = new TextDecoder();
+      let partialChunk = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = (partialChunk + chunk).split('\n\n');
+        partialChunk = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.error) {
+                setConsoleLogs(prev => [...prev, `[ERROR] ${data.error}`]);
+                setConsoleStatus('failed');
+              } else {
+                if (data.message) {
+                  setConsoleLogs(prev => [...prev, data.message]);
+                }
+                if (data.progress !== undefined) {
+                  setConsoleProgress(data.progress);
+                }
+                if (data.isDone) {
+                  setConsoleStatus('completed');
+                }
+              }
+            } catch (e) {
+              console.error("JSON parse error on SSE line:", line, e);
+            }
+          }
+        }
+      }
+
+      fetchApplications();
+    } catch (err: any) {
+      setConsoleLogs(prev => [...prev, `[ERROR] ${err.message}`]);
+      setConsoleStatus('failed');
+    } finally {
+      setIsSendingBulk(false);
+    }
+  };
+
+  const handleBulkSendVolunteerCertificates = () => {
+    showCustomConfirm(
+      "Send Volunteer Certificates",
+      "Are you sure you want to generate and dispatch official volunteer certificates of appreciation to ALL approved student volunteers who haven't received them yet?",
+      executeBulkSendVolunteerCertificates
+    );
+  };
+
   // Update status action
   const handleUpdateStatus = async (type: 'club' | 'event' | 'hackathon' | 'hackathon-certificate-type' | 'recognition' | 'volunteer', id: number, status: string) => {
     const token = localStorage.getItem('admin_token');
@@ -724,7 +809,10 @@ export const AdminDashboardPage: React.FC = () => {
     const matchesStatus = statusFilter === 'all' || app.status === statusFilter;
     const matchesBranch = branchFilter === 'all' || app.branch.toUpperCase() === branchFilter.toUpperCase();
     const matchesRole = volunteerRoleFilter === 'all' || app.volunteer_role === volunteerRoleFilter;
-    return matchesSearch && matchesStatus && matchesBranch && matchesRole;
+    const matchesCertSent = certSentFilter === 'all' ||
+      (certSentFilter === 'sent' && app.certificate_sent === 1) ||
+      (certSentFilter === 'pending' && (!app.certificate_sent || app.certificate_sent === 0));
+    return matchesSearch && matchesStatus && matchesBranch && matchesRole && matchesCertSent;
   });
 
   // Calculate quick metrics
@@ -1058,7 +1146,7 @@ export const AdminDashboardPage: React.FC = () => {
             </select>
           )}
 
-          {activeTab === 'recognition' && (
+          {(activeTab === 'recognition' || activeTab === 'volunteer') && (
             <select
               className="admin-filter-select"
               value={certSentFilter}
@@ -1224,6 +1312,33 @@ export const AdminDashboardPage: React.FC = () => {
             </button>
           )}
 
+          {activeTab === 'volunteer' && (
+            <button 
+              onClick={handleBulkSendVolunteerCertificates} 
+              disabled={isSendingBulk}
+              className="btn btn-primary"
+              style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '0.5rem', 
+                fontSize: '0.875rem', 
+                padding: '0.575rem 1rem', 
+                borderRadius: '0.375rem', 
+                cursor: 'pointer'
+              }}
+            >
+              {isSendingBulk ? (
+                <>
+                  <Loader2 className="spinner-icon" size={16} /> Processing Dispatch...
+                </>
+              ) : (
+                <>
+                  <HeartHandshake size={16} /> Bulk Send Volunteer Certificates
+                </>
+              )}
+            </button>
+          )}
+
           <button onClick={handleExportCSV} className="admin-btn-export" style={{ height: '38px', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Download size={16} />
             <span>Export CSV</span>
@@ -1275,7 +1390,7 @@ export const AdminDashboardPage: React.FC = () => {
                   <th>Role & Event Track</th>
                   <th>Skills & Availability</th>
                   <th>Status</th>
-                  <th>Actions</th>
+                  <th colSpan={2}>Volunteer Certificate & Actions</th>
                 </tr>
               ) : (
                 <tr>
@@ -1607,7 +1722,7 @@ export const AdminDashboardPage: React.FC = () => {
               ) : activeTab === 'volunteer' ? (
                 filteredVolunteerApps.length === 0 ? (
                   <tr>
-                    <td colSpan={6} style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--text-muted)' }}>
+                    <td colSpan={7} style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--text-muted)' }}>
                       No volunteer applications match the filter criteria.
                     </td>
                   </tr>
@@ -1615,7 +1730,30 @@ export const AdminDashboardPage: React.FC = () => {
                   filteredVolunteerApps.map(app => (
                     <tr key={app.id}>
                       <td>
-                        <strong>{app.full_name}</strong>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          <strong>{app.full_name}</strong>
+                          {app.certificate_sent === 1 ? (
+                            <span style={{
+                              fontSize: '0.625rem',
+                              fontWeight: 700,
+                              color: '#047857',
+                              backgroundColor: '#ecfdf5',
+                              padding: '0.125rem 0.375rem',
+                              borderRadius: '4px',
+                              textTransform: 'uppercase'
+                            }}>Sent</span>
+                          ) : app.status === 'approved' ? (
+                            <span style={{
+                              fontSize: '0.625rem',
+                              fontWeight: 700,
+                              color: '#b45309',
+                              backgroundColor: '#fffbeb',
+                              padding: '0.125rem 0.375rem',
+                              borderRadius: '4px',
+                              textTransform: 'uppercase'
+                            }}>Pending Send</span>
+                          ) : null}
+                        </div>
                         <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.125rem' }}>
                           PIN: {app.pin_number} | {app.email}
                         </div>
@@ -1664,26 +1802,69 @@ export const AdminDashboardPage: React.FC = () => {
                       <td>
                         <span className={`status-pill status-${app.status}`}>{app.status}</span>
                       </td>
-                      <td>
-                        <div className="actions-cell">
-                          {app.status === 'pending' ? (
-                            <>
-                              <button onClick={() => handleUpdateStatus('volunteer', app.id, 'approved')} className="btn-action approve" title="Approve Volunteer">
-                                <Check size={14} />
-                              </button>
-                              <button onClick={() => handleUpdateStatus('volunteer', app.id, 'rejected')} className="btn-action reject" title="Reject Application">
-                                <X size={14} />
-                              </button>
-                            </>
+                      <td colSpan={2}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                          {app.certificate_sent === 1 ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem', alignItems: 'flex-start' }}>
+                              <span style={{
+                                fontSize: '0.75rem',
+                                color: 'var(--text-muted)',
+                                fontFamily: 'monospace',
+                                backgroundColor: 'rgba(15, 15, 15, 0.06)',
+                                padding: '0.125rem 0.375rem',
+                                borderRadius: '4px',
+                                fontWeight: 600
+                              }}>
+                                {app.certificate_id}
+                              </span>
+                              <a 
+                                href={`/verify?id=${encodeURIComponent(app.certificate_id || '')}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="btn btn-secondary btn-sm"
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.25rem 0.5rem', fontSize: '0.75rem', textDecoration: 'none' }}
+                              >
+                                <Eye size={12} /> Verify Certificate
+                              </a>
+                            </div>
+                          ) : app.status === 'approved' ? (
+                            <span style={{
+                              fontSize: '0.75rem',
+                              color: '#b45309',
+                              backgroundColor: '#fffbeb',
+                              padding: '0.25rem 0.5rem',
+                              borderRadius: '4px',
+                              fontWeight: 500,
+                              display: 'inline-block'
+                            }}>
+                              Ready for Dispatch
+                            </span>
                           ) : (
-                            <button
-                              onClick={() => handleUpdateStatus('volunteer', app.id, app.status === 'approved' ? 'rejected' : 'approved')}
-                              className="btn btn-secondary btn-sm"
-                              style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
-                            >
-                              {app.status === 'approved' ? 'Revoke' : 'Re-Approve'}
-                            </button>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                              Approval Required
+                            </span>
                           )}
+
+                          <div className="actions-cell">
+                            {app.status === 'pending' ? (
+                              <>
+                                <button onClick={() => handleUpdateStatus('volunteer', app.id, 'approved')} className="btn-action approve" title="Approve Volunteer">
+                                  <Check size={14} />
+                                </button>
+                                <button onClick={() => handleUpdateStatus('volunteer', app.id, 'rejected')} className="btn-action reject" title="Reject Application">
+                                  <X size={14} />
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                onClick={() => handleUpdateStatus('volunteer', app.id, app.status === 'approved' ? 'rejected' : 'approved')}
+                                className="btn btn-secondary btn-sm"
+                                style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+                              >
+                                {app.status === 'approved' ? 'Revoke' : 'Re-Approve'}
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </td>
                     </tr>
@@ -2549,6 +2730,21 @@ export const AdminDashboardPage: React.FC = () => {
                   <div><strong>Email:</strong> <a href={`mailto:${selectedVolunteer.email}`} style={{ color: 'var(--primary)', textDecoration: 'none' }}>{selectedVolunteer.email}</a></div>
                   <div><strong>Mobile:</strong> {selectedVolunteer.mobile}</div>
                   <div><strong>Status:</strong> <span className={`status-pill status-${selectedVolunteer.status}`}>{selectedVolunteer.status}</span></div>
+                  <div><strong>Certificate Sent:</strong> {selectedVolunteer.certificate_sent === 1 ? 'Yes' : 'Pending'}</div>
+                  {selectedVolunteer.certificate_id && (
+                    <div style={{ gridColumn: 'span 2' }}>
+                      <strong>Certificate ID:</strong> <code style={{ backgroundColor: 'rgba(0,0,0,0.06)', padding: '0.125rem 0.375rem', borderRadius: '4px' }}>{selectedVolunteer.certificate_id}</code>
+                      {' '}
+                      <a
+                        href={`/verify?id=${encodeURIComponent(selectedVolunteer.certificate_id)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: 'var(--primary)', textDecoration: 'underline', marginLeft: '0.5rem', fontSize: '0.8125rem' }}
+                      >
+                        Verify Certificate
+                      </a>
+                    </div>
+                  )}
                 </div>
               </div>
 
