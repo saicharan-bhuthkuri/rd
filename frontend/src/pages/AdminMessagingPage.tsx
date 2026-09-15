@@ -53,7 +53,7 @@ export const AdminMessagingPage: React.FC = () => {
   });
 
   const [subject, setSubject] = useState<string>('');
-  const [message, setMessage] = useState<string>('');
+  const [midMessage, setMidMessage] = useState<string>('');
 
   // Counts & preview
   const [counts, setCounts] = useState<RecipientCounts>({
@@ -89,19 +89,18 @@ export const AdminMessagingPage: React.FC = () => {
     fetchEvents();
   }, []);
 
-  const getDefaultMessage = (eventTitle: string) => `Dear Mr./Ms. {name},
+  // Fixed top greeting & fixed bottom signoff (Non-editable boilerplate)
+  const getFixedGreeting = (eventTitle: string) => 
+    `Dear Mr./Ms. {name},\n\nWe are pleased to share an important announcement regarding "${eventTitle || 'Selected Event'}".`;
 
-We are pleased to share an important announcement regarding "${eventTitle}".
+  const getFixedSignoff = () => 
+    `Warm regards,\nEvent Organizing Committee & R&D Cell\nTrinity College of Engineering & Technology (Autonomous), Peddapalli`;
 
-Please review the event schedule, reporting guidelines, and instructions on our official portal. Ensure all necessary project assets, identity credentials, and requirements are prepared prior to the commencement of the session.
+  const getDefaultMidText = () => 
+    `Please review the event schedule, reporting guidelines, and instructions on our official portal. Ensure all necessary project assets, identity credentials, and requirements are prepared prior to the commencement of the session.\n\nIf you have any questions or require special accommodations, kindly reach out to the Registration Desk coordinators or reply to this communication.\n\nWe look forward to your active participation!`;
 
-If you have any questions or require special accommodations, kindly reach out to the Registration Desk coordinators or reply to this communication.
-
-We look forward to your active participation!
-
-Warm regards,
-Event Organizing Committee & R&D Cell
-Trinity College of Engineering & Technology (Autonomous), Peddapalli`;
+  const getFullMessage = () => 
+    `${getFixedGreeting(selectedEvent)}\n\n${midMessage.trim()}\n\n${getFixedSignoff()}`;
 
   // Handle event selection and populate default subject & template message
   const handleEventSelect = (eventTitle: string, forceReset = false) => {
@@ -111,9 +110,9 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`;
     // Provide default subject
     setSubject(`Important Update: ${eventTitle} — Trinity R&D Cell`);
 
-    // Provide default starter message if empty or forceReset
-    if (forceReset || !message || message.trim() === '') {
-      setMessage(getDefaultMessage(eventTitle));
+    // Provide default starter mid message if empty or forceReset
+    if (forceReset || !midMessage || midMessage.trim() === '') {
+      setMidMessage(getDefaultMidText());
     }
   };
 
@@ -206,8 +205,8 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`;
       return;
     }
 
-    if (!message.trim()) {
-      setStatusMessage({ type: 'error', text: 'Please write the message content in the box.' });
+    if (!midMessage.trim()) {
+      setStatusMessage({ type: 'error', text: 'Please write the announcement message content.' });
       return;
     }
 
@@ -233,7 +232,7 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`;
           eventTitle: selectedEvent,
           recipientGroups: groups,
           subject: subject.trim(),
-          message: message.trim()
+          message: getFullMessage()
         })
       });
 
@@ -589,18 +588,18 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`;
                 />
               </div>
 
-              {/* 4. WRITE COMPLETE MESSAGE */}
-              <div className="form-group" style={{ marginBottom: '0.85rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+              {/* 4. MESSAGE COMPOSITION (Fixed Greeting + Editable Mid Text + Fixed Signoff) */}
+              <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem', flexWrap: 'wrap', gap: '0.4rem' }}>
                   <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1e293b', margin: 0, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                     <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '18px', height: '18px', borderRadius: '50%', backgroundColor: '#ecfdf5', color: '#047857', fontSize: '0.68rem', fontWeight: 800, border: '1px solid #a7f3d0' }}>4</span>
                     <Mail size={13} color="#059669" />
-                    <span>Write Complete Message (Message Box)</span>
+                    <span>Message Body (Edit Middle Text)</span>
                   </label>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                     <button
                       type="button"
-                      onClick={() => setMessage(prev => prev + ' {name}')}
+                      onClick={() => setMidMessage(prev => prev + ' {name}')}
                       title="Inserts receiver name"
                       style={{ fontSize: '0.68rem', padding: '0.15rem 0.45rem', backgroundColor: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', borderRadius: '4px', cursor: 'pointer', fontWeight: 700 }}
                     >
@@ -608,7 +607,7 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`;
                     </button>
                     <button
                       type="button"
-                      onClick={() => setMessage(prev => prev + ' {event}')}
+                      onClick={() => setMidMessage(prev => prev + ' {event}')}
                       title="Inserts event title"
                       style={{ fontSize: '0.68rem', padding: '0.15rem 0.45rem', backgroundColor: '#f0f9ff', color: '#0369a1', border: '1px solid #bae6fd', borderRadius: '4px', cursor: 'pointer', fontWeight: 700 }}
                     >
@@ -616,42 +615,78 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`;
                     </button>
                     <button
                       type="button"
-                      onClick={() => setMessage(prev => prev + ' {role}')}
+                      onClick={() => setMidMessage(prev => prev + ' {role}')}
                       title="Inserts recipient role"
                       style={{ fontSize: '0.68rem', padding: '0.15rem 0.45rem', backgroundColor: '#faf5ff', color: '#7e22ce', border: '1px solid #e9d5ff', borderRadius: '4px', cursor: 'pointer', fontWeight: 700 }}
                     >
                       + {'{role}'}
                     </button>
                     <span style={{ fontSize: '0.7rem', color: '#059669', fontWeight: 700, backgroundColor: '#ecfdf5', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>
-                      {message.length} chars
+                      {midMessage.length} chars
                     </span>
                   </div>
                 </div>
 
+                {/* FIXED TOP GREETING (NON-EDITABLE) */}
+                <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px 8px 0 0', padding: '0.55rem 0.75rem', fontSize: '0.82rem', color: '#475569', borderBottom: 'none' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#059669', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      🔒 Fixed Greeting (Auto-Personalized for Receiver)
+                    </span>
+                    <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>Fixed</span>
+                  </div>
+                  <div style={{ fontWeight: 700, color: '#1e293b' }}>
+                    Dear Mr./Ms. {'{name}'},
+                  </div>
+                  <div style={{ marginTop: '0.15rem', color: '#334155' }}>
+                    We are pleased to share an important announcement regarding "{selectedEvent || 'Selected Event'}".
+                  </div>
+                </div>
+
+                {/* EDITABLE MID TEXT (WHERE ADMIN TYPES) */}
                 <textarea
                   required
-                  rows={7}
+                  rows={5}
                   className="form-control message-compose-textarea"
-                  placeholder="Write, edit, and format your complete message here before sending..."
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
+                  placeholder="Type your announcement / instructions here..."
+                  value={midMessage}
+                  onChange={(e) => setMidMessage(e.target.value)}
                   style={{
                     lineHeight: 1.5,
                     fontSize: '0.88rem',
-                    padding: '0.75rem',
+                    padding: '0.65rem 0.75rem',
                     fontFamily: 'inherit',
-                    borderRadius: '8px',
-                    borderColor: '#94a3b8',
+                    borderRadius: '0',
+                    borderLeft: '2px solid #059669',
+                    borderRight: '2px solid #059669',
+                    borderColor: '#cbd5e1',
+                    borderTop: '1px dashed #cbd5e1',
+                    borderBottom: '1px dashed #cbd5e1',
                     backgroundColor: '#ffffff',
                     color: '#0f172a',
-                    minHeight: '150px',
-                    maxHeight: '210px',
+                    minHeight: '110px',
+                    maxHeight: '180px',
                     resize: 'vertical'
                   }}
                 />
+
+                {/* FIXED BOTTOM SIGNOFF (NON-EDITABLE) */}
+                <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0 0 8px 8px', padding: '0.55rem 0.75rem', fontSize: '0.82rem', color: '#475569', borderTop: 'none' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      🔒 Fixed Official Sign-off
+                    </span>
+                    <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>Fixed</span>
+                  </div>
+                  <div style={{ color: '#334155', fontWeight: 500, lineHeight: 1.4 }}>
+                    Warm regards,<br />
+                    <strong>Event Organizing Committee & R&D Cell</strong><br />
+                    Trinity College of Engineering & Technology (Autonomous), Peddapalli
+                  </div>
+                </div>
+
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.25rem', fontSize: '0.7rem', color: '#64748b' }}>
-                  <span>💡 <strong>Receiver Name:</strong> "{'{name}'}" will be dynamically replaced with each recipient's actual name.</span>
-                  <span style={{ fontWeight: 600, color: '#059669' }}>✓ Live formatting</span>
+                  <span>✍️ Only edit the middle text. Header and sign-off are automatically attached and personalized upon sending.</span>
                 </div>
               </div>
 
@@ -663,7 +698,7 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`;
 
                 <button
                   type="submit"
-                  disabled={isSending || counts.total === 0 || !subject.trim() || !message.trim()}
+                  disabled={isSending || counts.total === 0 || !subject.trim() || !midMessage.trim()}
                   className="btn btn-primary"
                   style={{
                     display: 'inline-flex',
@@ -676,7 +711,7 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`;
                     backgroundColor: '#059669',
                     borderColor: '#059669',
                     boxShadow: '0 3px 12px rgba(5, 150, 105, 0.3)',
-                    cursor: (isSending || counts.total === 0 || !subject.trim() || !message.trim()) ? 'not-allowed' : 'pointer'
+                    cursor: (isSending || counts.total === 0 || !subject.trim() || !midMessage.trim()) ? 'not-allowed' : 'pointer'
                   }}
                 >
                   {isSending ? (
@@ -737,25 +772,21 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`;
                 </h3>
 
                 <div style={{ color: '#334155', fontSize: '14px', lineHeight: 1.65 }}>
-                  {message ? (
-                    message
-                      .replace(/\{\{\s*name\s*\}\}/gi, previewList[0]?.name || 'Mohammad Fayaz')
-                      .replace(/\{\s*name\s*\}/gi, previewList[0]?.name || 'Mohammad Fayaz')
-                      .replace(/\[\s*Recipient\s*Name\s*\]/gi, previewList[0]?.name || 'Mohammad Fayaz')
-                      .replace(/\[\s*Name\s*\]/gi, previewList[0]?.name || 'Mohammad Fayaz')
-                      .replace(/\{\{\s*event\s*\}\}/gi, selectedEvent || 'Event Name')
-                      .replace(/\{\s*event\s*\}/gi, selectedEvent || 'Event Name')
-                      .replace(/\{\{\s*role\s*\}\}/gi, previewList[0]?.role || 'Team Leader')
-                      .replace(/\{\s*role\s*\}/gi, previewList[0]?.role || 'Team Leader')
-                      .replace(/^Dear\s+(?:Participant\s*\/\s*Team\s*Member|Participant|Team\s*Member|Member)\s*,/im, `Dear Mr./Ms. ${previewList[0]?.name || 'Mohammad Fayaz'},`)
-                      .split('\n')
-                      .filter(p => p.trim() !== '')
-                      .map((p, idx) => (
-                        <p key={idx} style={{ margin: '0 0 12px 0' }}>{p}</p>
-                      ))
-                  ) : (
-                    <em style={{ color: '#94a3b8' }}>Message content will appear here...</em>
-                  )}
+                  {getFullMessage()
+                    .replace(/\{\{\s*name\s*\}\}/gi, previewList[0]?.name || 'Mohammad Fayaz')
+                    .replace(/\{\s*name\s*\}/gi, previewList[0]?.name || 'Mohammad Fayaz')
+                    .replace(/\[\s*Recipient\s*Name\s*\]/gi, previewList[0]?.name || 'Mohammad Fayaz')
+                    .replace(/\[\s*Name\s*\]/gi, previewList[0]?.name || 'Mohammad Fayaz')
+                    .replace(/\{\{\s*event\s*\}\}/gi, selectedEvent || 'Event Name')
+                    .replace(/\{\s*event\s*\}/gi, selectedEvent || 'Event Name')
+                    .replace(/\{\{\s*role\s*\}\}/gi, previewList[0]?.role || 'Team Leader')
+                    .replace(/\{\s*role\s*\}/gi, previewList[0]?.role || 'Team Leader')
+                    .replace(/^Dear\s+(?:Participant\s*\/\s*Team\s*Member|Participant|Team\s*Member|Member)\s*,/im, `Dear Mr./Ms. ${previewList[0]?.name || 'Mohammad Fayaz'},`)
+                    .split('\n')
+                    .filter(p => p.trim() !== '')
+                    .map((p, idx) => (
+                      <p key={idx} style={{ margin: '0 0 12px 0' }}>{p}</p>
+                    ))}
                 </div>
 
                 <div style={{ backgroundColor: '#f0fdf4', borderLeft: '3px solid #10b981', padding: '10px 14px', borderRadius: '4px', margin: '18px 0', fontSize: '12px', color: '#166534' }}>

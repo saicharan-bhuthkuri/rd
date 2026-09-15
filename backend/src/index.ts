@@ -4115,7 +4115,16 @@ app.post('/api/admin/messaging/send', authenticateToken, async (req: Authenticat
     }
 
     const cleanSubject = subject.trim();
-    const cleanMessage = message.trim();
+    let cleanMessage = message.trim();
+
+    // Ensure fixed greeting is present
+    if (!/^Dear\s+/i.test(cleanMessage)) {
+      cleanMessage = `Dear Mr./Ms. {name},\n\nWe are pleased to share an important announcement regarding "${eventTitle.trim()}".\n\n` + cleanMessage;
+    }
+    // Ensure fixed official sign-off is present
+    if (!/Trinity College of Engineering/i.test(cleanMessage)) {
+      cleanMessage = cleanMessage + `\n\nWarm regards,\nEvent Organizing Committee & R&D Cell\nTrinity College of Engineering & Technology (Autonomous), Peddapalli`;
+    }
 
     // Helper to personalize text per recipient
     const personalizeText = (templateText: string, r: { name: string; email: string; group: string; role: string }) => {
