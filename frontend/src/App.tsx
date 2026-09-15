@@ -83,6 +83,7 @@ import { AdminForgotPasswordPage } from './pages/AdminForgotPasswordPage'; // Ne
 import { AdminResetPasswordPage } from './pages/AdminResetPasswordPage'; // Newly created page
 import { AdminRegDeskPage } from './pages/AdminRegDeskPage';
 import { AdminRoomsPage } from './pages/AdminRoomsPage';
+import { AdminMessagingPage } from './pages/AdminMessagingPage';
 
 // Registration Desk Pages
 import { RegDeskLoginPage } from './pages/RegDeskLoginPage';
@@ -364,6 +365,15 @@ function App() {
             element={
               <ProtectedRoute>
                 <AdminRegDeskPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin/messaging"
+            element={
+              <ProtectedRoute>
+                <AdminMessagingPage />
               </ProtectedRoute>
             }
           />

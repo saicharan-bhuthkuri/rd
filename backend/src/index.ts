@@ -3897,6 +3897,392 @@ app.delete('/api/admin/events/:id', authenticateToken, async (req: Authenticated
   }
 });
 
+// Helper: Escape HTML special characters
+function escapeHtmlEntities(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+// Helper: Collect unique recipients for an event and recipient groups
+async function getEventRecipients(eventTitle: string, selectedGroups: string[]) {
+  const normTitle = eventTitle.trim().toLowerCase();
+  const groups = new Set(selectedGroups.map(g => g.toLowerCase()));
+  
+  const recipientsMap = new Map<string, { name: string; email: string; group: string; role: string }>();
+
+  // 1. Members / Event Participants
+  if (groups.has('members') || groups.has('all')) {
+    // A. From event_registrations
+    const regRes = await db.execute({
+      sql: "SELECT full_name, email FROM event_registrations WHERE LOWER(TRIM(event_name)) = ?",
+      args: [normTitle]
+    });
+    for (const r of regRes.rows) {
+      const email = (r.email as string)?.trim().toLowerCase();
+      if (email && email.includes('@')) {
+        if (!recipientsMap.has(email)) {
+          recipientsMap.set(email, {
+            name: (r.full_name as string) || 'Participant',
+            email,
+            group: 'members',
+            role: 'Event Participant'
+          });
+        }
+      }
+    }
+
+    // B. From hackathon_registrations (team leaders + parsed members)
+    const hackRes = await db.execute({
+      sql: "SELECT leader_name, leader_email, members FROM hackathon_registrations WHERE LOWER(TRIM(hackathon_name)) = ?",
+      args: [normTitle]
+    });
+    for (const r of hackRes.rows) {
+      const leaderEmail = (r.leader_email as string)?.trim().toLowerCase();
+      if (leaderEmail && leaderEmail.includes('@') && !recipientsMap.has(leaderEmail)) {
+        recipientsMap.set(leaderEmail, {
+          name: (r.leader_name as string) || 'Team Leader',
+          email: leaderEmail,
+          group: 'members',
+          role: 'Team Leader'
+        });
+      }
+
+      // Parse JSON team members if present
+      if (r.members) {
+        try {
+          const parsed = typeof r.members === 'string' ? JSON.parse(r.members) : r.members;
+          if (Array.isArray(parsed)) {
+            for (const m of parsed) {
+              const mEmail = (m?.email || m?.mail || (typeof m === 'string' && m.includes('@') ? m : ''))?.trim().toLowerCase();
+              const mName = m?.name || m?.full_name || 'Team Member';
+              if (mEmail && mEmail.includes('@') && !recipientsMap.has(mEmail)) {
+                recipientsMap.set(mEmail, {
+                  name: mName,
+                  email: mEmail,
+                  group: 'members',
+                  role: 'Team Member'
+                });
+              }
+            }
+          }
+        } catch (e) {}
+      }
+    }
+  }
+
+  // 2. Judges / Evaluators / Dignitaries
+  if (groups.has('judges') || groups.has('all')) {
+    const judgeRes = await db.execute({
+      sql: "SELECT full_name, email, designation, organization FROM recognition_applications WHERE LOWER(TRIM(event_name)) = ?",
+      args: [normTitle]
+    });
+    for (const r of judgeRes.rows) {
+      const email = (r.email as string)?.trim().toLowerCase();
+      if (email && email.includes('@') && !recipientsMap.has(email)) {
+        recipientsMap.set(email, {
+          name: (r.full_name as string) || 'Judge / Evaluator',
+          email,
+          group: 'judges',
+          role: (r.designation as string) || 'Judge'
+        });
+      }
+    }
+  }
+
+  // 3. Coordinators (Approved Club Coordinators & Assigned Desk Coordinators)
+  if (groups.has('coordinators') || groups.has('all')) {
+    // A. Approved student coordinators from club_applications
+    const coordRes = await db.execute("SELECT full_name, email, branch FROM club_applications WHERE status = 'approved'");
+    for (const r of coordRes.rows) {
+      const email = (r.email as string)?.trim().toLowerCase();
+      if (email && email.includes('@') && !recipientsMap.has(email)) {
+        recipientsMap.set(email, {
+          name: (r.full_name as string) || 'Coordinator',
+          email,
+          group: 'coordinators',
+          role: 'Student Coordinator'
+        });
+      }
+    }
+
+    // B. Registration Desk coordinators assigned to this event
+    const deskRes = await db.execute({
+      sql: "SELECT name, email, desk_id FROM registration_desk_users WHERE LOWER(TRIM(hackathon)) = ?",
+      args: [normTitle]
+    });
+    for (const r of deskRes.rows) {
+      const email = (r.email as string)?.trim().toLowerCase();
+      if (email && email.includes('@') && !recipientsMap.has(email)) {
+        recipientsMap.set(email, {
+          name: (r.name as string) || 'Desk Coordinator',
+          email,
+          group: 'coordinators',
+          role: `Desk Coordinator (${r.desk_id})`
+        });
+      }
+    }
+  }
+
+  // 4. Volunteers
+  if (groups.has('volunteers') || groups.has('all')) {
+    const volRes = await db.execute({
+      sql: "SELECT full_name, email, volunteer_role FROM volunteer_applications WHERE LOWER(TRIM(event_name)) = ? OR event_name IS NULL OR event_name = ''",
+      args: [normTitle]
+    });
+    for (const r of volRes.rows) {
+      const email = (r.email as string)?.trim().toLowerCase();
+      if (email && email.includes('@') && !recipientsMap.has(email)) {
+        recipientsMap.set(email, {
+          name: (r.full_name as string) || 'Volunteer',
+          email,
+          group: 'volunteers',
+          role: (r.volunteer_role as string) || 'Volunteer'
+        });
+      }
+    }
+  }
+
+  const allRecipients = Array.from(recipientsMap.values());
+  const counts = {
+    members: allRecipients.filter(r => r.group === 'members').length,
+    judges: allRecipients.filter(r => r.group === 'judges').length,
+    coordinators: allRecipients.filter(r => r.group === 'coordinators').length,
+    volunteers: allRecipients.filter(r => r.group === 'volunteers').length,
+    total: allRecipients.length
+  };
+
+  return { recipients: allRecipients, counts };
+}
+
+// 13.5 Event Messaging Endpoints
+
+// GET: Preview recipient counts and details for an event and groups
+app.get('/api/admin/messaging/recipients', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  const eventTitle = req.query.eventTitle as string;
+  const typesParam = req.query.types as string;
+
+  if (!eventTitle || !eventTitle.trim()) {
+    return res.status(400).json({ error: "Event title is required." });
+  }
+
+  try {
+    const selectedGroups = typesParam ? typesParam.split(',').map(s => s.trim()) : ['members', 'judges', 'coordinators', 'volunteers'];
+    const { recipients, counts } = await getEventRecipients(eventTitle, selectedGroups);
+
+    return res.status(200).json({
+      success: true,
+      eventTitle: eventTitle.trim(),
+      counts,
+      recipients: recipients.slice(0, 150) // Return up to 150 preview items
+    });
+  } catch (err: any) {
+    console.error("Error fetching messaging recipients:", err);
+    return res.status(500).json({ error: "Failed to resolve event recipients.", details: err.message });
+  }
+});
+
+// POST: Broadcast event message to selected recipient groups
+app.post('/api/admin/messaging/send', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  const { eventTitle, recipientGroups, subject, message } = req.body;
+
+  if (!eventTitle || typeof eventTitle !== 'string' || !eventTitle.trim()) {
+    return res.status(400).json({ error: "Please select a valid event." });
+  }
+
+  if (!Array.isArray(recipientGroups) || recipientGroups.length === 0) {
+    return res.status(400).json({ error: "Please select at least one recipient group." });
+  }
+
+  if (!subject || typeof subject !== 'string' || !subject.trim()) {
+    return res.status(400).json({ error: "Subject line cannot be empty." });
+  }
+
+  if (!message || typeof message !== 'string' || !message.trim()) {
+    return res.status(400).json({ error: "Message content cannot be empty." });
+  }
+
+  try {
+    const { recipients } = await getEventRecipients(eventTitle, recipientGroups);
+
+    if (recipients.length === 0) {
+      return res.status(400).json({
+        error: "No recipients found for the selected event and target groups. Please verify registration records."
+      });
+    }
+
+    const cleanSubject = subject.trim();
+    const cleanMessage = message.trim();
+    const formattedParagraphs = cleanMessage
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0)
+      .map(p => `<p style="color: #334155; font-size: 14px; line-height: 24px; margin: 0 0 16px 0;">${escapeHtmlEntities(p)}</p>`)
+      .join('');
+
+    const plainText = `${cleanSubject}\n\nEvent: ${eventTitle}\n\n${cleanMessage}\n\n---\nResearch & Development (R&D) Cell\nTrinity College of Engineering & Technology (Autonomous), Peddapalli`;
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background-color: #f8fafc;
+      color: #334155;
+      margin: 0;
+      padding: 0;
+      -webkit-font-smoothing: antialiased;
+    }
+    .wrapper {
+      width: 100%;
+      background-color: #f8fafc;
+      padding: 40px 0;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background-color: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 36px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+    }
+    .brand-header {
+      text-align: center;
+      margin-bottom: 24px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .brand-title {
+      color: #059669;
+      margin: 0;
+      font-size: 21px;
+      font-weight: 800;
+      letter-spacing: -0.01em;
+    }
+    .brand-sub {
+      color: #64748b;
+      font-size: 13px;
+      margin: 4px 0 0 0;
+      font-weight: 500;
+    }
+    .event-badge {
+      display: inline-block;
+      background-color: #ecfdf5;
+      border: 1px solid #a7f3d0;
+      color: #047857;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 5px 14px;
+      border-radius: 9999px;
+      margin-top: 12px;
+    }
+    .subject-title {
+      color: #0f172a;
+      font-size: 20px;
+      font-weight: 800;
+      margin-top: 24px;
+      margin-bottom: 18px;
+      line-height: 1.4;
+    }
+    .message-content {
+      color: #334155;
+      font-size: 14px;
+      line-height: 1.65;
+      background-color: #ffffff;
+    }
+    .info-card {
+      background-color: #f0fdf4;
+      border-left: 4px solid #10b981;
+      padding: 14px 18px;
+      border-radius: 6px;
+      margin: 24px 0;
+      font-size: 13px;
+      color: #166534;
+      line-height: 1.5;
+    }
+    .footer {
+      text-align: center;
+      margin-top: 32px;
+      border-top: 1px solid #f1f5f9;
+      padding-top: 20px;
+      color: #94a3b8;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="container">
+      <div class="brand-header">
+        <div class="brand-title">Trinity College of Engineering & Technology</div>
+        <div class="brand-sub">Research & Development (R&D) Cell • Official Event Notification</div>
+        <div class="event-badge">${escapeHtmlEntities(eventTitle.trim())}</div>
+      </div>
+      <h2 class="subject-title">${escapeHtmlEntities(cleanSubject)}</h2>
+      <div class="message-content">
+        ${formattedParagraphs}
+      </div>
+      <div class="info-card">
+        <strong>Event:</strong> ${escapeHtmlEntities(eventTitle.trim())}<br/>
+        This official communication was sent to event participants, judges, coordinators, and volunteers.
+      </div>
+      <div class="footer">
+        Research & Development (R&D) Cell<br>
+        Trinity College of Engineering & Technology (Autonomous), Peddapalli<br>
+        © 2026 R&D Cell TCEK. All rights reserved.
+      </div>
+    </div>
+  </div>
+</body>
+</html>`;
+
+    let deliveredCount = 0;
+    let failedCount = 0;
+
+    // Send concurrently with limit of 5
+    await runWithConcurrency(recipients, 5, async (recipient) => {
+      try {
+        if (process.env.NODE_ENV !== 'test') {
+          await sendSystemEmail(recipient.email, cleanSubject, plainText, html);
+        }
+        deliveredCount++;
+      } catch (sendErr: any) {
+        console.warn(`[Event Messaging] Failed to deliver to ${recipient.email}:`, sendErr.message);
+        failedCount++;
+      }
+    });
+
+    // Log Activity
+    await db.execute({
+      sql: "INSERT INTO activity_logs (username, action, details) VALUES (?, ?, ?)",
+      args: [
+        req.user?.username || 'admin',
+        "Event Message Sent",
+        `Sent message "${cleanSubject}" for event "${eventTitle.trim()}" to ${deliveredCount} recipients (Groups: ${recipientGroups.join(', ')})`
+      ]
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Message dispatched successfully to ${deliveredCount} recipient(s).${failedCount > 0 ? ` (${failedCount} delivery failures)` : ''}`,
+      deliveredCount,
+      failedCount,
+      totalRecipients: recipients.length
+    });
+  } catch (err: any) {
+    console.error("Error sending event message:", err);
+    return res.status(500).json({ error: "Failed to dispatch event messages.", details: err.message });
+  }
+});
+
 // XML-aware text replacement inside PPTX files
 function replacePlaceholdersInPptx(templateBuffer: Buffer, outputPath: string, replacements: Record<string, string>) {
   const zip = new PizZip(templateBuffer);

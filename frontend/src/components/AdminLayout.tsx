@@ -15,7 +15,8 @@ import {
   ChevronLeft, 
   UserCheck, 
   DoorOpen,
-  ClipboardCheck
+  ClipboardCheck,
+  Mail
 } from 'lucide-react';
 import { API_BASE_URL } from '../config';
 
@@ -203,6 +204,11 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
               <Link to="/admin/events/manage" className={`admin-nav-item ${isActive('/admin/events/manage')}`}>
                 <Calendar size={18} />
                 <span>Manage Events</span>
+              </Link>
+
+              <Link to="/admin/messaging" className={`admin-nav-item ${isActive('/admin/messaging')}`}>
+                <Mail size={18} />
+                <span>Event Messaging</span>
               </Link>
 
               <Link to="/admin/branches" className={`admin-nav-item ${isActive('/admin/branches')}`}>
