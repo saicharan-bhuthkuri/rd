@@ -4116,16 +4116,48 @@ app.post('/api/admin/messaging/send', authenticateToken, async (req: Authenticat
 
     const cleanSubject = subject.trim();
     const cleanMessage = message.trim();
-    const formattedParagraphs = cleanMessage
-      .split('\n')
-      .map(line => line.trim())
-      .filter(line => line.length > 0)
-      .map(p => `<p style="color: #334155; font-size: 14px; line-height: 24px; margin: 0 0 16px 0;">${escapeHtmlEntities(p)}</p>`)
-      .join('');
 
-    const plainText = `${cleanSubject}\n\nEvent: ${eventTitle}\n\n${cleanMessage}\n\n---\nResearch & Development (R&D) Cell\nTrinity College of Engineering & Technology (Autonomous), Peddapalli`;
+    // Helper to personalize text per recipient
+    const personalizeText = (templateText: string, r: { name: string; email: string; group: string; role: string }) => {
+      let res = templateText;
+      const rawName = (r.name && r.name.trim()) ? r.name.trim() : 'Participant';
+      
+      // Dynamic placeholder replacement
+      res = res.replace(/\{\{\s*name\s*\}\}/gi, rawName)
+               .replace(/\{\s*name\s*\}/gi, rawName)
+               .replace(/\[\s*Recipient\s*Name\s*\]/gi, rawName)
+               .replace(/\[\s*Name\s*\]/gi, rawName)
+               .replace(/\{\{\s*role\s*\}\}/gi, r.role || 'Member')
+               .replace(/\{\s*role\s*\}/gi, r.role || 'Member')
+               .replace(/\{\{\s*event\s*\}\}/gi, eventTitle.trim())
+               .replace(/\{\s*event\s*\}/gi, eventTitle.trim());
 
-    const html = `<!DOCTYPE html>
+      // If user typed generic greeting, personalize with receiver name
+      res = res.replace(/^Dear\s+(?:Participant\s*\/\s*Team\s*Member|Participant|Team\s*Member|Member)\s*,/im, `Dear Mr./Ms. ${rawName},`);
+
+      return res;
+    };
+
+    let deliveredCount = 0;
+    let failedCount = 0;
+
+    // Send concurrently with limit of 5
+    await runWithConcurrency(recipients, 5, async (recipient) => {
+      try {
+        const rawName = (recipient.name && recipient.name.trim()) ? recipient.name.trim() : 'Participant';
+        const personalizedSubject = personalizeText(cleanSubject, recipient);
+        const personalizedBody = personalizeText(cleanMessage, recipient);
+
+        const recipientParagraphs = personalizedBody
+          .split('\n')
+          .map(line => line.trim())
+          .filter(line => line.length > 0)
+          .map(p => `<p style="color: #334155; font-size: 14px; line-height: 24px; margin: 0 0 16px 0;">${escapeHtmlEntities(p)}</p>`)
+          .join('');
+
+        const plainText = `${personalizedSubject}\n\nEvent: ${eventTitle}\n\n${personalizedBody}\n\n---\nResearch & Development (R&D) Cell\nTrinity College of Engineering & Technology (Autonomous), Peddapalli`;
+
+        const html = `<!DOCTYPE html>
 <html>
 <head>
   <style>
@@ -4226,12 +4258,13 @@ app.post('/api/admin/messaging/send', authenticateToken, async (req: Authenticat
         <div class="brand-sub">Research & Development (R&D) Cell • Official Event Notification</div>
         <div class="event-badge">${escapeHtmlEntities(eventTitle.trim())}</div>
       </div>
-      <h2 class="subject-title">${escapeHtmlEntities(cleanSubject)}</h2>
+      <h2 class="subject-title">${escapeHtmlEntities(personalizedSubject)}</h2>
       <div class="message-content">
-        ${formattedParagraphs}
+        ${recipientParagraphs}
       </div>
       <div class="info-card">
         <strong>Event:</strong> ${escapeHtmlEntities(eventTitle.trim())}<br/>
+        <strong>Recipient:</strong> ${escapeHtmlEntities(rawName)} (${escapeHtmlEntities(recipient.role || recipient.group)})<br/>
         This official communication was sent to event participants, judges, coordinators, and volunteers.
       </div>
       <div class="footer">
@@ -4244,14 +4277,8 @@ app.post('/api/admin/messaging/send', authenticateToken, async (req: Authenticat
 </body>
 </html>`;
 
-    let deliveredCount = 0;
-    let failedCount = 0;
-
-    // Send concurrently with limit of 5
-    await runWithConcurrency(recipients, 5, async (recipient) => {
-      try {
         if (process.env.NODE_ENV !== 'test') {
-          await sendSystemEmail(recipient.email, cleanSubject, plainText, html);
+          await sendSystemEmail(recipient.email, personalizedSubject, plainText, html);
         }
         deliveredCount++;
       } catch (sendErr: any) {

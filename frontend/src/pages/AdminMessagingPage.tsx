@@ -52,9 +52,9 @@ export const AdminMessagingPage: React.FC = () => {
   // Recipient checkboxes
   const [recipients, setRecipients] = useState({
     members: true,
-    judges: false,
-    coordinators: false,
-    volunteers: false,
+    judges: true,
+    coordinators: true,
+    volunteers: true,
   });
 
   const [subject, setSubject] = useState<string>('');
@@ -73,7 +73,7 @@ export const AdminMessagingPage: React.FC = () => {
   const [isSending, setIsSending] = useState<boolean>(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
+  const [showPreviewModal, setShowPreviewModal] = useState<boolean>(false);
 
   // Load events on mount
   useEffect(() => {
@@ -94,18 +94,7 @@ export const AdminMessagingPage: React.FC = () => {
     fetchEvents();
   }, []);
 
-  // Handle event selection and populate default subject & template message
-  const handleEventSelect = (eventTitle: string) => {
-    setSelectedEvent(eventTitle);
-    setStatusMessage(null);
-
-    // Provide default subject
-    setSubject(`Important Update: ${eventTitle} — Trinity R&D Cell`);
-
-    // Provide default starter message if empty
-    if (!message || message.trim() === '') {
-      setMessage(
-`Dear Participant / Team Member,
+  const getDefaultMessage = (eventTitle: string) => `Dear Mr./Ms. {name},
 
 We are pleased to share an important announcement regarding "${eventTitle}".
 
@@ -117,8 +106,19 @@ We look forward to your active participation!
 
 Warm regards,
 Event Organizing Committee & R&D Cell
-Trinity College of Engineering & Technology (Autonomous), Peddapalli`
-      );
+Trinity College of Engineering & Technology (Autonomous), Peddapalli`;
+
+  // Handle event selection and populate default subject & template message
+  const handleEventSelect = (eventTitle: string, forceReset = false) => {
+    setSelectedEvent(eventTitle);
+    setStatusMessage(null);
+
+    // Provide default subject
+    setSubject(`Important Update: ${eventTitle} — Trinity R&D Cell`);
+
+    // Provide default starter message if empty or forceReset
+    if (forceReset || !message || message.trim() === '') {
+      setMessage(getDefaultMessage(eventTitle));
     }
   };
 
@@ -212,7 +212,7 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`
     }
 
     if (!message.trim()) {
-      setStatusMessage({ type: 'error', text: 'Please type the message content.' });
+      setStatusMessage({ type: 'error', text: 'Please write the message content in the box.' });
       return;
     }
 
@@ -264,42 +264,40 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`
 
   return (
     <AdminLayout>
-      <div className="admin-page-container" style={{ maxWidth: '1100px', margin: '0 auto', paddingBottom: '3rem' }}>
-        {/* Page Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+      <div className="admin-page-container" style={{ maxWidth: '1280px', margin: '0 auto', paddingBottom: '3rem' }}>
+        {/* Top Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
           <div>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', backgroundColor: '#ecfdf5', color: '#047857', padding: '0.2rem 0.65rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.4rem', border: '1px solid #a7f3d0' }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', backgroundColor: '#ecfdf5', color: '#047857', padding: '0.2rem 0.65rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.35rem', border: '1px solid #a7f3d0' }}>
               <Mail size={13} />
               <span>Event Communication Broadcast</span>
             </div>
             <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
               Event Messaging
             </h1>
-            <p style={{ color: '#64748b', fontSize: '0.875rem', margin: '0.25rem 0 0 0' }}>
-              Targeted messaging to event participants, judges, coordinators, and volunteers
+            <p style={{ color: '#64748b', fontSize: '0.875rem', margin: '0.2rem 0 0 0' }}>
+              Compose and send targeted emails directly to participants, judges, coordinators, and volunteers
             </p>
           </div>
 
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-            <button
-              type="button"
-              onClick={() => setActiveTab(activeTab === 'edit' ? 'preview' : 'edit')}
-              className="btn btn-secondary"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}
-            >
-              {activeTab === 'edit' ? <Eye size={16} /> : <Edit3 size={16} />}
-              <span>{activeTab === 'edit' ? 'Live Email Preview' : 'Back to Editor'}</span>
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setShowPreviewModal(true)}
+            className="btn btn-secondary"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.85rem', fontWeight: 600, padding: '0.6rem 1.1rem' }}
+          >
+            <Eye size={16} color="#059669" />
+            <span>Live Email Preview</span>
+          </button>
         </div>
 
         {/* Status Alerts */}
         {statusMessage && (
           <div
             style={{
-              padding: '1rem 1.25rem',
+              padding: '0.9rem 1.25rem',
               borderRadius: '12px',
-              marginBottom: '1.5rem',
+              marginBottom: '1.25rem',
               display: 'flex',
               alignItems: 'center',
               gap: '0.75rem',
@@ -307,7 +305,7 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`
               border: `1px solid ${statusMessage.type === 'success' ? '#bbf7d0' : '#fecaca'}`,
               color: statusMessage.type === 'success' ? '#15803d' : '#b91c1c',
               fontSize: '0.9rem',
-              fontWeight: 500
+              fontWeight: 600
             }}
           >
             {statusMessage.type === 'success' ? <CheckCircle2 size={20} /> : <AlertCircle size={20} />}
@@ -315,435 +313,527 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`
             <button
               type="button"
               onClick={() => setStatusMessage(null)}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', fontWeight: 700 }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', fontWeight: 800, fontSize: '1.2rem' }}
             >
               ×
             </button>
           </div>
         )}
 
+        <style>{`
+          .messaging-grid-layout {
+            display: grid;
+            grid-template-columns: 370px 1fr;
+            gap: 1.5rem;
+            align-items: start;
+          }
+          @media (max-width: 990px) {
+            .messaging-grid-layout {
+              grid-template-columns: 1fr;
+            }
+          }
+          .message-compose-textarea:focus {
+            outline: none;
+            border-color: #059669 !important;
+            box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.15) !important;
+          }
+        `}</style>
+
+        {/* 2-COLUMN LAYOUT: Left (Event & Recipients) + Right (Subject & Write Message Box) */}
         <form onSubmit={handleSendSubmit}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
+          <div className="messaging-grid-layout">
             
-            {/* STEP 1: Select Event */}
-            <div className="card" style={{ padding: '1.5rem', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '24px', height: '24px', borderRadius: '50%', backgroundColor: '#059669', color: '#ffffff', fontSize: '0.75rem', fontWeight: 800 }}>
-                  1
-                </span>
-                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#0f172a' }}>
-                  Select Event
-                </h3>
-              </div>
-
-              <div className="form-group" style={{ marginBottom: '1rem' }}>
-                <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: '0.4rem', display: 'block' }}>
-                  Target Event
-                </label>
-                <select
-                  className="form-control"
-                  value={selectedEvent}
-                  onChange={(e) => handleEventSelect(e.target.value)}
-                  style={{ fontWeight: 600, padding: '0.65rem 0.85rem' }}
-                >
-                  {events.length === 0 ? (
-                    <option value="">No events configured</option>
-                  ) : (
-                    events.map((ev) => (
-                      <option key={ev.id} value={ev.title}>
-                        {ev.title} ({ev.category})
-                      </option>
-                    ))
-                  )}
-                </select>
-              </div>
-
-              {selectedEvent && (
-                <div style={{ backgroundColor: '#f8fafc', padding: '0.85rem 1rem', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '0.82rem', color: '#64748b' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#059669', fontWeight: 600, marginBottom: '0.25rem' }}>
-                    <Calendar size={14} />
-                    <span>Selected Event Context</span>
-                  </div>
-                  <div><strong>Title:</strong> {selectedEvent}</div>
-                </div>
-              )}
-            </div>
-
-            {/* STEP 2: Select Recipients */}
-            <div className="card" style={{ padding: '1.5rem', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '24px', height: '24px', borderRadius: '50%', backgroundColor: '#059669', color: '#ffffff', fontSize: '0.75rem', fontWeight: 800 }}>
-                    2
+            {/* LEFT COLUMN: 1. Select Event & 2. Select Recipients */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              
+              {/* 1. SELECT EVENT */}
+              <div className="card" style={{ padding: '1.35rem', borderRadius: '16px', border: '1px solid #e2e8f0', backgroundColor: '#ffffff' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.85rem' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '26px', height: '26px', borderRadius: '50%', backgroundColor: '#059669', color: '#ffffff', fontSize: '0.8rem', fontWeight: 800 }}>
+                    1
                   </span>
-                  <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#0f172a' }}>
-                    Select Recipients
+                  <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#0f172a' }}>
+                    Select Event
                   </h3>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={toggleSelectAll}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: '#059669',
-                    fontSize: '0.8rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.3rem'
-                  }}
-                >
-                  {isAllSelected ? <CheckSquare size={15} /> : <Square size={15} />}
-                  <span>Select All</span>
-                </button>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                {/* Members / Participants */}
-                <label
-                  onClick={() => toggleGroup('members')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '0.65rem 0.85rem',
-                    borderRadius: '10px',
-                    border: `1.5px solid ${recipients.members ? '#10b981' : '#e2e8f0'}`,
-                    backgroundColor: recipients.members ? '#f0fdf4' : '#ffffff',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                    <input
-                      type="checkbox"
-                      checked={recipients.members}
-                      onChange={() => {}} // Handled on container
-                      style={{ accentColor: '#059669', width: '16px', height: '16px' }}
-                    />
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.9rem', fontWeight: 600, color: '#1e293b' }}>
-                      <Users size={16} color="#059669" />
-                      <span>Members (Event Participants)</span>
-                    </div>
-                  </div>
-                  <span style={{ fontSize: '0.78rem', fontWeight: 700, padding: '0.15rem 0.55rem', borderRadius: '9999px', backgroundColor: recipients.members ? '#bbf7d0' : '#f1f5f9', color: recipients.members ? '#166534' : '#64748b' }}>
-                    {counts.members} contacts
-                  </span>
-                </label>
-
-                {/* Judges */}
-                <label
-                  onClick={() => toggleGroup('judges')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '0.65rem 0.85rem',
-                    borderRadius: '10px',
-                    border: `1.5px solid ${recipients.judges ? '#10b981' : '#e2e8f0'}`,
-                    backgroundColor: recipients.judges ? '#f0fdf4' : '#ffffff',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                    <input
-                      type="checkbox"
-                      checked={recipients.judges}
-                      onChange={() => {}}
-                      style={{ accentColor: '#059669', width: '16px', height: '16px' }}
-                    />
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.9rem', fontWeight: 600, color: '#1e293b' }}>
-                      <Award size={16} color="#0284c7" />
-                      <span>Judges</span>
-                    </div>
-                  </div>
-                  <span style={{ fontSize: '0.78rem', fontWeight: 700, padding: '0.15rem 0.55rem', borderRadius: '9999px', backgroundColor: recipients.judges ? '#bbf7d0' : '#f1f5f9', color: recipients.judges ? '#166534' : '#64748b' }}>
-                    {counts.judges} contacts
-                  </span>
-                </label>
-
-                {/* Coordinators */}
-                <label
-                  onClick={() => toggleGroup('coordinators')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '0.65rem 0.85rem',
-                    borderRadius: '10px',
-                    border: `1.5px solid ${recipients.coordinators ? '#10b981' : '#e2e8f0'}`,
-                    backgroundColor: recipients.coordinators ? '#f0fdf4' : '#ffffff',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                    <input
-                      type="checkbox"
-                      checked={recipients.coordinators}
-                      onChange={() => {}}
-                      style={{ accentColor: '#059669', width: '16px', height: '16px' }}
-                    />
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.9rem', fontWeight: 600, color: '#1e293b' }}>
-                      <Sparkles size={16} color="#eab308" />
-                      <span>Coordinators</span>
-                    </div>
-                  </div>
-                  <span style={{ fontSize: '0.78rem', fontWeight: 700, padding: '0.15rem 0.55rem', borderRadius: '9999px', backgroundColor: recipients.coordinators ? '#bbf7d0' : '#f1f5f9', color: recipients.coordinators ? '#166534' : '#64748b' }}>
-                    {counts.coordinators} contacts
-                  </span>
-                </label>
-
-                {/* Volunteers */}
-                <label
-                  onClick={() => toggleGroup('volunteers')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '0.65rem 0.85rem',
-                    borderRadius: '10px',
-                    border: `1.5px solid ${recipients.volunteers ? '#10b981' : '#e2e8f0'}`,
-                    backgroundColor: recipients.volunteers ? '#f0fdf4' : '#ffffff',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                    <input
-                      type="checkbox"
-                      checked={recipients.volunteers}
-                      onChange={() => {}}
-                      style={{ accentColor: '#059669', width: '16px', height: '16px' }}
-                    />
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.9rem', fontWeight: 600, color: '#1e293b' }}>
-                      <HeartHandshake size={16} color="#ec4899" />
-                      <span>Volunteers</span>
-                    </div>
-                  </div>
-                  <span style={{ fontSize: '0.78rem', fontWeight: 700, padding: '0.15rem 0.55rem', borderRadius: '9999px', backgroundColor: recipients.volunteers ? '#bbf7d0' : '#f1f5f9', color: recipients.volunteers ? '#166534' : '#64748b' }}>
-                    {counts.volunteers} contacts
-                  </span>
-                </label>
-              </div>
-
-              <div style={{ marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
-                <span style={{ color: '#64748b' }}>Total Unique Recipients:</span>
-                <strong style={{ color: '#059669', fontSize: '1rem' }}>
-                  {isLoadingPreview ? 'Calculating...' : `${counts.total} recipients`}
-                </strong>
-              </div>
-
-              {previewList.length > 0 && (
-                <div style={{ marginTop: '0.75rem', padding: '0.65rem 0.85rem', borderRadius: '8px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', fontSize: '0.75rem', color: '#64748b' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
-                    <Info size={13} color="#059669" />
-                    <span>Sample verified recipients ({Math.min(previewList.length, 3)} of {counts.total}):</span>
-                  </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
-                    {previewList.slice(0, 3).map((r, i) => (
-                      <span key={i} style={{ backgroundColor: '#ffffff', border: '1px solid #cbd5e1', padding: '0.15rem 0.45rem', borderRadius: '4px', fontSize: '0.72rem' }}>
-                        {r.name} &lt;{r.email}&gt;
-                      </span>
-                    ))}
-                    {counts.total > 3 && (
-                      <span style={{ padding: '0.15rem 0.45rem', color: '#059669', fontWeight: 600 }}>
-                        +{counts.total - 3} more
-                      </span>
+                <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+                  <label style={{ fontSize: '0.82rem', fontWeight: 600, color: '#475569', marginBottom: '0.35rem', display: 'block' }}>
+                    Target Event
+                  </label>
+                  <select
+                    className="form-control"
+                    value={selectedEvent}
+                    onChange={(e) => handleEventSelect(e.target.value)}
+                    style={{ fontWeight: 600, padding: '0.65rem 0.85rem', borderColor: '#cbd5e1' }}
+                  >
+                    {events.length === 0 ? (
+                      <option value="">No events found</option>
+                    ) : (
+                      events.map((ev) => (
+                        <option key={ev.id} value={ev.title}>
+                          {ev.title} ({ev.category})
+                        </option>
+                      ))
                     )}
-                  </div>
+                  </select>
                 </div>
-              )}
-            </div>
-          </div>
 
-          {/* STEP 3 & 4: Subject and Message Editor / Preview */}
-          <div className="card" style={{ padding: '2rem', borderRadius: '16px', border: '1px solid #e2e8f0', marginBottom: '1.5rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '24px', height: '24px', borderRadius: '50%', backgroundColor: '#059669', color: '#ffffff', fontSize: '0.75rem', fontWeight: 800 }}>
-                  3 & 4
-                </span>
-                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#0f172a' }}>
-                  Compose Message
-                </h3>
+                {selectedEvent && (
+                  <div style={{ backgroundColor: '#f0fdf4', padding: '0.65rem 0.85rem', borderRadius: '8px', border: '1px solid #bbf7d0', fontSize: '0.8rem', color: '#166534' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 600 }}>
+                      <Calendar size={14} color="#059669" />
+                      <span>{selectedEvent}</span>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* Editor / Preview Tabs */}
-              <div style={{ display: 'flex', backgroundColor: '#f1f5f9', padding: '0.2rem', borderRadius: '8px', gap: '0.2rem' }}>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('edit')}
-                  style={{
-                    padding: '0.35rem 0.85rem',
-                    borderRadius: '6px',
-                    border: 'none',
-                    fontSize: '0.8rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    backgroundColor: activeTab === 'edit' ? '#ffffff' : 'transparent',
-                    color: activeTab === 'edit' ? '#0f172a' : '#64748b',
-                    boxShadow: activeTab === 'edit' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
-                  }}
-                >
-                  Editor
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('preview')}
-                  style={{
-                    padding: '0.35rem 0.85rem',
-                    borderRadius: '6px',
-                    border: 'none',
-                    fontSize: '0.8rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    backgroundColor: activeTab === 'preview' ? '#ffffff' : 'transparent',
-                    color: activeTab === 'preview' ? '#0f172a' : '#64748b',
-                    boxShadow: activeTab === 'preview' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
-                  }}
-                >
-                  Live Preview
-                </button>
-              </div>
-            </div>
+              {/* 2. SELECT RECIPIENTS */}
+              <div className="card" style={{ padding: '1.35rem', borderRadius: '16px', border: '1px solid #e2e8f0', backgroundColor: '#ffffff' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '26px', height: '26px', borderRadius: '50%', backgroundColor: '#059669', color: '#ffffff', fontSize: '0.8rem', fontWeight: 800 }}>
+                      2
+                    </span>
+                    <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#0f172a' }}>
+                      Select Recipients
+                    </h3>
+                  </div>
 
-            {/* Subject Field */}
-            <div className="form-group" style={{ marginBottom: '1.25rem' }}>
-              <label style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1e293b', marginBottom: '0.4rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>Email Subject</span>
-                <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 400 }}>Admin can modify</span>
-              </label>
-              <input
-                type="text"
-                required
-                className="form-control"
-                placeholder="Enter email subject line"
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-                style={{ fontWeight: 600, fontSize: '0.95rem', padding: '0.75rem 1rem' }}
-              />
-            </div>
-
-            {activeTab === 'edit' ? (
-              /* Message Textarea */
-              <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-                <label style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1e293b', marginBottom: '0.4rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span>Message Body</span>
-                  <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 400 }}>
-                    {message.length} characters • Paragraphs separated by blank lines
-                  </span>
-                </label>
-                <textarea
-                  required
-                  rows={10}
-                  className="form-control"
-                  placeholder="Write the full message content here..."
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  style={{
-                    lineHeight: 1.6,
-                    fontSize: '0.92rem',
-                    padding: '1rem',
-                    fontFamily: 'inherit',
-                    borderRadius: '10px'
-                  }}
-                />
-                <div style={{ marginTop: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', color: '#64748b' }}>
-                  <span>Tip: Double-line breaks create distinct paragraphs in the delivered email.</span>
                   <button
                     type="button"
-                    onClick={() => handleEventSelect(selectedEvent)}
-                    style={{ background: 'none', border: 'none', color: '#059669', cursor: 'pointer', textDecoration: 'underline', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                    onClick={toggleSelectAll}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#059669',
+                      fontSize: '0.8rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.25rem'
+                    }}
                   >
-                    <RotateCcw size={12} /> Reset Template
+                    {isAllSelected ? <CheckSquare size={16} /> : <Square size={16} />}
+                    <span>Select All</span>
                   </button>
                 </div>
-              </div>
-            ) : (
-              /* Live Preview Card (Landing Page Light Theme) */
-              <div style={{ marginBottom: '1.5rem', backgroundColor: '#f8fafc', padding: '1.5rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#059669', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.75rem' }}>
-                  Recipient Email View (Landing Page Light Theme)
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+                  {/* Members / Participants */}
+                  <label
+                    onClick={() => toggleGroup('members')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '0.65rem 0.85rem',
+                      borderRadius: '8px',
+                      border: `1.5px solid ${recipients.members ? '#10b981' : '#e2e8f0'}`,
+                      backgroundColor: recipients.members ? '#f0fdf4' : '#ffffff',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                      <input
+                        type="checkbox"
+                        checked={recipients.members}
+                        onChange={() => {}}
+                        style={{ accentColor: '#059669', width: '16px', height: '16px' }}
+                      />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.88rem', fontWeight: 600, color: '#1e293b' }}>
+                        <Users size={16} color="#059669" />
+                        <span>Members (Participants)</span>
+                      </div>
+                    </div>
+                    <span style={{ fontSize: '0.78rem', fontWeight: 700, padding: '0.15rem 0.6rem', borderRadius: '9999px', backgroundColor: recipients.members ? '#bbf7d0' : '#f1f5f9', color: recipients.members ? '#166534' : '#64748b' }}>
+                      {counts.members}
+                    </span>
+                  </label>
+
+                  {/* Judges */}
+                  <label
+                    onClick={() => toggleGroup('judges')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '0.65rem 0.85rem',
+                      borderRadius: '8px',
+                      border: `1.5px solid ${recipients.judges ? '#10b981' : '#e2e8f0'}`,
+                      backgroundColor: recipients.judges ? '#f0fdf4' : '#ffffff',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                      <input
+                        type="checkbox"
+                        checked={recipients.judges}
+                        onChange={() => {}}
+                        style={{ accentColor: '#059669', width: '16px', height: '16px' }}
+                      />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.88rem', fontWeight: 600, color: '#1e293b' }}>
+                        <Award size={16} color="#0284c7" />
+                        <span>Judges</span>
+                      </div>
+                    </div>
+                    <span style={{ fontSize: '0.78rem', fontWeight: 700, padding: '0.15rem 0.6rem', borderRadius: '9999px', backgroundColor: recipients.judges ? '#bbf7d0' : '#f1f5f9', color: recipients.judges ? '#166534' : '#64748b' }}>
+                      {counts.judges}
+                    </span>
+                  </label>
+
+                  {/* Coordinators */}
+                  <label
+                    onClick={() => toggleGroup('coordinators')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '0.65rem 0.85rem',
+                      borderRadius: '8px',
+                      border: `1.5px solid ${recipients.coordinators ? '#10b981' : '#e2e8f0'}`,
+                      backgroundColor: recipients.coordinators ? '#f0fdf4' : '#ffffff',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                      <input
+                        type="checkbox"
+                        checked={recipients.coordinators}
+                        onChange={() => {}}
+                        style={{ accentColor: '#059669', width: '16px', height: '16px' }}
+                      />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.88rem', fontWeight: 600, color: '#1e293b' }}>
+                        <Sparkles size={16} color="#d97706" />
+                        <span>Coordinators</span>
+                      </div>
+                    </div>
+                    <span style={{ fontSize: '0.78rem', fontWeight: 700, padding: '0.15rem 0.6rem', borderRadius: '9999px', backgroundColor: recipients.coordinators ? '#bbf7d0' : '#f1f5f9', color: recipients.coordinators ? '#166534' : '#64748b' }}>
+                      {counts.coordinators}
+                    </span>
+                  </label>
+
+                  {/* Volunteers */}
+                  <label
+                    onClick={() => toggleGroup('volunteers')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '0.65rem 0.85rem',
+                      borderRadius: '8px',
+                      border: `1.5px solid ${recipients.volunteers ? '#10b981' : '#e2e8f0'}`,
+                      backgroundColor: recipients.volunteers ? '#f0fdf4' : '#ffffff',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                      <input
+                        type="checkbox"
+                        checked={recipients.volunteers}
+                        onChange={() => {}}
+                        style={{ accentColor: '#059669', width: '16px', height: '16px' }}
+                      />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.88rem', fontWeight: 600, color: '#1e293b' }}>
+                        <HeartHandshake size={16} color="#db2777" />
+                        <span>Volunteers</span>
+                      </div>
+                    </div>
+                    <span style={{ fontSize: '0.78rem', fontWeight: 700, padding: '0.15rem 0.6rem', borderRadius: '9999px', backgroundColor: recipients.volunteers ? '#bbf7d0' : '#f1f5f9', color: recipients.volunteers ? '#166534' : '#64748b' }}>
+                      {counts.volunteers}
+                    </span>
+                  </label>
                 </div>
 
-                <div style={{ maxWidth: '580px', margin: '0 auto', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '24px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-                  <div style={{ textAlign: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '16px', marginBottom: '18px' }}>
-                    <div style={{ color: '#059669', fontSize: '18px', fontWeight: 800 }}>Trinity College of Engineering & Technology</div>
-                    <div style={{ color: '#64748b', fontSize: '12px', marginTop: '2px' }}>Research & Development (R&D) Cell • Official Event Notification</div>
-                    <div style={{ display: 'inline-block', backgroundColor: '#ecfdf5', border: '1px solid #a7f3d0', color: '#047857', fontSize: '11px', fontWeight: 700, padding: '3px 12px', borderRadius: '9999px', marginTop: '10px' }}>
-                      {selectedEvent || 'Event Name'}
+                {/* Total Recipients Count Banner */}
+                <div style={{ marginTop: '1rem', paddingTop: '0.85rem', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: '#64748b', fontSize: '0.85rem', fontWeight: 600 }}>Total Unique Recipients:</span>
+                  <strong style={{ color: '#059669', fontSize: '1.15rem', fontWeight: 800 }}>
+                    {isLoadingPreview ? '...' : `${counts.total} recipients`}
+                  </strong>
+                </div>
+
+                {previewList.length > 0 && (
+                  <div style={{ marginTop: '0.75rem', padding: '0.6rem 0.75rem', borderRadius: '8px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', fontSize: '0.75rem', color: '#64748b' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 700, color: '#334155', marginBottom: '0.35rem' }}>
+                      <Info size={13} color="#059669" />
+                      <span>Sample verified recipients ({Math.min(previewList.length, 3)} of {counts.total}):</span>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                      {previewList.slice(0, 3).map((r, i) => (
+                        <div key={i} style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', padding: '0.2rem 0.45rem', borderRadius: '4px', fontSize: '0.72rem', color: '#334155' }}>
+                          <strong>{r.name || 'Recipient'}</strong> &lt;{r.email}&gt;
+                        </div>
+                      ))}
+                      {counts.total > 3 && (
+                        <span style={{ color: '#059669', fontWeight: 700, marginTop: '0.15rem' }}>
+                          +{counts.total - 3} more contacts ready
+                        </span>
+                      )}
                     </div>
                   </div>
+                )}
+              </div>
+            </div>
 
-                  <h3 style={{ color: '#0f172a', fontSize: '17px', fontWeight: 800, margin: '0 0 14px 0' }}>
-                    {subject || 'No Subject'}
-                  </h3>
-
-                  <div style={{ color: '#334155', fontSize: '13.5px', lineHeight: 1.65 }}>
-                    {message ? (
-                      message.split('\n').filter(p => p.trim() !== '').map((p, idx) => (
-                        <p key={idx} style={{ margin: '0 0 12px 0' }}>{p}</p>
-                      ))
-                    ) : (
-                      <em style={{ color: '#94a3b8' }}>Message content will appear here...</em>
-                    )}
-                  </div>
-
-                  <div style={{ backgroundColor: '#f0fdf4', borderLeft: '3px solid #10b981', padding: '10px 14px', borderRadius: '4px', margin: '18px 0', fontSize: '12px', color: '#166534' }}>
-                    <strong>Event:</strong> {selectedEvent}<br />
-                    Delivered to selected groups: {getSelectedGroupsList().join(', ')}
-                  </div>
-
-                  <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '16px', textAlign: 'center', color: '#94a3b8', fontSize: '11px' }}>
-                    Research & Development (R&D) Cell<br />
-                    Trinity College of Engineering & Technology (Autonomous), Peddapalli<br />
-                    © 2026 R&D Cell TCEK. All rights reserved.
+            {/* RIGHT COLUMN: 3. SUBJECT & 4. WRITE MESSAGE & 5. SEND (HERO COMPOSER) */}
+            <div className="card" style={{ padding: '1.75rem', borderRadius: '16px', border: '1.5px solid #cbd5e1', backgroundColor: '#ffffff', boxShadow: '0 4px 20px -2px rgba(0,0,0,0.06)' }}>
+              
+              {/* Header for Composer */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', paddingBottom: '0.85rem', borderBottom: '1px solid #f1f5f9' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#059669', color: '#ffffff', fontSize: '0.85rem', fontWeight: 800 }}>
+                    ✍️
+                  </span>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: '#0f172a' }}>
+                      Write & Compose Message
+                    </h3>
+                    <span style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                      Steps 3, 4 & 5: Type your subject line and complete message body
+                    </span>
                   </div>
                 </div>
-              </div>
-            )}
 
-            {/* STEP 5: Send Message Action Button */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '1.25rem', borderTop: '1px solid #f1f5f9', flexWrap: 'wrap', gap: '1rem' }}>
-              <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
-                Ready to dispatch to <strong>{counts.total}</strong> unique recipient(s) across <strong>{getSelectedGroupsList().length}</strong> group(s).
+                <button
+                  type="button"
+                  onClick={() => handleEventSelect(selectedEvent, true)}
+                  title="Reset to default template"
+                  style={{ background: 'none', border: 'none', color: '#059669', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.3rem 0.6rem', borderRadius: '6px' }}
+                >
+                  <RotateCcw size={14} /> Reset Template
+                </button>
               </div>
 
-              <button
-                type="submit"
-                disabled={isSending || counts.total === 0 || !subject.trim() || !message.trim()}
-                className="btn btn-primary"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.55rem',
-                  padding: '0.85rem 1.75rem',
-                  fontSize: '0.98rem',
-                  fontWeight: 700,
-                  borderRadius: '10px',
-                  backgroundColor: '#059669',
-                  borderColor: '#059669',
-                  boxShadow: '0 4px 14px rgba(5, 150, 105, 0.35)'
-                }}
-              >
-                {isSending ? (
-                  <>
-                    <Loader2 className="spinner-icon" size={18} /> Sending Event Messages...
-                  </>
-                ) : (
-                  <>
-                    <Send size={18} /> Send Message
-                  </>
-                )}
-              </button>
+              {/* 3. SUBJECT FIELD */}
+              <div className="form-group" style={{ marginBottom: '1.25rem' }}>
+                <label style={{ fontSize: '0.88rem', fontWeight: 700, color: '#1e293b', marginBottom: '0.4rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '20px', height: '20px', borderRadius: '50%', backgroundColor: '#ecfdf5', color: '#047857', fontSize: '0.72rem', fontWeight: 800, border: '1px solid #a7f3d0' }}>3</span>
+                    <Edit3 size={15} color="#059669" />
+                    <strong>Subject Line</strong>
+                  </span>
+                  <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 500 }}>Editable by Admin</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  className="form-control"
+                  placeholder="Enter email subject line..."
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                  style={{ fontWeight: 600, fontSize: '0.95rem', padding: '0.75rem 1rem', borderColor: '#cbd5e1', borderRadius: '8px' }}
+                />
+              </div>
+
+              {/* 4. WRITE COMPLETE MESSAGE */}
+              <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.45rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <label style={{ fontSize: '0.88rem', fontWeight: 700, color: '#1e293b', margin: 0, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '20px', height: '20px', borderRadius: '50%', backgroundColor: '#ecfdf5', color: '#047857', fontSize: '0.72rem', fontWeight: 800, border: '1px solid #a7f3d0' }}>4</span>
+                    <Mail size={15} color="#059669" />
+                    <strong>Write Complete Message (Message Box)</strong>
+                  </label>
+                  <span style={{ fontSize: '0.75rem', color: '#059669', fontWeight: 700, backgroundColor: '#ecfdf5', padding: '0.15rem 0.5rem', borderRadius: '4px' }}>
+                    {message.length} characters
+                  </span>
+                </div>
+
+                {/* Personalization Tag Helper Toolbar */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.6rem', padding: '0.45rem 0.65rem', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+                  <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#475569' }}>Insert Tag:</span>
+                  <button
+                    type="button"
+                    onClick={() => setMessage(prev => prev + ' {name}')}
+                    title="Inserts receiver name (Mr./Ms. Name)"
+                    style={{ fontSize: '0.72rem', padding: '0.2rem 0.55rem', backgroundColor: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', borderRadius: '6px', cursor: 'pointer', fontWeight: 700 }}
+                  >
+                    + Receiver Name: {'{name}'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMessage(prev => prev + ' {event}')}
+                    title="Inserts event title"
+                    style={{ fontSize: '0.72rem', padding: '0.2rem 0.55rem', backgroundColor: '#f0f9ff', color: '#0369a1', border: '1px solid #bae6fd', borderRadius: '6px', cursor: 'pointer', fontWeight: 700 }}
+                  >
+                    + Event: {'{event}'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMessage(prev => prev + ' {role}')}
+                    title="Inserts participant / coordinator / judge role"
+                    style={{ fontSize: '0.72rem', padding: '0.2rem 0.55rem', backgroundColor: '#faf5ff', color: '#7e22ce', border: '1px solid #e9d5ff', borderRadius: '6px', cursor: 'pointer', fontWeight: 700 }}
+                  >
+                    + Role: {'{role}'}
+                  </button>
+                </div>
+
+                <div style={{ position: 'relative' }}>
+                  <textarea
+                    required
+                    rows={13}
+                    className="form-control message-compose-textarea"
+                    placeholder="Write, edit, and format your complete message here before sending..."
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    style={{
+                      lineHeight: 1.65,
+                      fontSize: '0.94rem',
+                      padding: '1rem',
+                      fontFamily: 'inherit',
+                      borderRadius: '10px',
+                      borderColor: '#94a3b8',
+                      backgroundColor: '#ffffff',
+                      color: '#0f172a',
+                      minHeight: '280px',
+                      resize: 'vertical'
+                    }}
+                  />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.45rem', fontSize: '0.75rem', color: '#64748b' }}>
+                  <span>💡 <strong>Receiver Name:</strong> "{'{name}'}" will automatically be replaced with each recipient's actual name (e.g. Mr./Ms. Mohammad Fayaz).</span>
+                  <span style={{ fontWeight: 600, color: '#059669' }}>✓ Live formatting</span>
+                </div>
+              </div>
+
+              {/* 5. SEND MESSAGE ACTION BAR */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '1.25rem', borderTop: '1px solid #f1f5f9', flexWrap: 'wrap', gap: '1rem' }}>
+                <div style={{ fontSize: '0.85rem', color: '#475569' }}>
+                  <div style={{ fontWeight: 700, color: '#0f172a' }}>
+                    Ready to broadcast:
+                  </div>
+                  <span><strong>{counts.total}</strong> recipient(s) selected across <strong>{getSelectedGroupsList().length}</strong> group(s)</span>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isSending || counts.total === 0 || !subject.trim() || !message.trim()}
+                  className="btn btn-primary"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.6rem',
+                    padding: '0.85rem 2rem',
+                    fontSize: '1rem',
+                    fontWeight: 800,
+                    borderRadius: '10px',
+                    backgroundColor: '#059669',
+                    borderColor: '#059669',
+                    boxShadow: '0 4px 14px rgba(5, 150, 105, 0.35)',
+                    cursor: (isSending || counts.total === 0 || !subject.trim() || !message.trim()) ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  {isSending ? (
+                    <>
+                      <Loader2 className="spinner-icon" size={18} /> Dispatching Emails...
+                    </>
+                  ) : (
+                    <>
+                      <Send size={18} /> 5. Send Message ({counts.total})
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </form>
+
+        {/* Live Email Preview Modal */}
+        {showPreviewModal && (
+          <div className="custom-modal-backdrop" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }}>
+            <div className="custom-modal card" style={{ maxWidth: '650px', width: '100%', maxHeight: '90vh', overflowY: 'auto', padding: '2rem', borderRadius: '18px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.75rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#059669', fontWeight: 800 }}>
+                  <Eye size={18} />
+                  <span>Recipient Email Preview (Personalized Light Theme)</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPreviewModal(false)}
+                  style={{ background: 'none', border: 'none', fontSize: '1.4rem', cursor: 'pointer', color: '#64748b' }}
+                >
+                  ×
+                </button>
+              </div>
+
+              {/* Sample Recipient Indicator */}
+              <div style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '0.6rem 0.85rem', marginBottom: '1.25rem', fontSize: '0.8rem', color: '#166534', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <Users size={14} color="#059669" />
+                <span>
+                  <strong>Sample Recipient:</strong> {previewList[0]?.name || 'Mohammad Fayaz'} &lt;{previewList[0]?.email || 'mdfayaz9963@gmail.com'}&gt; ({previewList[0]?.role || 'Team Leader'})
+                </span>
+              </div>
+
+              {/* Email Container */}
+              <div style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '24px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                <div style={{ textAlign: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '16px', marginBottom: '18px' }}>
+                  <div style={{ color: '#059669', fontSize: '19px', fontWeight: 800 }}>Trinity College of Engineering & Technology</div>
+                  <div style={{ color: '#64748b', fontSize: '12px', marginTop: '2px' }}>Research & Development (R&D) Cell • Official Event Notification</div>
+                  <div style={{ display: 'inline-block', backgroundColor: '#ecfdf5', border: '1px solid #a7f3d0', color: '#047857', fontSize: '11px', fontWeight: 700, padding: '3px 12px', borderRadius: '9999px', marginTop: '10px' }}>
+                    {selectedEvent || 'Event Name'}
+                  </div>
+                </div>
+
+                <h3 style={{ color: '#0f172a', fontSize: '18px', fontWeight: 800, margin: '0 0 14px 0' }}>
+                  {(subject || 'No Subject')
+                    .replace(/\{\{\s*name\s*\}\}/gi, previewList[0]?.name || 'Mohammad Fayaz')
+                    .replace(/\{\s*name\s*\}/gi, previewList[0]?.name || 'Mohammad Fayaz')}
+                </h3>
+
+                <div style={{ color: '#334155', fontSize: '14px', lineHeight: 1.65 }}>
+                  {message ? (
+                    message
+                      .replace(/\{\{\s*name\s*\}\}/gi, previewList[0]?.name || 'Mohammad Fayaz')
+                      .replace(/\{\s*name\s*\}/gi, previewList[0]?.name || 'Mohammad Fayaz')
+                      .replace(/\[\s*Recipient\s*Name\s*\]/gi, previewList[0]?.name || 'Mohammad Fayaz')
+                      .replace(/\[\s*Name\s*\]/gi, previewList[0]?.name || 'Mohammad Fayaz')
+                      .replace(/\{\{\s*event\s*\}\}/gi, selectedEvent || 'Event Name')
+                      .replace(/\{\s*event\s*\}/gi, selectedEvent || 'Event Name')
+                      .replace(/\{\{\s*role\s*\}\}/gi, previewList[0]?.role || 'Team Leader')
+                      .replace(/\{\s*role\s*\}/gi, previewList[0]?.role || 'Team Leader')
+                      .replace(/^Dear\s+(?:Participant\s*\/\s*Team\s*Member|Participant|Team\s*Member|Member)\s*,/im, `Dear Mr./Ms. ${previewList[0]?.name || 'Mohammad Fayaz'},`)
+                      .split('\n')
+                      .filter(p => p.trim() !== '')
+                      .map((p, idx) => (
+                        <p key={idx} style={{ margin: '0 0 12px 0' }}>{p}</p>
+                      ))
+                  ) : (
+                    <em style={{ color: '#94a3b8' }}>Message content will appear here...</em>
+                  )}
+                </div>
+
+                <div style={{ backgroundColor: '#f0fdf4', borderLeft: '3px solid #10b981', padding: '10px 14px', borderRadius: '4px', margin: '18px 0', fontSize: '12px', color: '#166534' }}>
+                  <strong>Event:</strong> {selectedEvent}<br />
+                  <strong>Recipient:</strong> {previewList[0]?.name || 'Mohammad Fayaz'} ({previewList[0]?.role || 'Team Leader'})<br />
+                  Delivered to selected groups: {getSelectedGroupsList().join(', ')}
+                </div>
+
+                <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '16px', textAlign: 'center', color: '#94a3b8', fontSize: '11px' }}>
+                  Research & Development (R&D) Cell<br />
+                  Trinity College of Engineering & Technology (Autonomous), Peddapalli<br />
+                  © 2026 R&D Cell TCEK. All rights reserved.
+                </div>
+              </div>
+
+              <div style={{ marginTop: '1.25rem', textAlign: 'right' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowPreviewModal(false)}
+                  className="btn btn-secondary"
+                  style={{ padding: '0.5rem 1.25rem' }}
+                >
+                  Close Preview
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Confirmation Modal */}
         {showConfirmModal && (
