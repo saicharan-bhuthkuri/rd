@@ -2099,60 +2099,77 @@ app.post('/api/admin/forgot-password', sensitiveLimiter, async (req, res) => {
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-      background-color: #0f172a;
-      color: #f1f5f9;
+      background-color: #f8fafc;
+      color: #334155;
       margin: 0;
       padding: 0;
       -webkit-font-smoothing: antialiased;
     }
     .wrapper {
       width: 100%;
-      background-color: #0f172a;
+      background-color: #f8fafc;
       padding: 40px 0;
     }
     .container {
       max-width: 540px;
       margin: 0 auto;
-      background-color: #1e293b;
-      border: 1px solid #334155;
-      border-radius: 12px;
+      background-color: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
       padding: 36px;
-      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
     }
-    .logo {
+    .brand-header {
       text-align: center;
-      margin-bottom: 20px;
+      margin-bottom: 24px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .brand-title {
+      color: #059669;
+      margin: 0;
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: -0.01em;
+    }
+    .brand-sub {
+      color: #64748b;
+      font-size: 13px;
+      margin: 4px 0 0 0;
+      font-weight: 500;
     }
     .logo-icon {
       display: inline-block;
       width: 48px;
       height: 48px;
-      background-color: rgba(16, 185, 129, 0.1);
+      background-color: #ecfdf5;
+      border: 1px solid #a7f3d0;
       border-radius: 50%;
       line-height: 48px;
-      color: #10b981;
-      font-size: 24px;
+      color: #059669;
+      font-size: 22px;
       text-align: center;
+      margin-bottom: 12px;
     }
     h2 {
-      color: #ffffff;
+      color: #0f172a;
       font-size: 22px;
-      font-weight: 700;
+      font-weight: 800;
       text-align: center;
       margin-top: 0;
       margin-bottom: 12px;
     }
     p {
-      color: #94a3b8;
-      font-size: 15px;
+      color: #475569;
+      font-size: 14px;
       line-height: 24px;
       margin-top: 0;
-      margin-bottom: 18px;
+      margin-bottom: 16px;
     }
     .otp-card {
-      background-color: #0f172a;
-      border: 1px solid #334155;
-      border-radius: 10px;
+      background-color: #f0fdf4;
+      border: 1.5px dashed #10b981;
+      border-radius: 12px;
       padding: 24px;
       text-align: center;
       margin: 24px 0;
@@ -2162,46 +2179,64 @@ app.post('/api/admin/forgot-password', sensitiveLimiter, async (req, res) => {
       font-size: 36px;
       font-weight: 800;
       letter-spacing: 10px;
-      color: #10b981;
+      color: #047857;
       display: inline-block;
       padding: 10px 24px;
-      background: rgba(16, 185, 129, 0.08);
+      background: #ffffff;
       border-radius: 8px;
-      border: 1px dashed #10b981;
+      border: 1px solid #a7f3d0;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
     }
     .badge-expiry {
       margin-top: 12px;
       font-size: 13px;
-      color: #cbd5e1;
+      color: #15803d;
+      font-weight: 600;
+    }
+    .security-notice {
+      background-color: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 13px;
+      color: #64748b;
+      line-height: 1.5;
+      margin-top: 20px;
     }
     .footer {
       text-align: center;
       margin-top: 28px;
-      border-top: 1px solid #334155;
+      border-top: 1px solid #f1f5f9;
       padding-top: 20px;
-      color: #64748b;
-      font-size: 13px;
+      color: #94a3b8;
+      font-size: 12px;
+      line-height: 1.6;
     }
   </style>
 </head>
 <body>
   <div class="wrapper">
     <div class="container">
-      <div class="logo">
+      <div class="brand-header">
         <div class="logo-icon">🛡️</div>
+        <div class="brand-title">Trinity College of Engineering & Technology</div>
+        <div class="brand-sub">Research & Development (R&D) Cell • Super Admin Portal</div>
       </div>
       <h2>Password Reset Code</h2>
       <p>Hello,</p>
       <p>A password reset request was initiated for your R&D Club administrator account (<strong>${username}</strong>). Use the verification code below to proceed with resetting your password:</p>
       <div class="otp-card">
         <div class="otp-code">${otp}</div>
-        <div class="badge-expiry">⏱️ Valid for 15 minutes. Never share this code with anyone.</div>
+        <div class="badge-expiry">⏱️ Valid for 15 minutes • One-time use only</div>
       </div>
       <p>Enter this 6-digit code on the password recovery screen to create your new password.</p>
-      <p style="font-size: 13px; color: #64748b;">If you did not request a password reset, you can safely disregard this email.</p>
+      <div class="security-notice">
+        <strong>Security Tip:</strong> Never share this code with anyone. R&D Cell staff will never ask for your verification code or password. If you did not request this, you can safely disregard this email.
+      </div>
       <div class="footer">
-        Best regards,<br>
-        <strong>R&D Club Admin System</strong>
+        Research & Development (R&D) Cell<br>
+        Trinity College of Engineering & Technology (Autonomous), Peddapalli<br>
+        © 2026 R&D Cell TCEK. All rights reserved.
       </div>
     </div>
   </div>
@@ -2860,60 +2895,77 @@ app.post('/api/reg-desk/forgot-password', sensitiveLimiter, async (req, res) => 
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-      background-color: #0f172a;
-      color: #f1f5f9;
+      background-color: #f8fafc;
+      color: #334155;
       margin: 0;
       padding: 0;
       -webkit-font-smoothing: antialiased;
     }
     .wrapper {
       width: 100%;
-      background-color: #0f172a;
+      background-color: #f8fafc;
       padding: 40px 0;
     }
     .container {
       max-width: 540px;
       margin: 0 auto;
-      background-color: #1e293b;
-      border: 1px solid #334155;
-      border-radius: 12px;
+      background-color: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
       padding: 36px;
-      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
     }
-    .logo {
+    .brand-header {
       text-align: center;
-      margin-bottom: 20px;
+      margin-bottom: 24px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .brand-title {
+      color: #059669;
+      margin: 0;
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: -0.01em;
+    }
+    .brand-sub {
+      color: #64748b;
+      font-size: 13px;
+      margin: 4px 0 0 0;
+      font-weight: 500;
     }
     .logo-icon {
       display: inline-block;
       width: 48px;
       height: 48px;
-      background-color: rgba(56, 189, 248, 0.1);
+      background-color: #ecfdf5;
+      border: 1px solid #a7f3d0;
       border-radius: 50%;
       line-height: 48px;
-      color: #38bdf8;
-      font-size: 24px;
+      color: #059669;
+      font-size: 22px;
       text-align: center;
+      margin-bottom: 12px;
     }
     h2 {
-      color: #ffffff;
+      color: #0f172a;
       font-size: 22px;
-      font-weight: 700;
+      font-weight: 800;
       text-align: center;
       margin-top: 0;
       margin-bottom: 12px;
     }
     p {
-      color: #94a3b8;
-      font-size: 15px;
+      color: #475569;
+      font-size: 14px;
       line-height: 24px;
       margin-top: 0;
-      margin-bottom: 18px;
+      margin-bottom: 16px;
     }
     .otp-card {
-      background-color: #0f172a;
-      border: 1px solid #334155;
-      border-radius: 10px;
+      background-color: #f0fdf4;
+      border: 1.5px dashed #10b981;
+      border-radius: 12px;
       padding: 24px;
       text-align: center;
       margin: 24px 0;
@@ -2923,46 +2975,64 @@ app.post('/api/reg-desk/forgot-password', sensitiveLimiter, async (req, res) => 
       font-size: 36px;
       font-weight: 800;
       letter-spacing: 10px;
-      color: #38bdf8;
+      color: #047857;
       display: inline-block;
       padding: 10px 24px;
-      background: rgba(56, 189, 248, 0.08);
+      background: #ffffff;
       border-radius: 8px;
-      border: 1px dashed #38bdf8;
+      border: 1px solid #a7f3d0;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
     }
     .badge-expiry {
       margin-top: 12px;
       font-size: 13px;
-      color: #cbd5e1;
+      color: #15803d;
+      font-weight: 600;
+    }
+    .security-notice {
+      background-color: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 13px;
+      color: #64748b;
+      line-height: 1.5;
+      margin-top: 20px;
     }
     .footer {
       text-align: center;
       margin-top: 28px;
-      border-top: 1px solid #334155;
+      border-top: 1px solid #f1f5f9;
       padding-top: 20px;
-      color: #64748b;
-      font-size: 13px;
+      color: #94a3b8;
+      font-size: 12px;
+      line-height: 1.6;
     }
   </style>
 </head>
 <body>
   <div class="wrapper">
     <div class="container">
-      <div class="logo">
-        <div class="logo-icon">📋</div>
+      <div class="brand-header">
+        <div class="logo-icon">🏢</div>
+        <div class="brand-title">Trinity College of Engineering & Technology</div>
+        <div class="brand-sub">Registration Desk Gate • Account Recovery</div>
       </div>
       <h2>Desk Password Reset Code</h2>
       <p>Hello <strong>${deskUser.name}</strong> (${deskUser.desk_id}),</p>
       <p>A password reset request was initiated for your Registration Desk account. Use the verification code below to proceed with resetting your password:</p>
       <div class="otp-card">
         <div class="otp-code">${otp}</div>
-        <div class="badge-expiry">⏱️ Valid for 15 minutes. Never share this code with anyone.</div>
+        <div class="badge-expiry">⏱️ Valid for 15 minutes • One-time use only</div>
       </div>
       <p>Enter this 6-digit code on the desk password recovery screen to create your new password.</p>
-      <p style="font-size: 13px; color: #64748b;">If you did not request a password reset, you can safely disregard this email.</p>
+      <div class="security-notice">
+        <strong>Security Tip:</strong> Never share this code with anyone. If you did not request this password reset, please notify the administrator immediately.
+      </div>
       <div class="footer">
-        Best regards,<br>
-        <strong>Registration Desk Portal System</strong>
+        Research & Development (R&D) Cell<br>
+        Trinity College of Engineering & Technology (Autonomous), Peddapalli<br>
+        © 2026 R&D Cell TCEK. All rights reserved.
       </div>
     </div>
   </div>
