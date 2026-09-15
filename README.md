@@ -410,19 +410,15 @@ The engineering architecture of this platform builds upon established computer s
 
 To clearly demonstrate the competitive superiority, operational cohesion, and academic innovation of our platform (**"Mine" / TCEK R&D Portal**), the table and detailed analyses below directly contrast our built system against existing commercial SaaS platforms and point-solutions (**"Them"**).
 
-```
-+----------------------------------------------------------------------------------------------------+
-|                                    PLATFORM PARADIGM COMPARISON                                    |
-+----------------------------------------------------------------------------------------------------+
-|  "THEM" (Commercial Fragmented Ecosystem)         |  "MINE" (TCEK R&D Centralized Platform)        |
-|  - 4 to 6 Disconnected SaaS Subscriptions        |  - 1 Unified Open-Source Cloud Ecosystem       |
-|  - Prohibitive Costs ($7,500 - $35,000+ / year)   |  - $0.00 / 100% Free Self-Hosted Deployment    |
-|  - Recurring Per-Credential / User Quotas         |  - Unlimited Document & Attendee Throughput    |
-|  - Vendor Lock-in & Third-Party Data Storage      |  - 100% Sovereign Institutional Database       |
-|  - Manual CSV File Swapping Between Silos         |  - Automated End-to-End Event-to-Cert Pipeline |
-|  - Vulnerable Static PDF Deliveries               |  - Dynamic Real-Time 16:9 PDF Verification     |
-+----------------------------------------------------------------------------------------------------+
-```
+| Operational Dimension | "THEM" (Commercial Fragmented SaaS Ecosystem) | "MINE" (TCEK R&D Centralized Platform) |
+| :--- | :--- | :--- |
+| **System Architecture** | 4 to 6 Disconnected SaaS Subscriptions & Portals | **1 Unified Open-Source Cloud Ecosystem** |
+| **Annual Licensing Cost** | Prohibitive Recurring Cost ($7,500 – $35,000+ / year) | **$0.00 / 100% Free Self-Hosted Deployment** |
+| **Volume & Quota Limits** | Strict Daily Quotas & Per-Credential / User Caps | **Unlimited Document & Attendee Throughput** |
+| **Data Privacy & Ownership** | Third-Party US Cloud Storage & Vendor Lock-In | **100% Sovereign Institutional Database (Turso Edge SQLite)** |
+| **Operational Integration** | Fragmented CSV File Swapping Between Disjointed Silos | **Automated End-to-End Event-to-Credential Pipeline** |
+| **Credential Verification** | Static Unverified PDF Deliveries (Prone to Forgery) | **Dynamic Real-Time 16:9 PDF Verification Stream (`/verify`)** |
+| **On-Site Physical Operations** | Third-Party Ticketing Apps or Expensive Hardware Kits | **Integrated Browser Registration Desk (6-Box OTP + Venue Allocation)** |
 
 #### 1. Mine vs. Certifier.io (Digital Credential Generator)
 * **Design & Template Editing**:
@@ -512,26 +508,15 @@ To demonstrate the immense economic value, return on investment (ROI), and budge
 
 If an academic institution or engineering college were to assemble a comparable feature set using existing commercial point solutions, the recurring annual expenditure would be:
 
-```
-+---------------------------------------------------------------------------------------------+
-|              COMMERCIAL SAAS STACK ANNUAL BUDGET BREAKDOWN FOR A COLLEGE                   |
-+---------------------------------------------------------------------------------------------+
-|  Operational Capability Needed          | Commercial SaaS Vendor Used       | Annual Cost   |
-+-----------------------------------------+-----------------------------------+---------------+
-|  1. Hackathon & Project Submissions     | Devpost for Teams                 | $ 3,500 / yr  |
-|  2. On-Site Check-In & Room Allocations | Cvent OnArrival (or Eventbrite)   | $ 2,500 / yr  |
-|  3. Digital Certificate Generation      | Certifier.io (Professional Plan)  | $   804 / yr  |
-|  4. Digital Credential Verification     | Accredible (Launch / Growth Plan) | $ 1,800 / yr  |
-|  5. Targeted Institutional Messaging    | Mailchimp (Standard Plan)         | $   480 / yr  |
-|  6. Cloud Infrastructure & Hosting      | Standard Cloud VPS & DB           | $   600 / yr  |
-+-----------------------------------------+-----------------------------------+---------------+
-|  TOTAL ANNUAL COMMERCIAL SAAS COST      | 5 Disconnected Commercial Vendors | $ 9,684 / yr  |
-+-----------------------------------------+-----------------------------------+---------------+
-|  PROPOSED PLATFORM ("MINE")             | Centralized, Cloud-Native Portal  | $     0 / yr  |
-+-----------------------------------------+-----------------------------------+---------------+
-|  NET ANNUAL INSTITUTIONAL SAVINGS       | Direct Academic Financial Benefit | $ 9,684 / yr  |
-+---------------------------------------------------------------------------------------------+
-```
+| # | Operational Capability Needed | Commercial SaaS Vendor Used | Annual Commercial SaaS Cost | Proposed Platform ("Mine") Cost | Net Annual Institutional Savings |
+| :-: | :--- | :--- | :---: | :---: | :---: |
+| **1** | Hackathon & Project Submissions | Devpost for Teams (Custom Contract) | $3,500 / yr | **$0.00** | $3,500 / yr |
+| **2** | On-Site Check-In & Room Allocations | Cvent OnArrival (or Eventbrite Pro) | $2,500 / yr | **$0.00** | $2,500 / yr |
+| **3** | Digital Certificate Generation | Certifier.io (Professional Plan) | $804 / yr | **$0.00** | $804 / yr |
+| **4** | Digital Credential Verification | Accredible (Launch / Growth Plan) | $1,800 / yr | **$0.00** | $1,800 / yr |
+| **5** | Targeted Institutional Messaging | Mailchimp (Standard Plan) | $480 / yr | **$0.00** | $480 / yr |
+| **6** | Cloud Hosting & Database Server | Standard Cloud VPS & Managed DB | $600 / yr | **$0.00** | $600 / yr |
+| **TOTAL** | **Full Institutional Event & Credential Lifecycle** | **5 Disconnected Commercial Vendors** | **$9,684 / yr** | **$0.00 / yr** | **$9,684 / yr** |
 
 > **Financial Conclusion**: Deploying our platform saves an academic institution between **$7,500 and $25,000+ every single year** in software licensing fees alone, while eliminating the massive security risk of exporting student contact details across multiple third-party commercial platforms.
 
