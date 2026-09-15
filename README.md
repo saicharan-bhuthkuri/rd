@@ -2008,80 +2008,132 @@ FUNCTION initializeClientSync():
 ---
 
 ## 15. Implementation
-### A. File and Folder Structure
+### A. Complete Repository File & Folder Structure
 
 ```text
-/
-├── .firebase/                  # Local firebase CLI cache
-├── .firebaserc                 # Firebase project configuration mappings
-├── firebase.json               # Firebase deployment targets, redirects, and rewrites
-├── CERTIFICATE_TEMPLATE.pptx   # PowerPoint template for Participation certificates
-├── CERTIFICATE_TEMPLATE - APPRECIATION.pptx # PowerPoint template for Appreciation certificates
-├── OFFER LETTER (1).pptx       # PowerPoint template for Admin Coordinator Offers
-├── DEPLOYMENT.md               # Quick production deploy cheat sheet
-├── download_fonts.ps1          # Powershell helper to download and open fonts folder
-├── fonts/                      # Development custom TTF fonts
-│   ├── Cardo-Regular.ttf
-│   ├── Cardo-Bold.ttf
-│   ├── Cardo-Italic.ttf
-│   ├── BebasNeue-Regular.ttf
-│   └── Bebas Neue Bold.ttf
+CER/
+├── .firebase/                                  # Firebase CLI deployment cache & hosting artifacts
+│   └── hosting.ZnJvbnRlbmRcZGlzdA.cache       # Cached deployment hash mapping
+├── .firebaserc                                 # Firebase project mappings (tcek-rd)
+├── firebase.json                               # Hosting configuration, SPA rewrites, cleanUrls, and cache headers
+├── .gitignore                                  # Git exclusion rules for node_modules, .env, dist, and tmp
+├── DEPLOYMENT.md                               # Multi-cloud production deployment guide & checklist
+├── download_fonts.ps1                          # PowerShell font provisioning script for Windows development
+├── CERTIFICATE_TEMPLATE.pptx                   # Master PPTX template: Event Participation
+├── CERTIFICATE_TEMPLATE - APPRECIATION.pptx    # Master PPTX template: Event Appreciation / Merit
+├── CERTIFICATE_TEMPLATE - hackathon.pptx       # Master PPTX template: Hackathon Credentials
+├── CERTIFICATE_TEMPLATE - Recognition .pptx    # Master PPTX template: Judges, Evaluators & Dignitaries
+├── CERTIFICATE_TEMPLATE - Volunteers.pptx      # Master PPTX template: Student Volunteers & Organizing Committee
+├── OFFER LETTER (1).pptx                       # Master PPTX template: Core Team & Coordinator Offer Letters
+├── fonts/                                      # Master typography directory for PDF compilation & slide fonts
+│   ├── Bebas Neue Bold.ttf                     # Bebas Neue Bold font
+│   ├── BebasNeue-Regular.ttf                   # Bebas Neue Regular font
+│   ├── Caladea-Bold.ttf                        # Caladea Bold (Cambria metric-compatible)
+│   ├── Caladea-BoldItalic.ttf                  # Caladea Bold Italic
+│   ├── Caladea-Italic.ttf                      # Caladea Italic
+│   ├── Caladea-Regular.ttf                     # Caladea Regular
+│   ├── Cardo-Bold.ttf                          # Cardo Bold font
+│   ├── Cardo-Italic.ttf                        # Cardo Italic font
+│   ├── Cardo-Regular.ttf                       # Cardo Regular serif font for certificate bodies
+│   ├── CormorantGaramond-Bold.ttf              # Cormorant Garamond Bold
+│   ├── CormorantGaramond-BoldItalic.ttf        # Cormorant Garamond Bold Italic
+│   ├── CormorantGaramond-Italic.ttf            # Cormorant Garamond Italic
+│   ├── CormorantGaramond-Regular.ttf           # Cormorant Garamond Regular
+│   ├── GreatVibes-Regular.ttf                  # Great Vibes calligraphy script font for signatures
+│   ├── InriaSerif-Bold.ttf                     # Inria Serif Bold
+│   ├── InriaSerif-BoldItalic.ttf               # Inria Serif Bold Italic
+│   ├── InriaSerif-Italic.ttf                   # Inria Serif Italic
+│   ├── InriaSerif-Regular.ttf                  # Inria Serif Regular
+│   └── Palatino Bold.ttf                       # Palatino Bold font
 │
-├── backend/                    # Express Backend Service
-│   ├── src/
-│   │   ├── index.ts            # Core Backend API: Routing, DB migrations, dispatch logs, XML engines
-│   │   └── types.ts            # Shared types/interfaces
-│   ├── .dockerignore           # Excluded paths from Docker context
-│   ├── .env                    # Secret environment variables (ignored in Git)
-│   ├── Dockerfile              # Docker container setup (builds Bullseye Slim, installs LibreOffice & fonts)
-│   ├── clear_db.js             # Utility to clear and reset Turso SQLite tables
-│   ├── update_db_templates.js  # Utility to sync local PowerPoint templates directly into Turso
-│   ├── tsconfig.json           # TypeScript configuration
-│   └── package.json            # NPM dependencies and runner scripts
+├── backend/                                    # Node.js + Express 4.19 + TypeScript API Server
+│   ├── .dockerignore                           # Excluded files from Docker container build context
+│   ├── .env                                    # Environment variables (PORT, TURSO_DATABASE_URL, JWT_SECRET, etc.)
+│   ├── Dockerfile                              # Multi-stage Docker container (Debian Bullseye, LibreOffice, Fonts)
+│   ├── package.json                            # Backend dependencies, scripts, and runtime engines
+│   ├── package-lock.json                       # Exact dependency lockfile
+│   ├── tsconfig.json                           # TypeScript compiler configurations (target: ES2022, outDir: dist)
+│   ├── google_drive_proxy.gs                   # Google Apps Script proxy for Drive submissions & Gmail relay
+│   ├── insert_sih_registrations.js             # Data migration script seeding hackathon participants
+│   ├── clear_db.js                             # Database sanitization and auto-increment reset utility
+│   ├── update_db_templates.js                  # In-database PPTX template synchronizer (Base64 blobs)
+│   ├── test_suite.js                           # Logic, casing, XML parsing, and date formatting unit test suite
+│   ├── validate_mermaid.js                     # Diagram syntax & bracket validator checking all 26 figures
+│   ├── verify_all_features.js                  # Automated 33-point live E2E integration test runner
+│   ├── fonts/                                  # Bundled fonts inside backend container for LibreOffice rendering
+│   │   └── ... (19 TTF font variants)
+│   ├── uploads/                                # Local file upload cache
+│   │   └── submissions/                        # Uploaded presentation slides and project document buffers
+│   └── src/                                    # Backend TypeScript source directory
+│       └── index.ts                            # Core backend monolithic server (60 endpoints, 16 tables, engines)
 │
-└── frontend/                   # Vite React Frontend client
-    ├── src/
-    │   ├── assets/             # Brand logos and images
-    │   ├── components/         # Presentation layouts
-    │   │   ├── Header.tsx      # Public Navigation
-    │   │   ├── Footer.tsx      # Core footer links
-    │   │   ├── Hero.tsx        # Homepage landing section
-    │   │   ├── About.tsx       # Club narrative overview
-    │   │   ├── ResearchDomains.tsx # Domain details (tinyML, crypt, web3)
-    │   │   ├── Events.tsx      # Technical event calendar cards
-    │   │   ├── Benefits.tsx    # Details on perks of joining
-    │   │   ├── Team.tsx        # Core Team directory card grids
-    │   │   ├── FAQ.tsx         # Frequently Asked Questions accordion
-    │   │   ├── Contact.tsx     # Public enquiry message form
-    │   │   └── AdminLayout.tsx # Navigation & dashboard sidebar template for admins
-    │   │
-    │   ├── pages/              # Routed Views
-    │   │   ├── AboutPage.tsx   # Detailed R&D Cell background info
-    │   │   ├── ResearchPage.tsx# Dynamic list of academic domains and targets
-    │   │   ├── EventsPage.tsx  # Interactive list of technical events
-    │   │   ├── BenefitsPage.tsx# Details of benefits, certificates, and letters
-    │   │   ├── TeamPage.tsx    # List of advisory members & developers
-    │   │   ├── FAQPage.tsx     # Full list of system FAQs
-    │   │   ├── ContactPage.tsx # Public contact page
-    │   │   ├── ApplyPage.tsx   # Unified submission form (Club, Event, Hackathon)
-    │   │   ├── VerifyCertificatePage.tsx # Public credential verification and PDF rendering
-    │   │   ├── AdminLoginPage.tsx # Authenticator portal (JWT fetch)
-    │   │   ├── AdminDashboardPage.tsx # Central dashboard containing applications, events, hackathons tabs
-    │   │   ├── AdminUsersPage.tsx # Management dashboard list for superadmins
-    │   │   ├── AdminCreateUserPage.tsx # Superadmin user registration
-    │   │   ├── AdminManageEventsPage.tsx # List and deletion interface for events
-    │   │   ├── AdminCreateEventPage.tsx # Event creator form
-    │   │   └── AdminBranchesPage.tsx # Branch manager (add/remove engineering branches)
-    │   │
-    │   ├── App.tsx             # Application Router and EventSource client handler
-    │   ├── config.ts           # Dynamic API base URL resolver
-    │   ├── index.css           # Core styling system (CSS grids, light/dark styling vars)
-    │   └── main.tsx            # DOM bootstrap entry point
-    ├── vite.config.ts          # Vite asset bundler configuration
-    ├── tsconfig.json           # TS configurations
-    ├── eslint.config.js        # Linter rules
-    ├── .env.development        # Dev environment mapping
-    └── .env.production         # Production api URLs
+└── frontend/                                   # Client Single Page Application (React 19, Vite, TypeScript)
+    ├── .env.development                        # Local dev environment API URL (http://localhost:5000)
+    ├── .env.production                         # Cloud production API URL (https://rd-backend-kbsm.onrender.com)
+    ├── eslint.config.js                        # ESLint flat configuration with React Hooks & TypeScript rules
+    ├── index.html                              # HTML5 entry page with Google Fonts preconnect & meta tags
+    ├── package.json                            # Frontend dependencies, build scripts (vite, react, lucide-react)
+    ├── package-lock.json                       # Exact frontend dependency lockfile
+    ├── tsconfig.json                           # Workspace TypeScript composite configuration
+    ├── tsconfig.app.json                       # Application-specific TypeScript compiler settings
+    ├── tsconfig.node.json                      # Vite bundler-specific TypeScript configuration
+    ├── vite.config.ts                          # Vite build tool config, proxy rules, and React plugins
+    ├── public/                                 # Static public assets served from root
+    │   ├── favicon.png                         # High-res application favicon
+    │   ├── favicon.svg                         # Vector application favicon
+    │   ├── icons.svg                           # SVG sprite definitions
+    │   └── logo.png                            # Trinity College R&D Cell emblem logo
+    └── src/                                    # React application source code
+        ├── App.tsx                             # Master Router (35 routes), Layout, Fetch Interceptor, SSE Listener
+        ├── config.ts                           # Dynamic API base URL resolver (development vs production)
+        ├── index.css                           # Institutional Light Theme design system tokens, typography, CSS vars
+        ├── main.tsx                            # DOM bootstrap rendering <App /> into root container
+        ├── assets/                             # Bundled image and SVG assets
+        │   ├── hero.png                        # Homepage hero banner artwork
+        │   ├── react.svg                       # React framework logo
+        │   └── vite.svg                        # Vite bundler logo
+        ├── utils/                              # Reusable frontend utility functions
+        │   └── phone.ts                        # Phone number formatting and E.164 sanitization helper
+        ├── components/                         # 13 Reusable UI components
+        │   ├── Header.tsx                      # Public responsive navigation header with active indicator
+        │   ├── Footer.tsx                      # Institutional footer with quick links, contacts, copyright
+        │   ├── Hero.tsx                        # High-impact homepage landing hero with call-to-action buttons
+        │   ├── About.tsx                       # Institutional mission, leadership overview, and research pillars
+        │   ├── ResearchDomains.tsx             # 6 Specialized research labs (AI, IoT, VLSI, Robotics, Web3, Cyber)
+        │   ├── Events.tsx                      # Event calendar cards with interactive date chips and register links
+        │   ├── Benefits.tsx                    # Value proposition grid (Letters of Recommendation, Certs, Funding)
+        │   ├── Team.tsx                        # Advisory council, faculty leads, and student coordinator cards
+        │   ├── FAQ.tsx                         # Searchable and expandable accordion FAQ interface
+        │   ├── Contact.tsx                     # Inquiry form with real-time validation and feedback toasts
+        │   ├── AdminLayout.tsx                 # Responsive admin sidebar navigation, active tab badges, user pill
+        │   ├── AdminFilterDropdown.tsx         # Reusable multi-option filter dropdown for table rosters
+        │   └── AdminPagination.tsx             # Standardized pagination controller with page size toggles
+        └── pages/                              # 22 Routed application views
+            ├── AboutPage.tsx                   # Full dedicated about page with institutional background
+            ├── ResearchPage.tsx                # Detailed academic domains, current papers, and lab equipment
+            ├── EventsPage.tsx                  # Complete calendar of upcoming workshops, hackathons, seminars
+            ├── BenefitsPage.tsx                # Detailed perks, credentialing policies, and portfolio benefits
+            ├── TeamPage.tsx                    # Full roster of faculty coordinators and student core committee
+            ├── FAQPage.tsx                     # Exhaustive searchable knowledge base of student queries
+            ├── ContactPage.tsx                 # Public contact desk with direct email & phone channels
+            ├── ApplyPage.tsx                   # Multi-purpose registration portal (Club, Event, Hackathon, etc.)
+            ├── VerifyCertificatePage.tsx       # Public credential lookup, QR verification, 16:9 PDF stream
+            ├── AdminLoginPage.tsx              # Administrator login portal with JWT session cookie handling
+            ├── AdminForgotPasswordPage.tsx     # Admin self-service password recovery with email link request
+            ├── AdminResetPasswordPage.tsx      # Admin secure password reset form with token verification
+            ├── AdminDashboardPage.tsx          # Multi-tab administration console (Club, Events, Hackathons, etc.)
+            ├── AdminMessagingPage.tsx          # Institutional Event Messaging Studio with audience cards & letterhead
+            ├── AdminRegDeskPage.tsx            # Registration Desk user account and temporary password manager
+            ├── AdminRoomsPage.tsx              # Presentation room, lab, and venue allocation manager
+            ├── AdminUsersPage.tsx              # Developer/Superadmin system user roster and permissions editor
+            ├── AdminCreateUserPage.tsx         # Superadmin provisioning form for new administrative accounts
+            ├── AdminManageEventsPage.tsx       # Event calendar management, editing, and deletion interface
+            ├── AdminCreateEventPage.tsx        # Event authoring form with category, date, venue, speaker details
+            ├── AdminBranchesPage.tsx           # Academic engineering departments catalog manager
+            ├── RegDeskLoginPage.tsx            # Dedicated Registration Desk sign-in with 6-box temporary password
+            ├── RegDeskForgotPasswordPage.tsx   # Registration Desk coordinator password recovery interface
+            ├── RegDeskResetPasswordPage.tsx    # Registration Desk coordinator password reset entry
+            └── RegDeskDashboardPage.tsx        # On-site event check-in terminal with live roll search & attendance
 ```
 
 ### Important Files Breakdown
@@ -2201,31 +2253,52 @@ Styling is managed via [`frontend/src/index.css`](file:///c:/Users/bhuth/OneDriv
 * **Core Variables**: Colors like `--primary-rgb`, `--accent-rgb`, `--bg-dark`, and font-families (`Outfit`, `Inter`).
 * **Glassmorphism**: `.glass-panel` utilizes `backdrop-filter: blur(12px)` and transparent border variables.
 
-### Route Map and Pages
+### Complete Route Map & Navigation Matrix (35 Active Routes)
 
-| URL Route | Access Level | Primary Components | API Calls | Description |
+| URL Route | Access Guard | Primary Page Component | Associated API Endpoints | Operational Purpose & Workflow Description |
 | :--- | :--- | :--- | :--- | :--- |
-| `/` | Public | Header, Hero, About, ResearchDomains, Events, Benefits, Team, FAQ, Contact, Footer | `GET /api/events` | R&D Cell home portal containing sections. |
-| `/apply` | Public | ApplyPage | `GET /api/events`, `GET /api/branches`, `POST /api/apply/club`, `POST /api/apply/event`, `POST /api/apply/hackathon` | Centralized application portal with choice cards for Club, Event, and Hackathon registration. |
-| `/apply/HackathonRegistration` | Public | ApplyPage | `GET /api/events`, `POST /api/apply/hackathon` | Direct dedicated Hackathon team registration form (supports alias `/apply/hackathon`). |
-| `/apply/ClubRegistration` | Public | ApplyPage | `GET /api/branches`, `POST /api/apply/club` | Direct dedicated R&D Club membership application form (supports alias `/apply/club`). |
-| `/apply/EventRegistration` | Public | ApplyPage | `GET /api/events`, `GET /api/branches`, `POST /api/apply/event` | Direct dedicated technical event/workshop registration form (supports alias `/apply/event`). |
-| `/apply/:registrationType` | Public | ApplyPage | Dynamic | Route parameter handler matching all registration types with case-insensitive normalization. |
-| `/verify` | Public | VerifyCertificatePage | `GET /api/verify-certificate/*` | Authenticates certificates and renders PDF. |
-| `/admin/login` | Public | AdminLoginPage | `POST /api/admin/login` | Authentication portal generating JWT session token. |
-| `/admin/club` | Admin/Dev | AdminLayout, AdminDashboardPage | `GET /api/admin/applications`, `POST /api/admin/applications/status`, `POST /api/admin/bulk-send/offers` | Recruitment tracker, status changes, and dispatch of offer letters. |
-| `/admin/events` | Admin/Dev | AdminLayout, AdminDashboardPage | `GET /api/admin/applications`, `POST /api/admin/applications/status`, `POST /api/admin/bulk-send/certificates` | Event registration roster, action modifiers, and batch certificate dispatches. |
-| `/admin/hackathons`| Admin/Dev | AdminLayout, AdminDashboardPage | `GET /api/admin/applications`, `POST /api/admin/applications/status`, `POST /api/admin/bulk-send/hackathon-certificates` | Roster of hackathon teams, member list inspection, team action selections, and dispatches. |
-| `/admin/users` | Developer / Superadmin | AdminUsersPage | `GET /api/admin/users`, `DELETE /api/admin/users/:id` | Roster of administrators. |
-| `/admin/users/create` | Developer / Superadmin | AdminCreateUserPage | `POST /api/admin/users` | Registration form for new administrators. |
-| `/admin/events/manage`| Admin/Dev | AdminManageEventsPage | `GET /api/events`, `DELETE /api/admin/events/:id` | Lists all created events with options to remove them. |
-| `/admin/events/create`| Admin/Dev | AdminCreateEventPage | `POST /api/admin/events` | Form to create new workshops, hackathons, or seminars. |
-| `/admin/branches` | Admin/Dev | AdminBranchesPage | `GET /api/branches`, `POST /api/admin/branches`, `DELETE /api/admin/branches/:id` | Registers and updates official engineering branches. |
-| `/admin/messaging` | Admin/Dev | AdminMessagingPage | `GET /api/admin/messaging/recipients`, `POST /api/admin/messaging/send` | Targeted multi-group event announcement composer with locked institutional letterhead and batch email dispatch. |
-| `/admin/rooms` | Admin/Dev | AdminRoomsPage | `GET /api/admin/rooms`, `POST /api/admin/rooms`, `DELETE /api/admin/rooms/:id` | Presentation hall, computer lab, and venue capacity allocation manager. |
-| `/admin/reg-desk` | Admin/Dev | AdminRegDeskPage | `GET /api/admin/reg-desk-users`, `POST /api/admin/reg-desk-users`, `PUT /api/admin/reg-desk-users/:id` | Registration desk coordinator accounts and temporary credentials manager. |
-| `/reg-desk/login` | Public | RegDeskLoginPage | `POST /api/reg-desk/login` | Dedicated Registration Desk sign-in terminal with 6-character temporary password / OTP box inputs. |
-| `/reg-desk/dashboard` | Desk Staff / Admin | RegDeskDashboardPage | `GET /api/reg-desk/participants`, `POST /api/reg-desk/attendance` | On-site attendee check-in, live PIN lookup, badge printing, and timestamped attendance tracking. |
+| `/` | Public | HomePage (Header, Hero, About, Domains, Events, Team, FAQ, Contact, Footer) | `GET /api/events` | Institutional landing portal summarizing club missions, research domains, upcoming events, and registration gateways. |
+| `/about` | Public | AboutPage | None | Dedicated institutional profile, advisory council roster, objectives, and historical achievements. |
+| `/research` | Public | ResearchPage | None | Catalog of the 6 core research labs (TinyML, Cyber, VLSI, Robotics, Web3, IoT) with active student projects. |
+| `/events` | Public | EventsPage | `GET /api/events` | Interactive event calendar with categorized filters, venue details, speaker profiles, and direct registration triggers. |
+| `/benefits` | Public | BenefitsPage | None | Value proposition breakdown: industrial mentorship, project funding, letters of recommendation, and verified credentials. |
+| `/team` | Public | TeamPage | None | Complete leadership directory: Institutional Patron, Faculty In-charge, and Student Executive Core Committee. |
+| `/faqs` | Public | FAQPage | None | Searchable knowledge base addressing student eligibility, interview cycles, and hackathon guidelines. |
+| `/contact` | Public | ContactPage | `POST /api/contact` | Institutional inquiry form with client-side field validation and real-time database recording. |
+| `/apply` | Public | ApplyPage | `GET /api/events`, `GET /api/branches` | Multi-gateway registration hub presenting choice cards for Club, Event, and Hackathon team enrollment. |
+| `/apply/HackathonRegistration` | Public | ApplyPage | `GET /api/events`, `POST /api/apply/hackathon` | Dedicated hackathon team signup form (alias: `/apply/hackathon`). Collects leader profile and dynamic member rows. |
+| `/apply/ClubRegistration` | Public | ApplyPage | `GET /api/branches`, `POST /api/apply/club` | Dedicated R&D Cell membership application form (alias: `/apply/club`). Collects academic PIN, interests, and skills. |
+| `/apply/EventRegistration` | Public | ApplyPage | `GET /api/events`, `GET /api/branches`, `POST /api/apply/event` | Dedicated technical workshop/seminar registration form (alias: `/apply/event`). |
+| `/apply/Recognition` | Public | ApplyPage | `POST /api/apply/recognition` | Specialized credential registration for event evaluators, keynote speakers, and external dignitaries. |
+| `/apply/Volunteer` | Public | ApplyPage | `POST /api/apply/volunteer` | Student organizing committee and event volunteer registration form with skills profiling. |
+| `/apply/ProjectSubmission` | Public | ApplyPage | `GET /api/project-submission/events`, `POST /api/project-submission/submit` | Hackathon submission portal with team lead verification and repository/presentation asset uploads. |
+| `/apply/:registrationType` | Public | ApplyPage | Dynamic `/api/apply/*` | Case-insensitive dynamic path parameter handler supporting direct links from external invitations. |
+| `/verify` | Public | VerifyCertificatePage | `GET /api/verify-certificate/*` | Public certificate authenticator resolving certificate IDs, scanning QR codes, and streaming dynamic 16:9 PDFs. |
+| `/reg-desk/login` | Public | RegDeskLoginPage | `POST /api/reg-desk/login` | Dedicated sign-in portal for physical registration desk staff featuring 6-box temporary password / OTP inputs. |
+| `/reg-desk/forgot-password` | Public | RegDeskForgotPasswordPage | `POST /api/reg-desk/forgot-password` | Self-service password recovery interface for registration desk coordinators via email reset links. |
+| `/reg-desk/reset-password` | Public | RegDeskResetPasswordPage | `POST /api/reg-desk/reset-password` | Secure password reset form verifying SHA-256 tokens and applying new coordinator credentials. |
+| `/reg-desk` | Public | Navigate to `/reg-desk/dashboard` | None | URL redirect helper forwarding authenticated desk sessions to the operational dashboard. |
+| `/reg-desk/dashboard` | RegDeskProtectedRoute | RegDeskDashboardPage | `GET /api/reg-desk/participants`, `POST /api/reg-desk/attendance` | On-site attendee check-in console with instant PIN search, room assignments, and attendance status toggles. |
+| `/admin/login` | Public | AdminLoginPage | `POST /api/admin/login` | Administrative login terminal issuing HttpOnly JWT session cookies and Double-Submit CSRF tokens. |
+| `/admin/forgot-password` | Public | AdminForgotPasswordPage | `POST /api/admin/forgot-password` | Self-service administrator password recovery triggering email reset links via Google Apps Script. |
+| `/admin/reset-password` | Public | AdminResetPasswordPage | `POST /api/admin/reset-password` | Token-verified administrator credential reset interface with client-side strength enforcement. |
+| `/admin/dashboard` | ProtectedRoute | Navigate to `/admin/club` | None | Default admin landing redirect pointing to the primary Club Recruitment roster. |
+| `/admin/club` | ProtectedRoute | AdminLayout, AdminDashboardPage | `GET /api/admin/applications`, `POST /api/admin/applications/status`, `POST /api/admin/bulk-send/offers` | Core recruitment roster with status toggling (Approved/Rejected), branch filtering, and bulk offer letter dispatch. |
+| `/admin/events` | ProtectedRoute | AdminLayout, AdminDashboardPage | `GET /api/admin/applications`, `POST /api/admin/bulk-send/certificates` | Technical event attendees roster with action overrides (Won 1st/2nd/3rd, Coordinated) and certificate dispatches. |
+| `/admin/hackathons` | ProtectedRoute | AdminLayout, AdminDashboardPage | `GET /api/admin/applications`, `POST /api/admin/bulk-send/hackathon-certificates` | Hackathon team roster with team member drawers, award classifications, and bulk credential generation. |
+| `/admin/recognition` | ProtectedRoute | AdminLayout, AdminDashboardPage | `GET /api/admin/applications`, `POST /api/admin/bulk-send/recognition-certificates` | Evaluator and dignitary credentials roster with organization tracking and automated appreciation dispatches. |
+| `/admin/volunteers` | ProtectedRoute | AdminLayout, AdminDashboardPage | `GET /api/admin/applications`, `POST /api/admin/bulk-send/volunteer-certificates` | Student volunteer service roster with committee assignments and bulk certificate issuance. |
+| `/admin/submissions` | ProtectedRoute | AdminLayout, AdminDashboardPage | `GET /api/admin/applications` | Hackathon idea submissions and presentation slides repository inspection table. |
+| `/admin/project-submissions` | ProtectedRoute | AdminLayout, AdminDashboardPage | `GET /api/admin/applications` | Detailed technical project expos submissions roster with direct GitHub and drive preview links. |
+| `/admin/users` | Developer / Superadmin | AdminLayout, AdminUsersPage | `GET /api/admin/users`, `DELETE /api/admin/users/:id` | System administrator account management table restricted strictly to Developer and Superadmin roles. |
+| `/admin/users/create` | Developer / Superadmin | AdminLayout, AdminCreateUserPage | `POST /api/admin/users` | Secure account provisioning form generating new administrative users with assigned RBAC privileges. |
+| `/admin/events/manage` | ProtectedRoute | AdminLayout, AdminManageEventsPage | `GET /api/events`, `DELETE /api/admin/events/:id` | Institutional calendar manager with live deletion controls and participant count indicators. |
+| `/admin/events/create` | ProtectedRoute | AdminLayout, AdminCreateEventPage | `POST /api/admin/events` | Event authoring form with category pickers, venue details, speaker bio fields, and date schedules. |
+| `/admin/branches` | ProtectedRoute | AdminLayout, AdminBranchesPage | `GET /api/branches`, `POST /api/admin/branches`, `DELETE /api/admin/branches/:id` | Academic engineering branch catalog editor maintaining official department names and acronyms. |
+| `/admin/reg-desk` | ProtectedRoute | AdminLayout, AdminRegDeskPage | `GET /api/admin/reg-desk-users`, `POST /api/admin/reg-desk-users`, `PUT /api/admin/reg-desk-users/:id` | Registration desk staff account manager issuing temporary 1-week passwords and event assignments. |
+| `/admin/messaging` | ProtectedRoute | AdminLayout, AdminMessagingPage | `GET /api/admin/messaging/recipients`, `POST /api/admin/messaging/send` | Institutional Event Messaging Studio featuring audience group cards, letterhead canvas, and preview modals. |
+| `/admin/rooms` | ProtectedRoute | AdminLayout, AdminRoomsPage | `GET /api/admin/rooms`, `POST /api/admin/rooms`, `DELETE /api/admin/rooms/:id` | Presentation hall, computer lab, and review venue allocation manager with assigned check-in desks. |
+
 
 ---
 
@@ -2243,6 +2316,147 @@ Styling is managed via [`frontend/src/index.css`](file:///c:/Users/bhuth/OneDriv
 
 ---
 
+
+---
+
+### C. Minor Technical & Implementation Details
+
+To ensure complete engineering transparency and assist peer reviewers during technical viva evaluations, this section documents the granular algorithms, cryptographic primitives, protocol constants, and operational edge cases implemented across the platform:
+
+#### 1. Global Fetch Interceptor Architecture (`frontend/src/App.tsx`)
+* **Monkey-Patch Mechanism**: Injected into `window.fetch` at runtime before any component mount.
+* **Credentials Injection**: Automatically injects `credentials = 'include'` on all outbound HTTP requests where `url.startsWith(API_BASE_URL)` or `url.startsWith('/api')`, ensuring HttpOnly session cookies are transmitted across cross-origin requests.
+* **CSRF Token Extraction**: Checks HTTP verb (`POST`, `PUT`, `DELETE`, `PATCH`). If mutating, reads `localStorage.getItem('csrf_token')` and injects it as the `X-CSRF-Token` HTTP header.
+* **Header Normalization**: Handles diverse header representations: `Headers` class instances, array of pairs (`[string, string][]`), and plain JavaScript objects (`Record<string, string>`).
+* **Corrupted Bearer Sanitation**: Detects and deletes corrupted client authorization strings (e.g. `Bearer null` or `Bearer undefined`) to avoid 401 parse errors on unauthenticated public routes.
+
+#### 2. Double-Submit CSRF Defense Mechanism
+* **Server Issuance**: On successful authentication (`POST /api/admin/login` or `POST /api/reg-desk/login`), the server issues two distinct tokens:
+  1. An `admin_token` signed with `JWT_SECRET` sent via `Set-Cookie` with flags: `HttpOnly: true`, `SameSite: Lax`, `Secure: true` (in production).
+  2. A `csrfToken` signed with `CSRF_SECRET` containing `{ username, sessionToken }` returned directly in the JSON response payload.
+* **Validation Gate**: On mutating requests, the server extracts `req.cookies.admin_token` and the header `req.headers['x-csrf-token']`. Both are verified against their respective cryptographic secrets. The server confirms that the session identifier inside the CSRF token matches the authenticated identity in the session cookie.
+
+#### 3. Stateful Password Recovery & Token Lifecycle
+* **Generation**: Generates a 32-byte cryptographically secure random buffer:
+  `const rawToken = crypto.randomBytes(32).toString('hex');`
+* **Salt Hashing**: A unique per-token cryptographic salt is generated, and the token hash is computed:
+  `const tokenHash = crypto.createHash('sha256').update(rawToken + salt).digest('hex');`
+* **Expiration Guard**: Stored in `password_reset_tokens` with an exact 1-hour expiration timestamp (`new Date(Date.now() + 60 * 60 * 1000).toISOString()`).
+* **Single-Use Invalidation**: When submitted to `POST /api/admin/reset-password`, the database query filters `WHERE expires_at > CURRENT_TIMESTAMP AND used = 0`. Once matched, the record is immediately updated to `used = 1` within the same transaction to prevent replay attacks.
+
+#### 4. Registration Desk Temporary Credentials (1-Week Expiry)
+* **Auto-Generated Passwords**: Administrative creation of registration desk staff generates an alphanumeric 6-character temporary code (e.g. `K9X2B4`).
+* **Storage**: Stored in `registration_desk_users` with `is_temporary_password = 1`, `temp_password = <plainCode>`, and `temp_password_expires_at = NOW + 7 days`.
+* **OTP Input Behavior**: The login portal (`/reg-desk/login`) renders a 6-cell digit/character input box with auto-focus, paste handling, backspace navigation, and Enter key submission.
+
+#### 5. Multi-Tier Rate Limiting Windows (`express-rate-limit`)
+* **General API Limiter**:
+  - Window: 15 minutes (`15 * 60 * 1000 ms`).
+  - Max requests: 100 per IP address.
+  - Exceeded response: `429 Too Many Requests` with retry headers.
+* **Authentication Limiter**:
+  - Window: 15 minutes.
+  - Max attempts: 5 per IP address.
+  - Prevents brute-force dictionary attacks against admin and registration desk accounts.
+* **Application Submission Limiter**:
+  - Window: 1 hour.
+  - Max submissions: 10 per IP address.
+  - Protects database capacity against automated script flooding.
+
+#### 6. Server-Sent Events (SSE) Protocol Details (`/api/sync-stream`)
+* **Connection Headers**:
+  ```http
+  Content-Type: text/event-stream
+  Cache-Control: no-cache, no-transform
+  Connection: keep-alive
+  X-Accel-Buffering: no
+  ```
+* **Heartbeat Ping**: Implements a 25-second interval timer sending `: ping\n\n` comments across the open TCP socket. This prevents intermediate cloud load balancers (such as Render's reverse proxy) from prematurely terminating idle HTTP connections.
+* **Broadcast Pool**: Maintains an in-memory array of active response objects `clients: Response[]`. Upon any administrative data mutation, the server broadcasts:
+  `res.write(`data: ${JSON.stringify({ type: signalType })}\n\n`);`
+* **Client Auto-Reconnect**: If the network connection drops, the browser's native `EventSource` API automatically re-initiates the handshake with exponential backoff.
+
+#### 7. Low-Level PPTX XML Node Manipulation Engine
+* **Zip File Extraction**: The PowerPoint presentation (.pptx) is treated as a compressed OpenXML zip archive, read into memory using `PizZip`.
+* **Target Node**: Uncompresses and accesses `ppt/slides/slide1.xml` (and `slide2.xml` for merit certificates).
+* **Text Auto-Fit Disabling**: To prevent PowerPoint from shrinking candidate names when character lengths exceed standard boundaries, the engine strips existing auto-fit properties and injects explicit non-autofit directives:
+  ```xml
+  <a:spPr>
+      <a:noAutofit/>
+  </a:spPr>
+  ```
+* **Casing Normalization (`toProperCase`)**: Capitalizes names dynamically while strictly preserving standard engineering acronyms:
+  `['CSE', 'ECE', 'EEE', 'ME', 'CE', 'AI&ML', 'IT', 'MBA', 'MCA', 'SIH', 'TCEK', 'R&D', 'IoT', 'VLSI']`
+
+#### 8. Headless LibreOffice CLI Execution Profile Sandboxing
+* **Execution Command**:
+  ```bash
+  soffice --headless --convert-to pdf --outdir /tmp/job-123 -env:UserInstallation=file:///tmp/soffice-profile-job-123 /tmp/job-123/slide.pptx
+  ```
+* **Profile Isolation**: Passing `-env:UserInstallation=file:///tmp/soffice-profile-*` creates a distinct ephemeral configuration workspace for each batch job. This eliminates write-lock collisions on the default `~/.config/libreoffice` directory when multiple concurrent conversion subprocesses execute simultaneously.
+* **Deterministic Cleanup**: All transient files (`.pptx`, `.pdf`, and custom user profile trees) are unlinked inside a `finally { ... }` block, guaranteeing zero disk leakage on ephemeral container nodes.
+
+#### 9. Concurrency Pool Controller (`runWithConcurrency`)
+* **Batch Slicing**: Converts large participant arrays (e.g. 100+ candidates) into discrete concurrency chunks:
+  ```typescript
+  async function runWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]>
+  ```
+* **Threshold**: Fixed at `limit = 10`. This ensures that peak memory consumption remains under 350 MB on Render's 512 MB free container tier while maintaining throughput of ~8 certificates per second.
+
+#### 10. HTTPS Email Proxy Protocol (Google Apps Script)
+* **Port Configuration**: Connects exclusively over TCP Port 443 (HTTPS) to the published Google Apps Script Web App exec URL.
+* **Payload Structure**:
+  ```json
+  {
+    "to": "participant@gmail.com",
+    "subject": "Your Official Certificate — SIH 2026",
+    "htmlBody": "<div style='...'>...</div>",
+    "attachments": [
+      {
+        "filename": "Certificate_Jane_Doe.pdf",
+        "mimeType": "application/pdf",
+        "base64": "JVBERi0xLjQK..."
+      }
+    ]
+  }
+  ```
+* **Egress Bypass**: Completely bypasses cloud provider SMTP port blocking (ports 25, 465, and 587) by routing through Google's native internal API infrastructure.
+
+#### 11. Responsive 16:9 Dynamic PDF Streamer (`/verify`)
+* **Direct Binary Streaming**: When accessing `GET /api/verify-certificate/:id/pdf`, the backend sets:
+  ```http
+  Content-Type: application/pdf
+  Content-Disposition: inline; filename="verified-certificate.pdf"
+  ```
+* **Client Iframe Framing**: The React frontend embeds the binary stream inside a container styled with:
+  ```css
+  .certificate-frame {
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  }
+  ```
+* **Cross-Browser Compatibility**: Enables native high-resolution PDF rendering on desktop and mobile browsers without requiring third-party PDF.js libraries or browser extensions.
+
+#### 12. Institutional Light Theme Design Tokens
+* **Color Hierarchy**:
+  - `--bg-main: #ffffff` (Pure White card canvases)
+  - `--bg-alt: #f8fafc` (Slate 50 subtle contrast background)
+  - `--color-primary: #059669` (Emerald 600 institutional accent)
+  - `--color-primary-hover: #047857` (Emerald 700 interactive state)
+  - `--border-color: #e2e8f0` (Slate 200 clean hairline borders)
+  - `--text-heading: #0f172a` (Slate 900 high-contrast title typography)
+  - `--text-body: #334155` (Slate 700 readable narrative text)
+  - `--text-muted: #64748b` (Slate 500 secondary labels & captions)
+* **Typography Hierarchy**:
+  - UI Primary: `Inter, system-ui, -apple-system, sans-serif`
+  - Display Headings: `Outfit, Inter, sans-serif`
+  - Official Certificate Serif: `Cardo, Georgia, serif`
+  - Official Certificate Monospace/Display: `Bebas Neue, sans-serif`
+
+---
 
 #### 3. API Endpoints Reference
 
