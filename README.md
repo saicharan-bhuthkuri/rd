@@ -135,7 +135,7 @@ For your viva presentation, the core contribution is summarized in one sentence:
 * **Technology Readiness Level (TRL)**: **TRL 6** (System/Subsystem Prototype Demonstration in a Representative Environment)
   * *Proof & Evidence*: The fully integrated systems compile cleanly (exit code `0`) and run successfully across target cloud nodes (Firebase CDN static distribution, Dockerised API containers on Render, and edge Turso DB SQLite cloud nodes).
 * **Implementation Readiness (IR)**: **IR 6** (System Integration & Verification Complete)
-  * *Proof & Evidence*: Execution of the automated integration test script [`backend/test_suite.js`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/test_suite.js) on test port `5001` returns a **100% PASS** rate on all 5 integration assertions (event lists, branches indexes, security blocks, invalid code filters). Templates sync scripts successfully seed Base64 PPTX structures directly into Turso database nodes. See [Section 35](#35-technology-readiness-level-trl--implementation-readiness-ir-assessment) for full detailed justifications and roadmap.
+  * *Proof & Evidence*: Execution of the automated end-to-end integration test suite [`backend/verify_all_features.js`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/verify_all_features.js) against live production nodes returns a **100.0% PASS** rate across all **33 integration assertions** (including 18 public/admin frontend web routes, public REST APIs, Registration Desk session issuance, attendee rosters, admin role guards, audience targeting, and persistent Server-Sent Events). Automated local integration suite [`backend/test_suite.js`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/test_suite.js) also validates 100% pass on internal assertion checks. See [Section 17](#17-testing) for full execution logs and [Section 35](#35-technology-readiness-level-trl--implementation-readiness-ir-assessment) for TRL/IR maturity assessment.
 
 
 ### Project Purpose
@@ -1747,6 +1747,17 @@ FUNCTION initializeClientSync():
 * **Responsibility**: Allocates computer labs, presentation halls, and review venues, managing room capacities and assigned check-in desks.
 * **Required for Production**: Yes.
 
+#### 14. [`backend/verify_all_features.js`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/verify_all_features.js)
+* **Purpose**: Automated End-to-End System & API Verification Test Suite.
+* **Responsibility**: Automatically executes 33 comprehensive verification checks across live target nodes:
+  - Validates all 18 public and administrative frontend routes on Firebase CDN.
+  - Verifies public backend REST services (`/api/events`, `/api/branches`, `/api/contact` input validation, `/api/verify-certificate` fraud prevention).
+  - Authenticates Registration Desk sessions, validates attendee queries, and checks administrative role-isolation guards.
+  - Validates Admin Console authentication, applications roster, audience targeting calculations, room allocations, and persistent Server-Sent Events (SSE) keep-alive streams.
+* **Dependencies**: Native Node.js `fetch`, `dotenv`.
+* **Execution Command**: `node backend/verify_all_features.js`
+* **Required for Production**: Continuous Quality Assurance & Integration Testing.
+
 ---
 
 
@@ -1783,6 +1794,11 @@ Styling is managed via [`frontend/src/index.css`](file:///c:/Users/bhuth/OneDriv
 | `/admin/events/manage`| Admin/Dev | AdminManageEventsPage | `GET /api/events`, `DELETE /api/admin/events/:id` | Lists all created events with options to remove them. |
 | `/admin/events/create`| Admin/Dev | AdminCreateEventPage | `POST /api/admin/events` | Form to create new workshops, hackathons, or seminars. |
 | `/admin/branches` | Admin/Dev | AdminBranchesPage | `GET /api/branches`, `POST /api/admin/branches`, `DELETE /api/admin/branches/:id` | Registers and updates official engineering branches. |
+| `/admin/messaging` | Admin/Dev | AdminMessagingPage | `GET /api/admin/messaging/recipients`, `POST /api/admin/messaging/send` | Targeted multi-group event announcement composer with locked institutional letterhead and batch email dispatch. |
+| `/admin/rooms` | Admin/Dev | AdminRoomsPage | `GET /api/admin/rooms`, `POST /api/admin/rooms`, `DELETE /api/admin/rooms/:id` | Presentation hall, computer lab, and venue capacity allocation manager. |
+| `/admin/reg-desk` | Admin/Dev | AdminRegDeskPage | `GET /api/admin/reg-desk-users`, `POST /api/admin/reg-desk-users`, `PUT /api/admin/reg-desk-users/:id` | Registration desk coordinator accounts and temporary credentials manager. |
+| `/reg-desk/login` | Public | RegDeskLoginPage | `POST /api/reg-desk/login` | Dedicated Registration Desk sign-in terminal with 6-character temporary password / OTP box inputs. |
+| `/reg-desk/dashboard` | Desk Staff / Admin | RegDeskDashboardPage | `GET /api/reg-desk/participants`, `POST /api/reg-desk/attendance` | On-site attendee check-in, live PIN lookup, badge printing, and timestamped attendance tracking. |
 
 ---
 
@@ -2837,6 +2853,69 @@ Static validation was executed locally using TypeScript compilation commands and
   * **Hook Dependency Array Override (`react-hooks/exhaustive-deps`)**: Dependency warnings are disabled to permit mount-only triggering arrays (`[]`) matching architectural design intents.
   * **RESOLVED / FIXED: React Hook Set-State-in-Effect Rule Violations (`react-hooks/set-state-in-effect`)**: Synchronous state updates inside mount effects were resolved by wrapping hook callers inside asynchronous `setTimeout` blocks, and the rule was turned off for auxiliary components.
   * **RESOLVED / FIXED: Temporal Dead Zone / Variable Hoisting Errors (`react-hooks/immutability`)**: Hoisting bugs in `VerifyCertificatePage.tsx` were resolved by placing the function definitions prior to hook expressions.
+
+#### 4. End-to-End System & API Verification Test Suite (`verify_all_features.js`)
+* **Command**: `node backend/verify_all_features.js`
+* **Targets**: Live production services (`https://tcek-rd.web.app` & `https://rd-backend-kbsm.onrender.com`)
+* **Execution Log**:
+  ```text
+  =================================================
+  STARTING FULL WEBSITE & API VERIFICATION SUITE
+  Backend Target:  https://rd-backend-kbsm.onrender.com
+  Frontend Target: https://tcek-rd.web.app
+  =================================================
+
+  >>> SECTION 1: Verifying Public Frontend Web Routes...
+  [PASS] Frontend Route /                                  -> HTTP 200
+  [PASS] Frontend Route /about                             -> HTTP 200
+  [PASS] Frontend Route /research                          -> HTTP 200
+  [PASS] Frontend Route /events                            -> HTTP 200
+  [PASS] Frontend Route /benefits                          -> HTTP 200
+  [PASS] Frontend Route /team                              -> HTTP 200
+  [PASS] Frontend Route /faqs                              -> HTTP 200
+  [PASS] Frontend Route /contact                           -> HTTP 200
+  [PASS] Frontend Route /apply                             -> HTTP 200
+  [PASS] Frontend Route /apply/HackathonRegistration       -> HTTP 200
+  [PASS] Frontend Route /apply/ClubRegistration            -> HTTP 200
+  [PASS] Frontend Route /apply/EventRegistration           -> HTTP 200
+  [PASS] Frontend Route /verify                            -> HTTP 200
+  [PASS] Frontend Route /reg-desk/login                    -> HTTP 200
+  [PASS] Frontend Route /admin/login                       -> HTTP 200
+  [PASS] Frontend Route /admin/messaging                   -> HTTP 200
+  [PASS] Frontend Route /admin/rooms                       -> HTTP 200
+  [PASS] Frontend Route /admin/reg-desk                    -> HTTP 200
+
+  >>> SECTION 2: Verifying Public Backend API Services...
+  [PASS] GET /api/events                                  -> Found 2 events
+  [PASS] GET /api/branches                                -> Found 8 branches
+  [PASS] GET /api/verify-certificate with invalid ID      -> Correctly returns 404 Not Found
+  [PASS] POST /api/contact validation gate                 -> Blocks empty payload with 400 Bad Request
+
+  >>> SECTION 3: Verifying Registration Desk Operations...
+  [PASS] POST /api/reg-desk/login with invalid credentials -> Correctly blocks with 401 Unauthorized
+  [PASS] POST /api/reg-desk/login with default desk account -> Logged in as Desk Team A (REG-DESK-01)
+  [PASS] GET /api/reg-desk/participants (Attendees)       -> Loaded 57 participants for "SIH 2026 Internal Hackathon"
+  [PASS] Role Guard: Desk user blocked from /api/admin/users -> Correctly returned 403 Forbidden
+
+  >>> SECTION 4: Verifying Admin Console & Messaging API...
+  [PASS] POST /api/admin/login invalid credentials        -> Correctly returns 401 Unauthorized
+  [PASS] POST /api/admin/login developer account 'charan' -> Session authenticated (Role: developer)
+  [PASS] GET /api/admin/applications                      -> Club: 5, Events: 1, Hackathons: 97
+  [PASS] GET /api/admin/messaging/recipients              -> Target: "SIH 2026 Internal Hackathon" -> Total deduplicated audience: 320
+  [PASS] GET /api/admin/rooms                             -> Found registered presentation rooms/labs
+  [PASS] GET /api/admin/reg-desk-users                    -> Found registration desk coordinators
+  [PASS] GET /api/sync-stream (SSE)                       -> EventSource stream active (content-type: text/event-stream)
+
+  =================================================
+  TEST SUMMARY RESULTS
+  TOTAL EXECUTED: 33
+  PASSED:         33
+  FAILED:         0
+  PASS RATE:      100.0%
+  =================================================
+  ```
+* **Exit Code**: `0`
+* **Result**: **100.0% PASS** across all 33 end-to-end integration assertions.
 
 ---
 
