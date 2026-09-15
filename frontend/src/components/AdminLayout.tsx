@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { 
   Users, 
-  ArrowLeft, 
   LogOut, 
   Sparkles, 
   Calendar, 
@@ -70,6 +69,26 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   const isAdmin = !!adminUser.username;
   const isRegDesk = !!regDeskUser.deskId;
   const role = adminUser.role || (isRegDesk ? 'reg_desk' : '');
+
+  const displayName = isAdmin 
+    ? (adminUser.name || adminUser.username || 'Admin') 
+    : (regDeskUser.name || regDeskUser.deskId || 'Registration Desk');
+
+  const displayRole = isAdmin
+    ? (adminUser.role ? String(adminUser.role).replace('_', ' ') : 'Administrator')
+    : (regDeskUser.deskId ? `Desk: ${regDeskUser.deskId}` : 'Reg Desk Staff');
+
+  const roleBadgeColor = (role === 'developer' || role === 'superadmin')
+    ? '#4338ca'
+    : role === 'reg_desk'
+    ? '#047857'
+    : '#0369a1';
+
+  const roleBadgeBg = (role === 'developer' || role === 'superadmin')
+    ? '#e0e7ff'
+    : role === 'reg_desk'
+    ? '#ecfdf5'
+    : '#e0f2fe';
 
   const handleLogout = async () => {
     try {
@@ -191,11 +210,6 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
                 <span>Manage Branches</span>
               </Link>
 
-              <Link to="/reg-desk/dashboard" className={`admin-nav-item ${isActive('/reg-desk/dashboard')}`}>
-                <ClipboardCheck size={18} />
-                <span>Attendance Desk</span>
-              </Link>
-
               <Link to="/admin/reg-desk" className={`admin-nav-item ${isActive('/admin/reg-desk')}`}>
                 <UserCheck size={18} />
                 <span>Registration Desk</span>
@@ -217,17 +231,133 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
 
           <hr className="admin-nav-divider" />
 
-          {!isRegDeskPage && (
-            <Link to="/" className="admin-nav-item">
-              <ArrowLeft size={18} />
-              <span>Back to Site</span>
-            </Link>
-          )}
+          {/* Premium User Profile Dock */}
+          {(isAdmin || isRegDesk) && (
+            <div style={{
+              margin: '0.65rem 0.65rem 0.5rem 0.65rem',
+              padding: '0.75rem 0.85rem',
+              borderRadius: '12px',
+              backgroundColor: '#ffffff',
+              border: '1px solid #e2e8f0',
+              boxShadow: '0 2px 6px -1px rgba(0, 0, 0, 0.05), 0 1px 4px -1px rgba(0, 0, 0, 0.03)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '0.75rem',
+              transition: 'all 0.15s ease'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0, flex: 1 }}>
+                {/* Avatar with Status Ring */}
+                <div style={{ position: 'relative', flexShrink: 0 }}>
+                  <div style={{
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '50%',
+                    background: role === 'reg_desk' 
+                      ? 'linear-gradient(135deg, #059669 0%, #10b981 100%)' 
+                      : (role === 'developer' 
+                        ? 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)' 
+                        : 'linear-gradient(135deg, #0284c7 0%, #2563eb 100%)'),
+                    color: '#ffffff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontWeight: 800,
+                    fontSize: '0.875rem',
+                    letterSpacing: '0.04em',
+                    boxShadow: role === 'reg_desk'
+                      ? '0 3px 8px rgba(5, 150, 105, 0.25)'
+                      : (role === 'developer'
+                        ? '0 3px 8px rgba(79, 70, 229, 0.25)'
+                        : '0 3px 8px rgba(2, 132, 199, 0.25)')
+                  }}>
+                    {displayName.slice(0, 2).toUpperCase()}
+                  </div>
+                  {/* Active Online Pulse Dot */}
+                  <div style={{
+                    position: 'absolute',
+                    bottom: '0px',
+                    right: '0px',
+                    width: '10px',
+                    height: '10px',
+                    borderRadius: '50%',
+                    backgroundColor: '#10b981',
+                    border: '2px solid #ffffff',
+                    boxShadow: '0 0 4px rgba(16, 185, 129, 0.6)'
+                  }} title="Active session" />
+                </div>
 
-          <button onClick={handleLogout} className="admin-nav-item logout-btn" style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer' }}>
-            <LogOut size={18} />
-            <span>Logout</span>
-          </button>
+                {/* User Info Details */}
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{
+                    fontWeight: 700,
+                    fontSize: '0.875rem',
+                    color: '#0f172a',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    lineHeight: 1.25,
+                    textTransform: 'capitalize'
+                  }} title={displayName}>
+                    {displayName}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.25rem' }}>
+                    <span style={{
+                      fontSize: '0.625rem',
+                      fontWeight: 800,
+                      color: roleBadgeColor,
+                      backgroundColor: roleBadgeBg,
+                      padding: '0.125rem 0.45rem',
+                      borderRadius: '4px',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.25rem'
+                    }}>
+                      <span style={{ width: '4px', height: '4px', borderRadius: '50%', backgroundColor: roleBadgeColor }} />
+                      {displayRole}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Integrated Logout Icon Button */}
+              <button
+                type="button"
+                onClick={handleLogout}
+                title="Sign out of account"
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '8px',
+                  border: '1px solid #e2e8f0',
+                  backgroundColor: '#f8fafc',
+                  color: '#64748b',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                  transition: 'all 0.15s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#fef2f2';
+                  e.currentTarget.style.borderColor = '#fecaca';
+                  e.currentTarget.style.color = '#ef4444';
+                  e.currentTarget.style.boxShadow = '0 2px 5px rgba(239, 68, 68, 0.15)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = '#f8fafc';
+                  e.currentTarget.style.borderColor = '#e2e8f0';
+                  e.currentTarget.style.color = '#64748b';
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
+              >
+                <LogOut size={15} />
+              </button>
+            </div>
+          )}
         </nav>
       </aside>
 

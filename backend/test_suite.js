@@ -171,7 +171,7 @@ async function runTests() {
   try {
     const crypto = require('crypto');
 
-    // 1. Trigger the forgot password link email generation
+    // 1. Trigger the forgot password OTP generation
     const forgotRes = await fetch('http://localhost:5001/api/admin/forgot-password', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -179,17 +179,36 @@ async function runTests() {
     });
     assert.strictEqual(forgotRes.status, 200);
 
-    // 2. Wait a moment and parse the token from the server output logs
+    // 2. Wait a moment and parse the OTP from the server output logs
     await new Promise(resolve => setTimeout(resolve, 1500));
-    const tokenMatch = serverOutput.match(/\[TEST_RESET_TOKEN\]:\s*([^\s\r\n]+)/);
-    assert.ok(tokenMatch, "Test reset token should be printed in server stdout logs");
-    const testResetToken = tokenMatch[1];
+    const otpMatch = serverOutput.match(/\[TEST_OTP\]:\s*([^\s\r\n]+)/);
+    assert.ok(otpMatch, "Test OTP should be printed in server stdout logs");
+    const testOtp = otpMatch[1];
 
-    // 3. Perform a password reset. It should succeed (200 OK)
+    // 2b. Test wrong OTP is rejected
+    const wrongOtpRes = await fetch('http://localhost:5001/api/admin/verify-otp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'SAICHARANBHUTHKURI8336@GMAIL.COM', otp: '000000' })
+    });
+    assert.strictEqual(wrongOtpRes.status, 400);
+
+    // 2c. Verify valid OTP to receive resetToken
+    const verifyRes = await fetch('http://localhost:5001/api/admin/verify-otp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'SAICHARANBHUTHKURI8336@GMAIL.COM', otp: testOtp })
+    });
+    assert.strictEqual(verifyRes.status, 200);
+    const verifyData = await verifyRes.json();
+    assert.ok(verifyData.resetToken, "Verification must return resetToken");
+    const testResetToken = verifyData.resetToken;
+
+    // 3. Perform password reset using resetToken. It should succeed (200 OK)
     const resetRes = await fetch('http://localhost:5001/api/admin/reset-password', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: testResetToken, newPassword: 'NewSecurePassword@123' })
+      body: JSON.stringify({ resetToken: testResetToken, newPassword: 'NewSecurePassword@123' })
     });
     assert.strictEqual(resetRes.status, 200);
     const resetData = await resetRes.json();
@@ -199,7 +218,7 @@ async function runTests() {
     const duplicateResetRes = await fetch('http://localhost:5001/api/admin/reset-password', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: testResetToken, newPassword: 'AnotherPassword@123' })
+      body: JSON.stringify({ resetToken: testResetToken, newPassword: 'AnotherPassword@123' })
     });
     assert.strictEqual(duplicateResetRes.status, 400); // Stateful check blocks reuse!
     const duplicateData = await duplicateResetRes.json();

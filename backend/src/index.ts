@@ -2034,7 +2034,7 @@ async function sendSystemEmail(to: string, subject: string, text: string, html?:
   }
 }
 
-// Admin Forgot Password
+// Admin Forgot Password (OTP Verification)
 app.post('/api/admin/forgot-password', sensitiveLimiter, async (req, res) => {
   const { email } = req.body;
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -2044,40 +2044,40 @@ app.post('/api/admin/forgot-password', sensitiveLimiter, async (req, res) => {
 
   try {
     const userRes = await db.execute({
-      sql: "SELECT username FROM admin_users WHERE LOWER(email) = LOWER(?)",
+      sql: "SELECT username, email FROM admin_users WHERE LOWER(email) = LOWER(?)",
       args: [email.trim()]
     });
 
     if (userRes.rows.length === 0) {
-      return res.status(404).json({ error: "No account was found with this email address. Please check the email and try again." });
+      return res.status(404).json({ error: "No administrator account was found with this email address. Please check the email and try again." });
     }
 
     const username = userRes.rows[0].username as string;
-    const rawToken = crypto.randomBytes(32).toString('hex');
+    const userEmail = (userRes.rows[0].email as string) || email.trim();
+
+    // Generate a secure 6-digit numeric OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const tokenSalt = generateSalt();
-    const tokenHash = crypto.createHash('sha256').update(tokenSalt + rawToken).digest('hex');
+    const tokenHash = crypto.createHash('sha256').update(tokenSalt + otp).digest('hex');
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 minutes
+
+    // Invalidate previous unused OTP tokens for this user
+    await db.execute({
+      sql: "UPDATE password_reset_tokens SET used = 1 WHERE username = ? AND used = 0",
+      args: [username]
+    });
 
     await db.execute({
       sql: "INSERT INTO password_reset_tokens (username, token_hash, salt, expires_at) VALUES (?, ?, ?, ?)",
       args: [username, tokenHash, tokenSalt, expiresAt]
     });
 
-    const resetToken = jwt.sign(
-      { username, rawToken, purpose: 'reset-password' },
-      JWT_SECRET,
-      { expiresIn: '15m' }
-    );
-
-    const origin = req.headers.origin || process.env.FRONTEND_URL || 'https://tcek-rd.web.app';
-    const resetLink = `${origin}/admin/reset-password?token=${resetToken}`;
-
     if (process.env.NODE_ENV === 'test') {
-      console.log(`[TEST_RESET_TOKEN]: ${resetToken}`);
+      console.log(`[TEST_OTP]: ${otp}`);
     }
 
-    const subject = "R&D Club Admin Password Reset Request";
-    const text = `Hello,\n\nYou are receiving this email because a password reset request was submitted for your R&D Club administrator account (${username}).\n\nPlease click on the following link, or paste it into your browser to complete the process. This link is valid for 15 minutes:\n\n<${resetLink}>\n\nIf you did not request a password reset, you can safely ignore this email.\n\nBest regards,\nR&D Club Admin System`;
+    const subject = "R&D Club Admin Password Reset OTP";
+    const text = `Hello,\n\nYou are receiving this email because a password reset request was submitted for your R&D Club administrator account (${username}).\n\nYour 6-digit verification code (OTP) is: ${otp}\n\nThis code is valid for 15 minutes. Enter this code on the password reset page to establish your new password.\n\nIf you did not request a password reset, you can safely ignore this email.\n\nBest regards,\nR&D Club Admin System`;
 
     const html = `<!DOCTYPE html>
 <html>
@@ -2097,17 +2097,17 @@ app.post('/api/admin/forgot-password', sensitiveLimiter, async (req, res) => {
       padding: 40px 0;
     }
     .container {
-      max-width: 580px;
+      max-width: 540px;
       margin: 0 auto;
       background-color: #1e293b;
       border: 1px solid #334155;
       border-radius: 12px;
-      padding: 40px;
+      padding: 36px;
       box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
     }
     .logo {
       text-align: center;
-      margin-bottom: 24px;
+      margin-bottom: 20px;
     }
     .logo-icon {
       display: inline-block;
@@ -2118,55 +2118,55 @@ app.post('/api/admin/forgot-password', sensitiveLimiter, async (req, res) => {
       line-height: 48px;
       color: #10b981;
       font-size: 24px;
-      font-weight: bold;
       text-align: center;
     }
     h2 {
       color: #ffffff;
-      font-size: 24px;
+      font-size: 22px;
       font-weight: 700;
       text-align: center;
       margin-top: 0;
-      margin-bottom: 16px;
+      margin-bottom: 12px;
     }
     p {
       color: #94a3b8;
-      font-size: 16px;
+      font-size: 15px;
       line-height: 24px;
       margin-top: 0;
-      margin-bottom: 24px;
+      margin-bottom: 18px;
     }
-    .button-container {
+    .otp-card {
+      background-color: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 24px;
       text-align: center;
-      margin-bottom: 24px;
+      margin: 24px 0;
     }
-    .btn {
+    .otp-code {
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+      font-size: 36px;
+      font-weight: 800;
+      letter-spacing: 10px;
+      color: #10b981;
       display: inline-block;
-      background-color: #10b981;
-      color: #ffffff !important;
-      text-decoration: none;
-      padding: 12px 32px;
-      font-size: 16px;
-      font-weight: 600;
+      padding: 10px 24px;
+      background: rgba(16, 185, 129, 0.08);
       border-radius: 8px;
-      box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.2);
+      border: 1px dashed #10b981;
     }
-    .btn:hover {
-      background-color: #059669;
+    .badge-expiry {
+      margin-top: 12px;
+      font-size: 13px;
+      color: #cbd5e1;
     }
     .footer {
       text-align: center;
-      margin-top: 32px;
+      margin-top: 28px;
       border-top: 1px solid #334155;
-      padding-top: 24px;
+      padding-top: 20px;
       color: #64748b;
-      font-size: 14px;
-    }
-    .link-fallback {
-      word-break: break-all;
-      color: #10b981;
-      font-size: 14px;
-      text-align: center;
+      font-size: 13px;
     }
   </style>
 </head>
@@ -2176,16 +2176,15 @@ app.post('/api/admin/forgot-password', sensitiveLimiter, async (req, res) => {
       <div class="logo">
         <div class="logo-icon">🛡️</div>
       </div>
-      <h2>Password Reset Request</h2>
+      <h2>Password Reset Code</h2>
       <p>Hello,</p>
-      <p>You are receiving this email because a password reset request was submitted for your R&D Club administrator account (<strong>${username}</strong>).</p>
-      <p>Please click the button below to complete the process. This link is valid for 15 minutes:</p>
-      <div class="button-container">
-        <a href="${resetLink}" class="btn" target="_blank">Reset Password</a>
+      <p>A password reset request was initiated for your R&D Club administrator account (<strong>${username}</strong>). Use the verification code below to proceed with resetting your password:</p>
+      <div class="otp-card">
+        <div class="otp-code">${otp}</div>
+        <div class="badge-expiry">⏱️ Valid for 15 minutes. Never share this code with anyone.</div>
       </div>
-      <p>If the button doesn't work, you can copy and paste the following link into your web browser:</p>
-      <p class="link-fallback"><a href="${resetLink}" style="color: #10b981; text-decoration: none;">${resetLink}</a></p>
-      <p>If you did not request a password reset, you can safely ignore this email.</p>
+      <p>Enter this 6-digit code on the password recovery screen to create your new password.</p>
+      <p style="font-size: 13px; color: #64748b;">If you did not request a password reset, you can safely disregard this email.</p>
       <div class="footer">
         Best regards,<br>
         <strong>R&D Club Admin System</strong>
@@ -2196,18 +2195,18 @@ app.post('/api/admin/forgot-password', sensitiveLimiter, async (req, res) => {
 </html>`;
 
     if (process.env.NODE_ENV !== 'test') {
-      await sendSystemEmail(email.trim(), subject, text, html);
+      await sendSystemEmail(userEmail, subject, text, html);
     }
 
     // Log Activity
     await db.execute({
       sql: "INSERT INTO activity_logs (username, action, details) VALUES (?, ?, ?)",
-      args: [username, "Forgot Password", `Password reset email sent to ${email}`]
+      args: [username, "Forgot Password", `Password reset OTP sent to ${userEmail}`]
     });
 
     return res.status(200).json({
       success: true,
-      message: "Account found. A password reset link has been sent to your email address."
+      message: "A 6-digit verification code has been sent to your registered email address."
     });
   } catch (err: any) {
     console.error("Forgot password error:", err);
@@ -2215,55 +2214,137 @@ app.post('/api/admin/forgot-password', sensitiveLimiter, async (req, res) => {
   }
 });
 
-// Admin Reset Password
-app.post('/api/admin/reset-password', sensitiveLimiter, async (req, res) => {
-  const { token, newPassword } = req.body;
-  if (!token || !newPassword) {
-    return res.status(400).json({ error: "Token and new password are required." });
+// Admin Verify OTP
+app.post('/api/admin/verify-otp', sensitiveLimiter, async (req, res) => {
+  const { email, otp } = req.body;
+  if (!email || !otp) {
+    return res.status(400).json({ error: "Email address and 6-digit verification code are required." });
+  }
+
+  const trimmedOtp = String(otp).trim();
+  if (!/^\d{6}$/.test(trimmedOtp)) {
+    return res.status(400).json({ error: "Please enter a valid 6-digit numeric code." });
   }
 
   try {
-    const decoded: any = jwt.verify(token, JWT_SECRET);
-    if (decoded.purpose !== 'reset-password') {
+    const userRes = await db.execute({
+      sql: "SELECT username FROM admin_users WHERE LOWER(email) = LOWER(?)",
+      args: [email.trim()]
+    });
+
+    if (userRes.rows.length === 0) {
+      return res.status(404).json({ error: "No account found with this email address." });
+    }
+
+    const username = userRes.rows[0].username as string;
+
+    const tokenRes = await db.execute({
+      sql: "SELECT * FROM password_reset_tokens WHERE username = ? AND used = 0 ORDER BY id DESC LIMIT 1",
+      args: [username]
+    });
+
+    if (tokenRes.rows.length === 0) {
+      return res.status(400).json({ error: "No active verification code found. Please request a new OTP code." });
+    }
+
+    const record = tokenRes.rows[0];
+    const now = new Date();
+    if (new Date(record.expires_at as string) < now) {
+      return res.status(400).json({ error: "The verification code has expired. Please request a new OTP code." });
+    }
+
+    const expectedHash = crypto.createHash('sha256').update((record.salt as string) + trimmedOtp).digest('hex');
+    if (expectedHash !== record.token_hash) {
+      return res.status(400).json({ error: "Invalid verification code. Please check the 6-digit code and try again." });
+    }
+
+    // Generate short-lived reset token for subsequent password creation
+    const resetToken = jwt.sign(
+      { username, tokenId: record.id, purpose: 'admin-otp-reset' },
+      JWT_SECRET,
+      { expiresIn: '15m' }
+    );
+
+    return res.status(200).json({
+      success: true,
+      resetToken,
+      message: "Code verified successfully. You may now create your new password."
+    });
+  } catch (err: any) {
+    console.error("Verify OTP error:", err);
+    return res.status(500).json({ error: "Failed to verify code.", details: err.message });
+  }
+});
+
+// Admin Reset Password
+app.post('/api/admin/reset-password', sensitiveLimiter, async (req, res) => {
+  const { resetToken, token, newPassword } = req.body;
+  const authToken = resetToken || token;
+
+  if (!authToken || !newPassword) {
+    return res.status(400).json({ error: "Verification token and new password are required." });
+  }
+
+  if (typeof newPassword !== 'string' || newPassword.length < 8) {
+    return res.status(400).json({ error: "Password must be at least 8 characters long." });
+  }
+
+  try {
+    const decoded: any = jwt.verify(authToken, JWT_SECRET);
+    if (decoded.purpose !== 'admin-otp-reset' && decoded.purpose !== 'reset-password') {
       return res.status(400).json({ error: "Invalid token purpose." });
     }
 
     const username = decoded.username;
-    const rawToken = decoded.rawToken;
+    const tokenId = decoded.tokenId;
 
-    // Fetch active (unused) tokens for this user
-    const tokenRes = await db.execute({
-      sql: "SELECT * FROM password_reset_tokens WHERE username = ? AND used = 0",
-      args: [username]
-    });
+    if (tokenId) {
+      const tokenRes = await db.execute({
+        sql: "SELECT * FROM password_reset_tokens WHERE id = ? AND username = ? AND used = 0",
+        args: [tokenId, username]
+      });
 
-    let validTokenRecord = null;
-    const now = new Date();
-    for (const row of tokenRes.rows) {
-      const dbSalt = row.salt as string;
-      const dbHash = row.token_hash as string;
-      const expiresAt = new Date(row.expires_at as string);
-
-      if (expiresAt < now) {
-        continue;
+      if (tokenRes.rows.length === 0) {
+        return res.status(400).json({ error: "This verification session has expired or has already been used. Please request a new OTP." });
       }
 
-      const computedHash = crypto.createHash('sha256').update(dbSalt + rawToken).digest('hex');
-      if (computedHash === dbHash) {
-        validTokenRecord = row;
-        break;
+      await db.execute({
+        sql: "UPDATE password_reset_tokens SET used = 1 WHERE id = ?",
+        args: [tokenId]
+      });
+    } else {
+      // Legacy token support
+      const tokenRes = await db.execute({
+        sql: "SELECT * FROM password_reset_tokens WHERE username = ? AND used = 0",
+        args: [username]
+      });
+
+      let validTokenRecord = null;
+      const now = new Date();
+      for (const row of tokenRes.rows) {
+        const expiresAt = new Date(row.expires_at as string);
+        if (expiresAt < now) continue;
+        if (decoded.rawToken) {
+          const computedHash = crypto.createHash('sha256').update((row.salt as string) + decoded.rawToken).digest('hex');
+          if (computedHash === row.token_hash) {
+            validTokenRecord = row;
+            break;
+          }
+        } else {
+          validTokenRecord = row;
+          break;
+        }
       }
-    }
 
-    if (!validTokenRecord) {
-      return res.status(400).json({ error: "The reset link is invalid, expired, or has already been used." });
-    }
+      if (!validTokenRecord) {
+        return res.status(400).json({ error: "Verification session is invalid, expired, or has already been used." });
+      }
 
-    // Mark token as used to enforce one-time usage
-    await db.execute({
-      sql: "UPDATE password_reset_tokens SET used = 1 WHERE id = ?",
-      args: [validTokenRecord.id]
-    });
+      await db.execute({
+        sql: "UPDATE password_reset_tokens SET used = 1 WHERE id = ?",
+        args: [validTokenRecord.id]
+      });
+    }
 
     const salt = generateSalt();
     const passwordHash = await bcrypt.hash(salt + newPassword, 10);
@@ -2280,7 +2361,7 @@ app.post('/api/admin/reset-password', sensitiveLimiter, async (req, res) => {
     // Log Activity
     await db.execute({
       sql: "INSERT INTO activity_logs (username, action, details) VALUES (?, ?, ?)",
-      args: [username, "Reset Password", "Password reset successfully completed via recovery link."]
+      args: [username, "Reset Password", "Password reset successfully completed via OTP verification."]
     });
 
     return res.status(200).json({
@@ -2290,9 +2371,9 @@ app.post('/api/admin/reset-password', sensitiveLimiter, async (req, res) => {
   } catch (err: any) {
     console.error("Reset password error:", err);
     if (err.name === 'TokenExpiredError') {
-      return res.status(400).json({ error: "Reset token has expired. Please request a new one." });
+      return res.status(400).json({ error: "Verification session has expired. Please request a new OTP." });
     }
-    return res.status(400).json({ error: "Invalid or corrupt reset token." });
+    return res.status(400).json({ error: "Invalid verification session. Please request a new OTP." });
   }
 });
 
@@ -2701,70 +2782,179 @@ app.post('/api/reg-desk/login', sensitiveLimiter, async (req, res) => {
   }
 });
 
-// 10.2 Registration Desk Forgot Password
+// 10.2 Registration Desk Forgot Password (OTP Verification)
 app.post('/api/reg-desk/forgot-password', sensitiveLimiter, async (req, res) => {
-  const { deskIdOrEmail } = req.body;
-  if (!deskIdOrEmail || deskIdOrEmail.trim() === '') {
-    return res.status(400).json({ error: "Please enter your Registration Desk ID or registered email." });
+  const { email, deskIdOrEmail } = req.body;
+  const target = (email || deskIdOrEmail || '').trim();
+  if (!target) {
+    return res.status(400).json({ error: "Please enter your registered email address." });
   }
 
   try {
     const userRes = await db.execute({
-      sql: "SELECT * FROM registration_desk_users WHERE LOWER(desk_id) = LOWER(?) OR LOWER(email) = LOWER(?)",
-      args: [deskIdOrEmail.trim(), deskIdOrEmail.trim()]
+      sql: "SELECT * FROM registration_desk_users WHERE LOWER(email) = LOWER(?) OR LOWER(desk_id) = LOWER(?)",
+      args: [target, target]
     });
 
     if (userRes.rows.length === 0) {
-      return res.status(404).json({ error: "No Registration Desk account found matching that ID or email." });
+      return res.status(404).json({ error: "No Registration Desk account found with this email address." });
     }
 
     const deskUser = userRes.rows[0];
-    const rawToken = crypto.randomBytes(32).toString('hex');
+    const userEmail = deskUser.email as string;
+
+    // Generate 6-digit numeric OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const tokenSalt = generateSalt();
-    const tokenHash = crypto.createHash('sha256').update(tokenSalt + rawToken).digest('hex');
-    const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+    const tokenHash = crypto.createHash('sha256').update(tokenSalt + otp).digest('hex');
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 minutes
+
+    const usernameKey = `desk_${deskUser.desk_id}`;
+
+    // Invalidate previous unused OTP tokens for this desk user
+    await db.execute({
+      sql: "UPDATE password_reset_tokens SET used = 1 WHERE username = ? AND used = 0",
+      args: [usernameKey]
+    });
 
     await db.execute({
       sql: "INSERT INTO password_reset_tokens (username, token_hash, salt, expires_at) VALUES (?, ?, ?, ?)",
-      args: [`desk_${deskUser.desk_id}`, tokenHash, tokenSalt, expiresAt]
+      args: [usernameKey, tokenHash, tokenSalt, expiresAt]
     });
 
-    const resetToken = jwt.sign(
-      { deskId: deskUser.desk_id, rawToken, purpose: 'reg-desk-reset' },
-      JWT_SECRET,
-      { expiresIn: '30m' }
-    );
+    if (process.env.NODE_ENV === 'test') {
+      console.log(`[TEST_REG_DESK_OTP]: ${otp}`);
+    }
 
-    const origin = req.headers.origin || process.env.FRONTEND_URL || 'https://tcek-rd.web.app';
-    const resetLink = `${origin}/reg-desk/reset-password?token=${resetToken}`;
+    const subject = "Registration Desk Password Reset OTP";
+    const text = `Hello ${deskUser.name},\n\nA password reset request was received for your Registration Desk account (${deskUser.desk_id}).\n\nYour 6-digit verification code (OTP) is: ${otp}\n\nThis code is valid for 15 minutes. Enter this code on the password reset page to establish your new password.\n\nIf you did not request a password reset, you can safely ignore this email.\n\nBest regards,\nRegistration Desk System`;
 
-    const subject = "Registration Desk Password Reset Request";
-    const text = `Hello ${deskUser.name},\n\nA password reset request was received for your Registration Desk account (${deskUser.desk_id}).\n\nClick the link below to set a new password:\n${resetLink}\n\nThis link is valid for 30 minutes.`;
-
-    const html = `
-      <div style="font-family: sans-serif; background-color: #0f172a; color: #f1f5f9; padding: 30px;">
-        <div style="max-width: 500px; margin: 0 auto; background: #1e293b; padding: 24px; border-radius: 10px; border: 1px solid #334155;">
-          <h2 style="color: #38bdf8;">Registration Desk Password Recovery</h2>
-          <p>Hello <strong>${deskUser.name}</strong> (${deskUser.desk_id}),</p>
-          <p>A request was received to reset the password for your Registration Desk portal account.</p>
-          <div style="margin: 25px 0; text-align: center;">
-            <a href="${resetLink}" style="background-color: #0284c7; color: #ffffff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block;">Reset Password</a>
-          </div>
-          <p style="font-size: 0.8rem; color: #94a3b8;">Or copy this URL into your browser:<br/><a href="${resetLink}" style="color: #38bdf8;">${resetLink}</a></p>
-          <p style="font-size: 0.75rem; color: #64748b;">This link will expire in 30 minutes.</p>
-        </div>
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background-color: #0f172a;
+      color: #f1f5f9;
+      margin: 0;
+      padding: 0;
+      -webkit-font-smoothing: antialiased;
+    }
+    .wrapper {
+      width: 100%;
+      background-color: #0f172a;
+      padding: 40px 0;
+    }
+    .container {
+      max-width: 540px;
+      margin: 0 auto;
+      background-color: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 36px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    }
+    .logo {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .logo-icon {
+      display: inline-block;
+      width: 48px;
+      height: 48px;
+      background-color: rgba(56, 189, 248, 0.1);
+      border-radius: 50%;
+      line-height: 48px;
+      color: #38bdf8;
+      font-size: 24px;
+      text-align: center;
+    }
+    h2 {
+      color: #ffffff;
+      font-size: 22px;
+      font-weight: 700;
+      text-align: center;
+      margin-top: 0;
+      margin-bottom: 12px;
+    }
+    p {
+      color: #94a3b8;
+      font-size: 15px;
+      line-height: 24px;
+      margin-top: 0;
+      margin-bottom: 18px;
+    }
+    .otp-card {
+      background-color: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 24px;
+      text-align: center;
+      margin: 24px 0;
+    }
+    .otp-code {
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+      font-size: 36px;
+      font-weight: 800;
+      letter-spacing: 10px;
+      color: #38bdf8;
+      display: inline-block;
+      padding: 10px 24px;
+      background: rgba(56, 189, 248, 0.08);
+      border-radius: 8px;
+      border: 1px dashed #38bdf8;
+    }
+    .badge-expiry {
+      margin-top: 12px;
+      font-size: 13px;
+      color: #cbd5e1;
+    }
+    .footer {
+      text-align: center;
+      margin-top: 28px;
+      border-top: 1px solid #334155;
+      padding-top: 20px;
+      color: #64748b;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="container">
+      <div class="logo">
+        <div class="logo-icon">📋</div>
       </div>
-    `;
+      <h2>Desk Password Reset Code</h2>
+      <p>Hello <strong>${deskUser.name}</strong> (${deskUser.desk_id}),</p>
+      <p>A password reset request was initiated for your Registration Desk account. Use the verification code below to proceed with resetting your password:</p>
+      <div class="otp-card">
+        <div class="otp-code">${otp}</div>
+        <div class="badge-expiry">⏱️ Valid for 15 minutes. Never share this code with anyone.</div>
+      </div>
+      <p>Enter this 6-digit code on the desk password recovery screen to create your new password.</p>
+      <p style="font-size: 13px; color: #64748b;">If you did not request a password reset, you can safely disregard this email.</p>
+      <div class="footer">
+        Best regards,<br>
+        <strong>Registration Desk Portal System</strong>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`;
 
-    try {
-      await sendSystemEmail(deskUser.email as string, subject, text, html);
-    } catch (mailErr: any) {
-      console.warn("Mail dispatch warning for reg-desk reset:", mailErr.message);
+    if (process.env.NODE_ENV !== 'test') {
+      try {
+        await sendSystemEmail(userEmail, subject, text, html);
+      } catch (mailErr: any) {
+        console.warn("Mail dispatch warning for reg-desk reset OTP:", mailErr.message);
+      }
     }
 
     return res.status(200).json({
       success: true,
-      message: `Password reset instructions have been sent to ${deskUser.email}.`
+      message: `A 6-digit verification code has been sent to ${userEmail}.`
     });
   } catch (err: any) {
     console.error("Forgot password reg-desk error:", err);
@@ -2772,42 +2962,133 @@ app.post('/api/reg-desk/forgot-password', sensitiveLimiter, async (req, res) => 
   }
 });
 
-// 10.3 Registration Desk Reset Password
-app.post('/api/reg-desk/reset-password', sensitiveLimiter, async (req, res) => {
-  const { token, newPassword } = req.body;
-  if (!token || !newPassword) {
-    return res.status(400).json({ error: "Token and new password are required." });
+// 10.3 Registration Desk Verify OTP
+app.post('/api/reg-desk/verify-otp', sensitiveLimiter, async (req, res) => {
+  const { email, deskIdOrEmail, otp } = req.body;
+  const target = (email || deskIdOrEmail || '').trim();
+  if (!target || !otp) {
+    return res.status(400).json({ error: "Registered email address and 6-digit verification code are required." });
   }
 
-  if (newPassword.length < 6) {
-    return res.status(400).json({ error: "Password must be at least 6 characters long." });
+  const trimmedOtp = String(otp).trim();
+  if (!/^\d{6}$/.test(trimmedOtp)) {
+    return res.status(400).json({ error: "Please enter a valid 6-digit numeric code." });
   }
 
   try {
-    const decoded: any = jwt.verify(token, JWT_SECRET);
-    if (decoded.purpose !== 'reg-desk-reset' || !decoded.deskId || !decoded.rawToken) {
-      return res.status(400).json({ error: "Invalid password reset token." });
+    const userRes = await db.execute({
+      sql: "SELECT * FROM registration_desk_users WHERE LOWER(email) = LOWER(?) OR LOWER(desk_id) = LOWER(?)",
+      args: [target, target]
+    });
+
+    if (userRes.rows.length === 0) {
+      return res.status(404).json({ error: "No Registration Desk account found with this email address." });
     }
 
-    const usernameKey = `desk_${decoded.deskId}`;
+    const deskUser = userRes.rows[0];
+    const usernameKey = `desk_${deskUser.desk_id}`;
+
     const tokenRows = await db.execute({
       sql: "SELECT * FROM password_reset_tokens WHERE username = ? AND used = 0 ORDER BY id DESC LIMIT 1",
       args: [usernameKey]
     });
 
     if (tokenRows.rows.length === 0) {
-      return res.status(400).json({ error: "This password reset token has already been used or expired." });
+      return res.status(400).json({ error: "No active verification code found. Please request a new OTP code." });
     }
 
     const tokenRecord = tokenRows.rows[0];
-    const expectedHash = crypto.createHash('sha256').update((tokenRecord.salt as string) + decoded.rawToken).digest('hex');
+    const now = new Date();
+    if (new Date(tokenRecord.expires_at as string) < now) {
+      return res.status(400).json({ error: "The verification code has expired. Please request a new OTP code." });
+    }
 
+    const expectedHash = crypto.createHash('sha256').update((tokenRecord.salt as string) + trimmedOtp).digest('hex');
     if (expectedHash !== tokenRecord.token_hash) {
+      return res.status(400).json({ error: "Invalid verification code. Please check the 6-digit code and try again." });
+    }
+
+    const resetToken = jwt.sign(
+      { deskId: deskUser.desk_id, tokenId: tokenRecord.id, purpose: 'reg-desk-otp-reset' },
+      JWT_SECRET,
+      { expiresIn: '15m' }
+    );
+
+    return res.status(200).json({
+      success: true,
+      resetToken,
+      message: "Code verified successfully. You may now create your new password."
+    });
+  } catch (err: any) {
+    console.error("Verify reg-desk OTP error:", err);
+    return res.status(500).json({ error: "Failed to verify code.", details: err.message });
+  }
+});
+
+// 10.4 Registration Desk Reset Password
+app.post('/api/reg-desk/reset-password', sensitiveLimiter, async (req, res) => {
+  const { resetToken, token, newPassword } = req.body;
+  const authToken = resetToken || token;
+
+  if (!authToken || !newPassword) {
+    return res.status(400).json({ error: "Verification token and new password are required." });
+  }
+
+  if (typeof newPassword !== 'string' || newPassword.length < 6) {
+    return res.status(400).json({ error: "Password must be at least 6 characters long." });
+  }
+
+  try {
+    const decoded: any = jwt.verify(authToken, JWT_SECRET);
+    if (decoded.purpose !== 'reg-desk-otp-reset' && decoded.purpose !== 'reg-desk-reset') {
       return res.status(400).json({ error: "Invalid password reset token." });
     }
 
-    if (new Date() > new Date(tokenRecord.expires_at as string)) {
-      return res.status(400).json({ error: "This password reset link has expired." });
+    const deskId = decoded.deskId;
+    const tokenId = decoded.tokenId;
+    const usernameKey = `desk_${deskId}`;
+
+    if (tokenId) {
+      const tokenRows = await db.execute({
+        sql: "SELECT * FROM password_reset_tokens WHERE id = ? AND username = ? AND used = 0",
+        args: [tokenId, usernameKey]
+      });
+
+      if (tokenRows.rows.length === 0) {
+        return res.status(400).json({ error: "This verification session has expired or has already been used. Please request a new OTP." });
+      }
+
+      await db.execute({
+        sql: "UPDATE password_reset_tokens SET used = 1 WHERE id = ?",
+        args: [tokenId]
+      });
+    } else {
+      // Legacy token check
+      const tokenRows = await db.execute({
+        sql: "SELECT * FROM password_reset_tokens WHERE username = ? AND used = 0 ORDER BY id DESC LIMIT 1",
+        args: [usernameKey]
+      });
+
+      if (tokenRows.rows.length === 0) {
+        return res.status(400).json({ error: "This password reset token has already been used or expired." });
+      }
+
+      const tokenRecord = tokenRows.rows[0];
+      if (decoded.rawToken) {
+        const expectedHash = crypto.createHash('sha256').update((tokenRecord.salt as string) + decoded.rawToken).digest('hex');
+        if (expectedHash !== tokenRecord.token_hash) {
+          return res.status(400).json({ error: "Invalid password reset token." });
+        }
+      }
+
+      if (new Date() > new Date(tokenRecord.expires_at as string)) {
+        return res.status(400).json({ error: "This password reset link has expired." });
+      }
+
+      await db.execute({
+        sql: "UPDATE password_reset_tokens SET used = 1 WHERE id = ?",
+        args: [tokenRecord.id]
+      });
     }
 
     const newSalt = generateSalt();
@@ -2815,12 +3096,7 @@ app.post('/api/reg-desk/reset-password', sensitiveLimiter, async (req, res) => {
 
     await db.execute({
       sql: "UPDATE registration_desk_users SET password = ?, salt = ? WHERE LOWER(desk_id) = LOWER(?)",
-      args: [newHash, newSalt, decoded.deskId]
-    });
-
-    await db.execute({
-      sql: "UPDATE password_reset_tokens SET used = 1 WHERE id = ?",
-      args: [tokenRecord.id]
+      args: [newHash, newSalt, deskId]
     });
 
     return res.status(200).json({
@@ -2829,7 +3105,10 @@ app.post('/api/reg-desk/reset-password', sensitiveLimiter, async (req, res) => {
     });
   } catch (err: any) {
     console.error("Reset password error:", err);
-    return res.status(400).json({ error: "Failed to reset password. Link may be expired or invalid.", details: err.message });
+    if (err.name === 'TokenExpiredError') {
+      return res.status(400).json({ error: "Verification session has expired. Please request a new OTP." });
+    }
+    return res.status(400).json({ error: "Failed to reset password. The verification session may be invalid or expired.", details: err.message });
   }
 });
 
@@ -2844,6 +3123,9 @@ app.get('/api/reg-desk/assignments', authenticateRegDeskToken, async (req: Authe
       args: [deskId]
     });
 
+    // Fetch all rooms in system for selection
+    const allRoomsRes = await db.execute("SELECT * FROM registration_rooms ORDER BY room_name ASC");
+
     // Also fetch all distinct events and hackathons
     const eventsRes = await db.execute("SELECT DISTINCT title, date, location FROM events WHERE category != 'Hackathon' ORDER BY id DESC");
     const hackathonsRes = await db.execute("SELECT DISTINCT hackathon_name FROM hackathon_registrations WHERE hackathon_name IS NOT NULL AND hackathon_name != ''");
@@ -2856,6 +3138,11 @@ app.get('/api/reg-desk/assignments', authenticateRegDeskToken, async (req: Authe
     eventHackathonsRes.rows.forEach(r => {
       if (r.title) hackathonSet.add(String(r.title).trim());
     });
+    allRoomsRes.rows.forEach(r => {
+      if (r.event_type === 'hackathon' && r.event_name) {
+        hackathonSet.add(String(r.event_name).trim());
+      }
+    });
 
     return res.status(200).json({
       success: true,
@@ -2865,12 +3152,71 @@ app.get('/api/reg-desk/assignments', authenticateRegDeskToken, async (req: Authe
         role: req.user?.role
       },
       assignedRooms: roomsRes.rows,
+      allRooms: allRoomsRes.rows,
       events: eventsRes.rows.map(r => ({ title: r.title, date: r.date, location: r.location })),
       hackathons: Array.from(hackathonSet).map(h => ({ title: h }))
     });
   } catch (err: any) {
     console.error("Error fetching reg desk assignments:", err);
     return res.status(500).json({ error: "Failed to load desk assignments.", details: err.message });
+  }
+});
+
+// 10.4.1 Registration Desk Room Authorization Verification
+app.post('/api/reg-desk/verify-room', authenticateRegDeskToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { roomId, roomCode } = req.body;
+    const deskId = req.user?.deskId || req.user?.username || '';
+    const userRole = req.user?.role || '';
+
+    let roomRes;
+    if (roomId) {
+      roomRes = await db.execute({
+        sql: "SELECT * FROM registration_rooms WHERE id = ? LIMIT 1",
+        args: [roomId]
+      });
+    } else if (roomCode) {
+      roomRes = await db.execute({
+        sql: "SELECT * FROM registration_rooms WHERE LOWER(room_code) = LOWER(?) LIMIT 1",
+        args: [String(roomCode).trim()]
+      });
+    } else {
+      return res.status(400).json({ authorized: false, error: "Room selection is required for authorization verification." });
+    }
+
+    if (roomRes.rows.length === 0) {
+      return res.status(404).json({ authorized: false, error: "Selected room not found in the system." });
+    }
+
+    const room: any = roomRes.rows[0];
+
+    // Administrators have full override authorization
+    if (['admin', 'superadmin', 'developer'].includes(userRole)) {
+      return res.status(200).json({
+        authorized: true,
+        room,
+        message: "Administrator override: Full room access authorized."
+      });
+    }
+
+    // Check desk assignment for reg_desk staff
+    const assignedDesk = (room.assigned_desk_id || '').trim();
+    if (assignedDesk && assignedDesk.toLowerCase() !== deskId.toLowerCase()) {
+      return res.status(403).json({
+        authorized: false,
+        room,
+        error: `Access Denied: You are signed in as "${deskId}", but Room "${room.room_name}" (${room.room_code}) is assigned to "${room.assigned_desk_name || assignedDesk}". You are not authorized to check in participants for this room.`
+      });
+    }
+
+    return res.status(200).json({
+      authorized: true,
+      room,
+      message: "Room assignment verified. Access granted."
+    });
+  } catch (err: any) {
+    console.error("Room verification error:", err);
+    return res.status(500).json({ authorized: false, error: "Failed to verify room authorization.", details: err.message });
   }
 });
 
@@ -2890,6 +3236,35 @@ app.get('/api/reg-desk/participants', authenticateRegDeskToken, async (req: Auth
       } else {
         const result = await db.execute("SELECT * FROM event_registrations ORDER BY id DESC");
         rows = result.rows;
+      }
+    } else if (type === 'submission' || type === 'project-submission') {
+      // Project Submissions
+      if (name && name !== 'all') {
+        const result = await db.execute({
+          sql: "SELECT * FROM project_submissions WHERE LOWER(event_name) = LOWER(?) ORDER BY id DESC",
+          args: [String(name).trim()]
+        });
+        rows = result.rows;
+        if (rows.length === 0) {
+          const hResult = await db.execute({
+            sql: `SELECT id, id as hackathon_registration_id, hackathon_name as event_name, team_name, 
+                         leader_name, leader_email, leader_phone, leader_institution as institution, 
+                         members, project_title, project_description as project_info, problem_statement, 
+                         'submitted' as status, created_at 
+                  FROM hackathon_registrations 
+                  WHERE LOWER(hackathon_name) = LOWER(?) AND project_title IS NOT NULL AND project_title != '' 
+                  ORDER BY id DESC`,
+            args: [String(name).trim()]
+          });
+          rows = hResult.rows;
+        }
+      } else {
+        const result = await db.execute("SELECT * FROM project_submissions ORDER BY id DESC");
+        rows = result.rows;
+        if (rows.length === 0) {
+          const hResult = await db.execute(`SELECT id, id as hackathon_registration_id, hackathon_name as event_name, team_name, leader_name, leader_email, leader_phone, leader_institution as institution, members, project_title, project_description as project_info, problem_statement, 'submitted' as status, created_at FROM hackathon_registrations WHERE project_title IS NOT NULL AND project_title != '' ORDER BY id DESC`);
+          rows = hResult.rows;
+        }
       }
     } else {
       // Hackathons
@@ -2913,12 +3288,12 @@ app.get('/api/reg-desk/participants', authenticateRegDeskToken, async (req: Auth
     const branchMap: Record<string, number> = {};
 
     rows.forEach(r => {
-      const att = (r.attendance || 'pending').toLowerCase();
-      if (att === 'present') present++;
-      else if (att === 'absent') absent++;
+      const att = (r.attendance || r.status || 'pending').toLowerCase();
+      if (att === 'present' || att === 'approved') present++;
+      else if (att === 'absent' || att === 'rejected') absent++;
       else pending++;
 
-      const br = (r.leader_branch || r.branch || 'General').toUpperCase().trim();
+      const br = (r.leader_branch || r.branch || r.institution || 'General').toUpperCase().trim();
       branchMap[br] = (branchMap[br] || 0) + 1;
     });
 
@@ -2927,14 +3302,14 @@ app.get('/api/reg-desk/participants', authenticateRegDeskToken, async (req: Auth
 
     if (branch && branch !== 'all') {
       filtered = filtered.filter(r => {
-        const b = (r.leader_branch || r.branch || '').toUpperCase().trim();
+        const b = (r.leader_branch || r.branch || r.institution || '').toUpperCase().trim();
         return b === String(branch).toUpperCase().trim();
       });
     }
 
     if (attendance && attendance !== 'all') {
       filtered = filtered.filter(r => {
-        const a = (r.attendance || 'pending').toLowerCase();
+        const a = (r.attendance || r.status || 'pending').toLowerCase();
         return a === String(attendance).toLowerCase();
       });
     }
@@ -2943,19 +3318,85 @@ app.get('/api/reg-desk/participants', authenticateRegDeskToken, async (req: Auth
       const q = String(search).toLowerCase().trim();
       filtered = filtered.filter(r => {
         const team = (r.team_name || '').toLowerCase();
-        const leader = (r.leader_name || '').toLowerCase();
-        const name = (r.full_name || '').toLowerCase();
+        const leader = (r.leader_name || r.full_name || '').toLowerCase();
+        const nameStr = (r.full_name || '').toLowerCase();
         const pin = (r.pin_number || '').toLowerCase();
         const email = (r.leader_email || r.email || '').toLowerCase();
         const phone = (r.leader_phone || r.mobile || '').toLowerCase();
         const proj = (r.project_title || '').toLowerCase();
-        return team.includes(q) || leader.includes(q) || name.includes(q) || pin.includes(q) || email.includes(q) || phone.includes(q) || proj.includes(q);
+        const prob = (r.problem_statement || '').toLowerCase();
+        const file = (r.file_name || '').toLowerCase();
+        return team.includes(q) || leader.includes(q) || nameStr.includes(q) || pin.includes(q) || email.includes(q) || phone.includes(q) || proj.includes(q) || prob.includes(q) || file.includes(q);
       });
+    }
+
+    // Gather rich Event Details for the selected event
+    let eventDetails: any = null;
+    if (name && name !== 'all') {
+      const eventNameClean = String(name).trim();
+
+      // Check events table
+      const evRes = await db.execute({
+        sql: "SELECT * FROM events WHERE LOWER(title) = LOWER(?) LIMIT 1",
+        args: [eventNameClean]
+      });
+
+      // Check problem statement and project title from hackathon_registrations
+      const probRes = await db.execute({
+        sql: "SELECT project_title, problem_statement, project_description FROM hackathon_registrations WHERE LOWER(hackathon_name) = LOWER(?) AND problem_statement IS NOT NULL AND problem_statement != '' ORDER BY id ASC LIMIT 1",
+        args: [eventNameClean]
+      });
+
+      // Check problem statement from project_submissions
+      const subProbRes = await db.execute({
+        sql: "SELECT project_title, problem_statement, project_info FROM project_submissions WHERE LOWER(event_name) = LOWER(?) AND problem_statement IS NOT NULL AND problem_statement != '' ORDER BY id ASC LIMIT 1",
+        args: [eventNameClean]
+      });
+
+      // Check room assignment
+      const roomRes = await db.execute({
+        sql: "SELECT * FROM registration_rooms WHERE LOWER(event_name) = LOWER(?) LIMIT 1",
+        args: [eventNameClean]
+      });
+
+      // Counts
+      const hackCountRes = await db.execute({
+        sql: "SELECT COUNT(*) as cnt FROM hackathon_registrations WHERE LOWER(hackathon_name) = LOWER(?)",
+        args: [eventNameClean]
+      });
+      const subCountRes = await db.execute({
+        sql: "SELECT COUNT(*) as cnt FROM project_submissions WHERE LOWER(event_name) = LOWER(?)",
+        args: [eventNameClean]
+      });
+
+      const evRow = (evRes.rows[0] as any) || {};
+      const probRow = (probRes.rows[0] as any) || (subProbRes.rows[0] as any) || {};
+      const roomRow = (roomRes.rows[0] as any) || {};
+
+      eventDetails = {
+        eventName: eventNameClean,
+        eventType: evRow.category || (type === 'event' ? 'General Event' : 'Hackathon'),
+        problemTitle: probRow.project_title || evRow.title || `${eventNameClean} Challenge Track`,
+        problemStatement: probRow.problem_statement || evRow.description || 'Comprehensive challenge statement, problem guidelines, and expected participant deliverables.',
+        description: evRow.description || probRow.project_description || probRow.project_info || '',
+        date: evRow.date || 'Active Season 2026',
+        time: evRow.time || 'Full Day Hackathon',
+        location: evRow.location || roomRow.room_name || 'Main Campus Venue',
+        speaker: evRow.speaker || '',
+        roomName: roomRow.room_name || '',
+        roomCode: roomRow.room_code || '',
+        capacity: roomRow.capacity || 0,
+        assignedDeskId: roomRow.assigned_desk_id || '',
+        assignedDeskName: roomRow.assigned_desk_name || '',
+        totalTeams: Number(hackCountRes.rows[0]?.cnt || 0),
+        totalSubmissions: Number(subCountRes.rows[0]?.cnt || 0)
+      };
     }
 
     return res.status(200).json({
       success: true,
       participants: filtered,
+      eventDetails,
       stats: {
         total,
         present,
