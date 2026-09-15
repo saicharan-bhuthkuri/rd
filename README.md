@@ -108,7 +108,34 @@ The primary technical contribution is an automated credential-processing pipelin
 ## Table of Figures, Diagrams, and Charts
 
 | Figure # | Title / Caption | Short Description | Section Reference | Link |
-| :
+| :--- | :--- | :--- | :--- | :--- |
+| **Figure 1** | High-Level System Architecture & Workflow | 4-tier cloud infrastructure, presentation layers, edge database, and document pipeline | Section 1 / Section 10 | [View Figure 1](#high-level-system-architecture--workflow) |
+| **Figure 2** | Multi-Tier Cloud Infrastructure Diagram | Client SPA, security gateway, headless LibreOffice in Docker, and edge DB topology | Section 10 | [View Figure 2](#figure-2-multi-tier-cloud-infrastructure-diagram) |
+| **Figure 3** | End-to-End Application & Credential Lifecycle Workflow | 6-stage lifecycle: Registration -> Desk Check-in -> Messaging -> Review -> Certificate -> Verification | Section 10 | [View Figure 3](#figure-3-end-to-end-application--credential-lifecycle-workflow) |
+| **Figure 4** | Multi-Role Authentication & CSRF Protection Workflow | Dual JWT issuance (Admin & Reg-Desk), HttpOnly cookies, and Double-Submit CSRF headers | Section 10 | [View Figure 4](#figure-4-multi-role-authentication--csrf-protection-workflow) |
+| **Figure 5** | Self-Service Password Recovery & Reset Workflow | SHA-256 salted single-use token lifecycle, expiration guards, and email reset distribution | Section 10 | [View Figure 5](#figure-5-self-service-password-recovery--reset-workflow) |
+| **Figure 6** | System Use Case Boundaries Diagram | 5 actors (Candidate, Admin, Superadmin, Desk Staff, Judge) and operational use cases | Section 11 | [View Figure 6](#figure-6-system-use-case-boundaries-diagram) |
+| **Figure 7** | DFD Level 0: Context Diagram | External entities, central system process boundary, and core data stores | Section 11 | [View Figure 7](#figure-7-dfd-level-0-context-diagram) |
+| **Figure 8** | DFD Level 1: Subsystem Process Diagram | Decomposed data flow across 8 core subsystems, storage tables, and external integrations | Section 11 | [View Figure 8](#figure-8-dfd-level-1-subsystem-process-diagram) |
+| **Figure 9** | Sequence Diagram A: Authentication & Real-Time Sync Connection | Admin login handshake and persistent Server-Sent Events (SSE) keep-alive connection | Section 11 | [View Figure 9](#figure-9-sequence-diagram-a-authentication--real-time-sync-connection) |
+| **Figure 10** | Sequence Diagram B: Bulk Certificate Compilation & Dispatch Flow | Template resolution, XML modification, headless LibreOffice PDF batching, and HTTPS relay | Section 11 | [View Figure 10](#figure-10-sequence-diagram-b-bulk-certificate-compilation--dispatch-flow) |
+| **Figure 11** | Sequence Diagram C: Public Credential Verification & Dynamic Rendering | Certificate verification lookup, dynamic PPTX compilation, and inline 16:9 PDF streaming | Section 11 | [View Figure 11](#figure-11-sequence-diagram-c-public-credential-verification--dynamic-rendering) |
+| **Figure 12** | Sequence Diagram D: Event Messaging Broadcast & Announcement Dispatch Flow | Multi-group audience selection, letterhead template compilation, preview, and HTTPS relay | Section 11 | [View Figure 12](#figure-12-sequence-diagram-d-event-messaging-broadcast--announcement-dispatch-flow) |
+| **Figure 13** | Sequence Diagram E: Registration Desk Check-In & Room Allocation Flow | Desk coordinator login, venue verification, attendee check-in toggle, and real-time SSE sync | Section 11 | [View Figure 13](#figure-13-sequence-diagram-e-registration-desk-check-in--room-allocation-flow) |
+| **Figure 14** | Sequence Diagram F: Project Submissions & Hackathon Team Verification Flow | Team verification, project asset submissions (GitHub/Demo), room allocation, and evaluation sync | Section 11 | [View Figure 14](#figure-14-sequence-diagram-f-project-submissions--hackathon-team-verification-flow) |
+| **Figure 15** | Production & Cloud Deployment Architecture Diagram | Multi-cloud topology (Firebase CDN, Render Docker containers, Turso Edge DB, Google Apps Script) | Section 11 | [View Figure 15](#figure-15-production--cloud-deployment-architecture-diagram) |
+| **Figure 16** | External Service Dependency Diagram | Third-party cloud APIs, protocols, port configurations, and fallback failover mechanics | Section 11 | [View Figure 16](#figure-16-external-service-dependency-diagram) |
+| **Figure 17** | Frontend–Backend–Database Multi-Tier Relationship Diagram | Component architecture, state hooks, Express routing, and edge database persistence mapping | Section 11 | [View Figure 17](#figure-17-frontendbackenddatabase-multi-tier-relationship-diagram) |
+| **Figure 18** | Database Entity-Relationship (ER) Diagram (16 Relational Tables) | Complete 16-table relational schema with attributes, primary keys, foreign keys, and cardinalities | Section 12 | [View Figure 18](#figure-18-database-entity-relationship-er-diagram-16-relational-tables) |
+| **Figure 19** | Security Enforcement Architecture Flowchart | Multi-layered defense-in-depth pipeline (CORS, Rate Limiting, Dual JWT, CSRF, RBAC) | Section 16 | [View Figure 19](#figure-19-security-enforcement-architecture-flowchart) |
+| **Figure 20** | Testing Architecture & Multi-Phase Verification Flow Diagram | Multi-phase QA pipeline: TypeScript, ESLint, Unit (test_suite.js), and 33-point E2E Integration | Section 17 | [View Figure 20](#figure-20-testing-architecture--multi-phase-verification-flow-diagram) |
+| **Figure 21** | Unit Testing Process & Data Flow Diagram | Isolated helper utility validation, template tag parsing, casing normalizers, and ISO dates | Section 17 | [View Figure 21](#figure-21-unit-testing-process--data-flow-diagram) |
+| **Figure 22** | Black-Box Testing Endpoint Verification Flow Diagram | Functional black-box validation across public registration, verification, and admin interfaces | Section 17 | [View Figure 22](#figure-22-black-box-testing-endpoint-verification-flow-diagram) |
+| **Figure 23** | White-Box Internal Operations & Execution Flow Diagram | Structural code path analysis, XML decompression, LibreOffice CLI execution, and cleanup | Section 17 | [View Figure 23](#figure-23-white-box-internal-operations--execution-flow-diagram) |
+| **Figure 24** | Gray-Box Multi-Subsystem Integration Diagram | Cross-boundary state synchronization, EventSource SSE broadcasting, and proxy relay pipelines | Section 17 | [View Figure 24](#figure-24-gray-box-multi-subsystem-integration-diagram) |
+| **Figure 25** | Defect Debugging & Resolution Visual Workflows | Root cause analysis, targeted architectural interventions, and automated regression verification | Section 17 | [View Figure 25](#figure-25-defect-debugging--resolution-visual-workflows) |
+| **Figure 26** | Technology Readiness (TRL 6) & Implementation Maturity (IR 6) Diagram | TRL 6 and IR 6 evidence mapping, operational pilot readiness, and 100% test pass verification | Section 35 | [View Figure 26](#figure-26-technology-readiness-trl-6--implementation-maturity-ir-6-diagram) |
+
 ---
 
 ## 1. Introduction
@@ -297,115 +324,174 @@ The Bulk Certificate Dispatch & Application Management System utilizes a modern,
 
 ### System Architecture Flow Diagram
 
-```mermaid
-graph TD
-    User([Public User / Admin]) -->|"Interacts"| Frontend[Vite React TS Client]
-    Frontend -->|"HTTPS REST / Cookies / X-CSRF-Token"| Backend[Node Express TS API Server]
-    subgraph "Backend Server Security Pipeline"
-        Backend --> CORS[CORS filter]
-        CORS --> Limiter[Rate Limiter]
-        Limiter --> AuthGate[Auth & CSRF validator]
-    end
-    AuthGate -->|"SQL Execution"| Database[(Turso Edge SQLite)]
-    AuthGate -->|"Modify XML"| Pizzip[PizZip XML Editor]
-    AuthGate -->|"Exec CLI Batch"| LibreOffice[LibreOffice PDF Converter]
-    AuthGate -->|"HTTP POST JSON"| GASProxy[Google Apps Script Proxy]
-    GASProxy -->|"Gmail API Auth"| Gmail[Gmail SMTP/HTTP Dispatch]
-```
-
-#### End-to-End Application Workflow Diagram
+#### Figure 2: Multi-Tier Cloud Infrastructure Diagram
 
 ```mermaid
 graph TD
-    subgraph "Enrollment Workflow"
-        Candidate([Student / Applicant]) -->|"Submit Form"| AppPortal[Apply Page / React Client]
-        AppPortal -->|"POST /api/apply/club <br/>Rate Limited"| ExpressAPI[Express API Backend]
-        ExpressAPI -->|"SQL insert"| TursoDB[(Turso Edge SQLite)]
+    subgraph "Tier 1: Presentation & Client Layer (Firebase CDN)"
+        User([Public User / Candidate]) -->|"HTTPS: Port 443"| ClientSPA[React 19 SPA Client]
+        Admin([Club Admin / Superadmin]) -->|"HTTPS: Port 443"| ClientSPA
+        DeskStaff([Registration Desk Coordinator]) -->|"HTTPS: Port 443"| ClientSPA
+        ClientSPA -->|"Institutional Theme Tokens"| ThemeEngine[Emerald Institutional Design System]
+        ClientSPA -->|"Native EventSource"| SSEClient[SSE Real-time Listener]
     end
 
-    subgraph "Administration & Approval Workflow"
-        Admin([Club Administrator]) -->|"Log into portal <br/>Rate Limited"| AdminUI[Admin Dashboard]
-        AdminUI -->|"View rosters & update status <br/>Cookie + CSRF verification"| ExpressAPI
-        ExpressAPI -->|"SQL UPDATE"| TursoDB
+    subgraph "Tier 2: API & Security Gateway Layer (Render Docker)"
+        ClientSPA -->|"HTTPS REST / HttpOnly Cookies / X-CSRF-Token"| Gateway[Express 4.19 API Gateway]
+        Gateway --> CORS[CORS Origin Filter]
+        CORS --> RateLimiter[express-rate-limit Windows]
+        RateLimiter --> SecurityGate{Auth & Security Gates}
+        SecurityGate -->|"Validate Session"| JWTCookie[JWT Cookie Parser]
+        SecurityGate -->|"Double-Submit Check"| CSRFValidator[CSRF Token Verifier]
+        SecurityGate -->|"RBAC Guard"| RoleGate[Role Authorizer: Dev/Super/Admin/Desk]
     end
 
-    subgraph "Bulk Document Generation & Dispatch Pipeline"
-        AdminUI -->|"Trigger bulk dispatches"| ExpressAPI
-        ExpressAPI -->|"Read PPTX XML & replace placeholders"| PizZip[PizZip Template compiler]
-        PizZip -->|"Output customized slides"| LocalTmp["/tmp ephemerals"]
-        LocalTmp -->|"Batch convert to PDF"| LibreOffice[LibreOffice headless CLI]
-        LibreOffice -->|"Base64 binary buffers"| GASProxy[Apps Script HTTPS Proxy Gateway]
-        GASProxy -->|"Mail dispatch"| GmailAPI[Gmail SMTP API]
-        GmailAPI -->|"Inbox receipt"| Candidate
+    subgraph "Tier 3: Business Logic & Processing Layer"
+        RoleGate --> DocEngine[Credential & Document Engine]
+        DocEngine --> PizZip[PizZip XML Slide Parser]
+        DocEngine --> LibreOffice[Headless LibreOffice PDF Batcher]
+        RoleGate --> MsgEngine[Event Messaging & Audience Engine]
+        RoleGate --> RegEngine[Registration Desk & Venue Engine]
+        RoleGate --> MailRelay[Google Apps Script HTTPS Proxy]
+        MailRelay -->|"OAuth Port 443"| GmailAPI[Gmail Mailing API]
     end
 
-    subgraph "Password Recovery Workflow"
-        AdminRec([Administrator]) -->|"Request link <br/>Rate Limited"| RecUI[Forgot Password UI]
-        RecUI -->|"POST /api/admin/forgot-password"| ExpressAPI
-        ExpressAPI -->|"Dispatch link email"| GASProxy
-        AdminRec -->|"Reset password with token <br/>Rate Limited"| ResetUI[Reset Password UI]
-        ResetUI -->|"POST /api/admin/reset-password"| ExpressAPI
-        ExpressAPI -->|"SQL UPDATE"| TursoDB
+    subgraph "Tier 4: Data & Real-Time Sync Layer"
+        RoleGate -->|"libsql protocol / port 443"| Turso[(Turso Edge SQLite Database - 16 Tables)]
+        RoleGate -->|"Broadcast Event"| SSEStream[Server-Sent Events /api/sync-stream Pool]
+        SSEStream -.->|"app-sync CustomEvent"| SSEClient
     end
 ```
 
-#### Admin Authentication & CSRF Protection Workflow (Figure 19)
+#### Figure 3: End-to-End Application & Credential Lifecycle Workflow
+
+```mermaid
+graph TD
+    subgraph "1. Candidate Applications & Team Registrations"
+        Candidate([Student / Applicant]) -->|"Submit Profile"| AppPortal[Apply Portal: Club / Event / Hackathon]
+        AppPortal -->|"POST /api/apply/* <br/>Rate-Limited"| ExpressAPI[Express API Backend]
+        ExpressAPI -->|"INSERT INTO applications"| TursoDB[(Turso Edge SQLite - 16 Tables)]
+    end
+
+    subgraph "2. Registration Desk On-Site Check-In & Venue Allocation"
+        DeskUser([Reg Desk Coordinator]) -->|"Desk Login"| DeskUI[Reg Desk Dashboard]
+        DeskUI -->|"POST /api/reg-desk/login"| ExpressAPI
+        DeskUI -->|"POST /api/reg-desk/verify-room"| ExpressAPI
+        DeskUI -->|"Toggle Attendance Status"| ExpressAPI
+        ExpressAPI -->|"UPDATE attendance, room_code"| TursoDB
+        ExpressAPI -->|"SSE REFRESH_ATTENDANCE"| SSEChannel[SSE Broadcast Pool]
+    end
+
+    subgraph "3. Event Messaging & Announcement Broadcasts"
+        AdminMsg([Administrator]) -->|"Compose Letterhead Notice"| MsgUI[Admin Messaging Studio]
+        MsgUI -->|"Filter Audience: Members/Judges/Coordinators/Volunteers"| ExpressAPI
+        ExpressAPI -->|"Aggregate & Deduplicate Emails"| TursoDB
+        MsgUI -->|"Preview macOS-style Email Modal"| MsgUI
+        MsgUI -->|"POST /api/admin/messaging/send"| ExpressAPI
+        ExpressAPI -->|"Personalize {name} & Wrap HTML"| GASProxy[Google Apps Script Proxy]
+        GASProxy -->|"HTTPS Port 443"| Gmail[Gmail API Gateway]
+    end
+
+    subgraph "4. Administrative Management & Status Approval"
+        Admin([Club Administrator]) -->|"Review Roster & Update Status"| AdminUI[Admin Dashboard]
+        AdminUI -->|"Manage Branches, Events, Accounts"| ExpressAPI
+        ExpressAPI -->|"UPDATE status, roles, branches"| TursoDB
+    end
+
+    subgraph "5. Automated Bulk Certificate Generation & Dispatch"
+        AdminUI -->|"Trigger Bulk Send"| ExpressAPI
+        ExpressAPI -->|"Read PPTX XML & Substitute Tokens"| PizZip[PizZip XML Editor]
+        PizZip -->|"Batch Convert in Concurrency Chunks"| LibreOffice[Headless LibreOffice CLI]
+        LibreOffice -->|"Base64 Encoded Binary Buffer"| GASProxy
+        GASProxy -->|"Deliver Credential Email"| Candidate
+        ExpressAPI -->|"UPDATE certificate_sent = 1"| TursoDB
+    end
+
+    subgraph "6. Public Verification & Dynamic Streaming"
+        Verifier([Employer / Student / Public]) -->|"Access /verify/:id or QR"| VerifyUI[Verify Portal]
+        VerifyUI -->|"GET /api/verify-certificate/:id"| ExpressAPI
+        ExpressAPI -->|"Validate Record"| TursoDB
+        ExpressAPI -->|"Compile On-The-Fly PDF"| LibreOffice
+        LibreOffice -->|"Stream Binary Buffer"| VerifyUI
+    end
+```
+
+#### Figure 4: Multi-Role Authentication & CSRF Protection Workflow
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Admin as Club Administrator
+    actor Admin as Administrator / Reg Desk Staff
     participant Browser as React SPA (Client)
     participant Server as Express API (Server)
-    participant DB as Turso SQLite Database
+    participant DB as Turso Edge Database
 
-    Note over Admin, Browser: Authentication Flow
-    Admin->>Browser: Enters credentials & submits
-    Browser->>Server: POST /api/admin/login
-    Server->>DB: Query user record & verify hash
-    DB-->>Server: User record matches
-    Server->>Server: Sign admin_token (Auth JWT)<br/>Sign csrfToken (CSRF JWT)
-    Server-->>Browser: Set-Cookie: admin_token (HttpOnly, SameSite=Lax)<br/>Response Body: { success: true, csrfToken, user }
-    Browser->>Browser: Store csrfToken & user details in LocalStorage
+    Note over Admin, Browser: Phase 1: Multi-Role Authentication Handshake
+    Admin->>Browser: Enters credentials (Admin: username/password | Desk: deskId/password)
+    alt Admin Login
+        Browser->>Server: POST /api/admin/login { username, password }
+        Server->>DB: Query admin_users where username = ?
+        DB-->>Server: User record + salt + hashed password + role
+        Server->>Server: Verify bcrypt hash with cryptographic salt
+        Server->>Server: Sign admin_token JWT (HttpOnly cookie) & csrfToken JWT (body)
+        Server-->>Browser: Set-Cookie: admin_token (HttpOnly, SameSite=Lax)<br/>Body: { success: true, csrfToken, user }
+    else Registration Desk Login
+        Browser->>Server: POST /api/reg-desk/login { deskId, password }
+        Server->>DB: Query registration_desk_users where desk_id = ?
+        DB-->>Server: Desk record + salt + hashed password + assigned hackathon
+        Server->>Server: Verify bcrypt hash with cryptographic salt
+        Server->>Server: Sign reg_desk_token JWT & csrfToken
+        Server-->>Browser: Body: { token, deskId, hackathon, csrfToken }
+    end
+    Browser->>Browser: Store csrfToken & user metadata in localStorage
 
-    Note over Admin, Browser: Mutating API Action (POST/PUT/DELETE)
-    Admin->>Browser: Submits form / updates application status
-    Browser->>Server: POST /api/admin/applications/status<br/>Cookie: admin_token<br/>Header X-CSRF-Token: csrfToken
-    Server->>Server: 1. Verify admin_token from cookies<br/>2. Verify X-CSRF-Token matches user identity
-    Server->>DB: Run update query
-    DB-->>Server: Query completed
-    Server-->>Browser: 200 OK (Status Updated)
+    Note over Admin, Browser: Phase 2: Mutating Action with Double-Submit CSRF Guard
+    Admin->>Browser: Mutating action (Update Status / Mark Attendance / Send Messages)
+    Browser->>Server: POST /api/admin/* or POST /api/reg-desk/*<br/>Cookie: admin_token | Header Authorization: Bearer token<br/>Header X-CSRF-Token: csrfToken
+    Server->>Server: 1. Validate JWT session authenticity & expiration
+    Server->>Server: 2. Verify Double-Submit CSRF token matches authenticated session
+    Server->>Server: 3. Verify role privilege level (developer > superadmin > admin > reg_desk)
+    Server->>DB: Execute authorized SQL mutation
+    DB-->>Server: SQL execution successful
+    Server->>DB: INSERT INTO activity_logs (audit entry)
+    Server-->>Browser: 200 OK (Operation Successful)
 ```
 
-#### Password Recovery & Reset Workflow (Figure 20)
+#### Figure 5: Self-Service Password Recovery & Reset Workflow
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Admin as Club Administrator
+    actor User as Admin / Reg Desk User
     participant Browser as React SPA (Client)
     participant Server as Express API (Server)
-    participant DB as Turso SQLite Database
-    participant Email as SMTP / Apps Script Email Service
+    participant DB as Turso Edge Database
+    participant Email as Google Apps Script Proxy -> Gmail
 
-    Admin->>Browser: Clicks "Forgot Password" & enters email
-    Browser->>Server: POST /api/admin/forgot-password { email }
-    Server->>DB: Query admin by email
-    DB-->>Server: Admin user found
-    Server->>Server: Generate raw token & unique salt
-    Server->>DB: Insert token_hash, salt, expires_at in password_reset_tokens
-    Server->>Email: Send email with reset link (?token=resetToken)
-    Email-->>Admin: Receives reset email
-    Admin->>Browser: Clicks link & enters new password
-    Browser->>Server: POST /api/admin/reset-password { token, newPassword }
-    Server->>Server: Verify token signature & expiry
-    Server->>DB: Query active tokens & verify salt-hashed rawToken
-    Server->>DB: Update token used = 1
-    Server->>Server: Hash new password with unique salt
-    Server->>DB: Update password in admin_users
-    DB-->>Server: Password updated
-    Server-->>Browser: 200 OK (Password reset success)
-    Browser->>Admin: Redirects to Login screen
+    Note over User, Email: Step 1: Password Reset Request
+    User->>Browser: Navigates to /admin/forgot-password or /reg-desk/forgot-password
+    Browser->>Server: POST /api/admin/forgot-password or /api/reg-desk/forgot-password { email }
+    Server->>DB: Query user by verified email address
+    DB-->>Server: User record found
+    Server->>Server: Generate cryptographically random token & unique salt
+    Server->>Server: Compute SHA-256 hash(token + salt)
+    Server->>DB: INSERT INTO password_reset_tokens (username, token_hash, salt, expires_at: NOW + 1hr, used: 0)
+    Server->>Email: POST JSON payload with personalized reset link (?token=rawToken)
+    Email-->>User: Receives institutional password recovery email
+
+    Note over User, Email: Step 2: Token Verification & Password Reset Execution
+    User->>Browser: Clicks secure link & enters new strong password
+    Browser->>Server: POST /api/admin/reset-password or /api/reg-desk/reset-password { token, newPassword }
+    Server->>DB: SELECT * FROM password_reset_tokens WHERE expires_at > NOW AND used = 0
+    DB-->>Server: Active candidate reset tokens
+    Server->>Server: Recompute SHA-256 hash against each active token salt to locate match
+    Server->>DB: UPDATE password_reset_tokens SET used = 1 WHERE id = ?
+    Server->>Server: Generate new salt & compute bcrypt password hash
+    Server->>DB: UPDATE admin_users (or registration_desk_users) SET password = ?, salt = ?
+    DB-->>Server: Password successfully updated
+    Server->>DB: INSERT INTO activity_logs (action: "PASSWORD_RESET_SUCCESS")
+    Server-->>Browser: 200 OK { message: "Password reset successful" }
+    Browser->>User: Redirects to Login screen with success notification
 ```
 
 ---
@@ -445,7 +531,7 @@ sequenceDiagram
 
 ### System Use Case Boundaries
 
-The use cases outline system access across candidate applicants, club administrators, and super-administrators.
+#### Figure 6: System Use Case Boundaries Diagram
 
 ```mermaid
 graph LR
@@ -453,23 +539,43 @@ graph LR
         U["Public Candidate / Student"]
         A["Club Administrator"]
         SA["Super Administrator / Developer"]
+        RD["Registration Desk Coordinator"]
+        J["Evaluator / Judge"]
     end
 
-    subgraph "System Boundary: R&D Cell Dashboard"
-        UC1("Submit Recruitment Applications")
-        UC2("Register for Technical Events")
-        UC3("Register Hackathon Teams")
-        UC4("Verify Credentials via ID / QR Code")
-        
-        UC5("Inspect / Search Registration Roster")
-        UC6("Modify Candidate Status (Lock Dropdowns)")
-        UC7("Trigger Parallel Bulk PDF Dispatch")
-        UC8("Manage Official Branches")
-        
-        UC9("Create Admin Accounts")
-        UC10("Create & Delete Event Calendars")
-        UC11("Request Password Reset Link")
-        UC12("Reset Password with Token")
+    subgraph "Candidate Portal"
+        UC1["Submit Club Application"]
+        UC2["Register for Event / Hackathon"]
+        UC3["Submit Project Repository & Demo"]
+        UC4["Verify Certificate Publicly (/verify)"]
+    end
+
+    subgraph "Registration Desk Subsystem"
+        UC5["Desk Staff Authentication"]
+        UC6["Verify Assigned Room & Capacity"]
+        UC7["Attendee Roll Number / QR Search"]
+        UC8["Toggle Attendance Check-In Status"]
+    end
+
+    subgraph "Administrative Operations"
+        UC9["Review & Filter Applicant Rosters"]
+        UC10["Manage Academic Branches Master"]
+        UC11["Schedule Events & Hackathons"]
+        UC12["Compose & Broadcast Event Messaging"]
+        UC13["Allocate Rooms & Review Venues"]
+        UC14["Trigger Bulk Certificate Compilation"]
+    end
+
+    subgraph "Platform Governance & Security"
+        UC15["RBAC Administrator Provisioning"]
+        UC16["Inspect System Activity Audit Logs"]
+        UC17["Self-Service Password Recovery"]
+        UC18["Live SSE Sync Stream Monitoring"]
+    end
+
+    subgraph "Evaluation & Scoring"
+        UC19["Review Submitted Project Links"]
+        UC20["Grade Projects & Assign Award Status"]
     end
 
     U --> UC1
@@ -477,97 +583,136 @@ graph LR
     U --> UC3
     U --> UC4
 
-    A --> UC5
-    A --> UC6
-    A --> UC7
-    A --> UC8
+    RD --> UC5
+    RD --> UC6
+    RD --> UC7
+    RD --> UC8
+
+    A --> UC9
+    A --> UC10
     A --> UC11
     A --> UC12
+    A --> UC13
+    A --> UC14
+    A --> UC17
 
     SA --> UC9
     SA --> UC10
-    SA --> UC5
+    SA --> UC11
+    SA --> UC12
+    SA --> UC13
+    SA --> UC14
+    SA --> UC15
+    SA --> UC16
+    SA --> UC17
+    SA --> UC18
+
+    J --> UC19
+    J --> UC20
 ```
 
 ---
 
 ### Data Flow Diagrams (DFD)
 
-#### DFD Level 0: Context Diagram
-Maps structural inputs and outputs crossing system boundaries.
+#### Figure 7: DFD Level 0: Context Diagram
 
 ```mermaid
 graph TD
     User(["Public Candidate / Student"])
-    Admin(["Club Administrator"])
-    System["R&D Cell System"]
-    Turso[("Turso Edge Database")]
+    Admin(["Club Administrator / Superadmin"])
+    DeskStaff(["Registration Desk Coordinator"])
+    Verifier(["Public Verifier / Employer"])
+    System["R&D Cell Institutional Platform <br/> (Central Subsystem Boundary)"]
+    Turso[("Turso Edge Database <br/> (16 Relational Tables)")]
     GAS["Google Apps Script HTTP Proxy"]
     Gmail["Gmail Mailing API"]
 
-    User -->|"Submit Application Form JSON"| System
-    System -->|"Verification Data & Dynamic PDF Stream"| User
+    User -->|"Form Submissions / Project Links"| System
+    System -->|"Registration Confirmations & Portals"| User
 
-    Admin -->|"Login Credentials, Reset Link Requests, Mutate Actions + CSRF Token Header"| System
-    System -->|"HTTP-only Session Cookie, Dynamic Tables, Reset Email Link"| Admin
+    Admin -->|"Admin Credentials / Status / Dispatches / Messages"| System
+    System -->|"Rosters / Audit Logs / Delivery Stats / SSE Signals"| Admin
 
-    System -->|"Prepared SQL Read / Write"| Turso
-    Turso -->|"Candidate Schemas & Base64 PPTX"| System
+    DeskStaff -->|"Desk Auth / Room Verification / Check-in Toggles"| System
+    System -->|"Attendee Lists / Venue Confirmations / Check-in Stats"| DeskStaff
 
-    System -->|"HTTP POST Base64 Payload"| GAS
-    GAS -->|"Gmail Auth Dispatch API"| Gmail
-    Gmail -->|"Delivered Email & Attachment"| Recipient(["Recipient Inbox"])
+    Verifier -->|"Certificate Code Queries / QR Scans"| System
+    System -->|"Verification Status & Dynamic 16:9 PDF Streams"| Verifier
+
+    System -->|"SQL Queries & Mutations"| Turso
+    Turso -->|"Persistent Application Records"| System
+
+    System -->|"HTTPS JSON Email Payloads (Port 443)"| GAS
+    GAS -->|"Authenticated OAuth Mail Dispatches"| Gmail
+    Gmail -->|"Delivered Inboxes"| User
 ```
 
-#### DFD Level 1: Subsystem Process Diagram
-Delineates how data moves through internal processes, queues, and datastores.
+#### Figure 8: DFD Level 1: Subsystem Process Diagram
 
 ```mermaid
 graph TD
     subgraph "Entities"
-        E1(["Public Visitor"])
-        E2(["Administrator"])
-        E3(["Candidate Inbox"])
+        E1(["Public Visitor / Candidate"])
+        E2(["Administrator / Superadmin"])
+        E3(["Registration Desk Coordinator"])
+        E4(["Candidate Inbox"])
     end
 
-    subgraph "Data Storage"
-        D1[("Turso Edge Database")]
+    subgraph "Data Stores (Turso Edge Database)"
+        D1[("club_applications")]
+        D2[("event_registrations")]
+        D3[("hackathon_registrations")]
+        D4[("project_submissions")]
+        D5[("registration_desk_users")]
+        D6[("registration_rooms")]
+        D7[("templates")]
+        D8[("activity_logs")]
     end
 
-    subgraph "Process Layers"
-        P1("1.0 Application Processing")
-        P2("2.0 JWT Authentication")
-        P3("3.0 In-Memory Document Compiler")
-        P4("4.0 Bulk Dispatch Queuer")
-        P5("5.0 Public Verifier Engine")
+    subgraph "Core Processes"
+        P1["1.0 Candidate Registration & Project Submission"]
+        P2["2.0 Registration Desk Check-In & Room Allocations"]
+        P3["3.0 Administrative Review & Event Messaging"]
+        P4["4.0 XML Slide Manipulation & PDF Compilation"]
+        P5["5.0 HTTPS Email Proxy Relay & Distribution"]
+        P6["6.0 Public Credential Verification & PDF Streaming"]
+        P7["7.0 Real-time Server-Sent Events (SSE) Broadcast"]
     end
 
-    E1 -->|"Application Signups"| P1
-    P1 -->|"Insert Application Record"| D1
-    P1 -->|"Emit SSE Notification"| E2
+    E1 -->|"Application / Submission Data"| P1
+    P1 -->|"Write Records"| D1
+    P1 -->|"Write Records"| D2
+    P1 -->|"Write Records"| D3
+    P1 -->|"Write Submissions"| D4
 
-    E2 -->|"Admin Login / Recovery Request"| P2
-    P2 -->|"Query Admin Password Hash & Email"| D1
-    D1 -->|"Hash & Email Profiles"| P2
-    P2 -->|"Set HTTP-only Auth Cookie & Send CSRF Token JSON"| E2
-    P2 -->|"Dispatch signed Reset Password link email"| E2
-    P2 -->|"Validate Reset Token & Save New Hash"| D1
+    E3 -->|"Desk Login & Attendance Check-in"| P2
+    D5 -->|"Verify Credentials"| P2
+    D6 -->|"Verify Venue"| P2
+    P2 -->|"UPDATE attendance status"| D3
+    P2 -->|"Trigger Refresh"| P7
 
-    E2 -->|"Bulk Trigger Request"| P4
-    P4 -->|"Verify Dispatch Status & Get Template"| D1
-    D1 -->|"Base64 Template File"| P4
-    P4 -->|"Raw Buffer Array"| P3
-    P3 -->|"Substitute XML Tokens (PizZip)"| P3
-    P3 -->|"Docker Headless Conversion (LibreOffice)"| P3
-    P3 -->|"Compiled PDF Stream"| P4
-    P4 -->|"POST Base64 JSON"| GAS["Google Apps Script WebApp"]
-    GAS -->|"Gmail API Relay"| E3
-    P4 -->|"Update sent_status = 1 & Log Activity"| D1
+    E2 -->|"Review Rosters & Compose Announcements"| P3
+    P3 -->|"Fetch Rosters & Read Logs"| D1
+    P3 -->|"Fetch Rosters & Read Logs"| D3
+    P3 -->|"Audit Mutation"| D8
+    P3 -->|"Send Announcement"| P5
+    P3 -->|"Trigger Certificate Dispatch"| P4
 
-    E1 -->|"Reference Code Lookup"| P5
-    P5 -->|"Query Credential ID"| D1
-    D1 -->|"Candidate Metadata"| P5
-    P5 -->|"JSON Parameters & Dynamic PDF Stream"| E1
+    D7 -->|"Base64 PPTX Buffer"| P4
+    D2 -->|"Recipient Metadata"| P4
+    D3 -->|"Recipient Metadata"| P4
+    P4 -->|"Generated PDF Buffer"| P5
+
+    P5 -->|"Forward via HTTPS"| E4
+
+    E1 -->|"Query Certificate Code"| P6
+    D2 -->|"Verify Certificate Record"| P6
+    D7 -->|"Fetch Template"| P6
+    P6 -->|"Stream Dynamic 16:9 PDF"| E1
+
+    P7 -.->|"SSE Sync Broadcast"| E2
+    P7 -.->|"SSE Sync Broadcast"| E3
 ```
 
 ---
@@ -576,8 +721,7 @@ graph TD
 
 The sequence diagrams trace actors and core execution steps for key application pathways.
 
-#### Sequence Diagram A: Authentication & Real-Time Sync Connection
-Traces the admin login handshake and the establishment of the persistent SSE channel.
+#### Figure 9: Sequence Diagram A: Authentication & Real-Time Sync Connection
 
 ```mermaid
 sequenceDiagram
@@ -589,19 +733,18 @@ sequenceDiagram
     
     Admin->>FE: Input username & password
     FE->>BE: POST /api/admin/login
-    BE->>DB: Query user record where username = ?
+    BE->>DB: Query admin_users where username = ?
     DB-->>BE: Hashed password + unique salt + user profile details
-    BE->>BE: Prepend salt (if present) to password and compare hashes (bcryptjs.compare)
-    BE->>BE: Generate admin_token & csrfToken
+    BE->>BE: Verify bcrypt hash using stored user salt
+    BE->>BE: Sign admin_token (HttpOnly JWT) & csrfToken (CSRF JWT)
     BE-->>FE: Set-Cookie: admin_token (HttpOnly, SameSite=Lax)<br/>Response body: { csrfToken, user }
     FE->>FE: Store csrfToken in localStorage
     FE->>BE: Open SSE Connection withCredentials (GET /api/sync-stream)
-    BE-->>FE: 200 OK (Connection keeps socket open)
-    Note over FE,BE: Persistent SSE channel established for sync broadcasts
+    BE-->>FE: 200 OK (Connection keeps socket open, sends initial heartbeat)
+    Note over FE,BE: Persistent SSE channel established for real-time dashboard sync
 ```
 
-#### Sequence Diagram B: Bulk Certificate Compilation & Dispatch Flow
-Traces details of dynamic template mapping, XML injection, batch conversion, and proxy delivery.
+#### Figure 10: Sequence Diagram B: Bulk Certificate Compilation & Dispatch Flow
 
 ```mermaid
 sequenceDiagram
@@ -638,11 +781,10 @@ sequenceDiagram
         BE->>BE: Broadcast SSE "REFRESH_APPLICATIONS" signal
     end
     BE-->>FE: Return dispatch operation log array
-    FE->>Admin: Update badges to green "Sented" & disable select actions
+    FE->>Admin: Update badges to green "Sent" & disable select actions
 ```
 
-#### Sequence Diagram C: Public Credential Verification & Dynamic Rendering
-Traces reference verification lookup and the compilation and streaming of the certificate PDF.
+#### Figure 11: Sequence Diagram C: Public Credential Verification & Dynamic Rendering
 
 ```mermaid
 sequenceDiagram
@@ -667,27 +809,151 @@ sequenceDiagram
     FE->>Visitor: Render embedded certificate PDF in 16:9 widescreen frame
 ```
 
+#### Figure 12: Sequence Diagram D: Event Messaging Broadcast & Announcement Dispatch Flow
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Admin as Club Administrator
+    participant FE as React Admin Messaging Page
+    participant BE as Express API Server
+    participant DB as Turso SQLite Database
+    participant GAS as Google Apps Script Proxy
+    participant Gmail as Gmail Dispatch API
+
+    Admin->>FE: Select Event & Audience Categories (Members, Judges, Coordinators, Volunteers)
+    FE->>BE: GET /api/admin/messaging/recipients?event=...&types=...
+    BE->>DB: Query hackathon_registrations, recognition_applications, volunteer_applications, reg_desk_users
+    DB-->>BE: Aggregated recipient records with distinct email deduplication
+    BE-->>FE: Return recipient count & preview roster
+    FE->>Admin: Displays live recipient count badge & preview modal
+    Admin->>FE: Composes announcement body in institutional letterhead sheet
+    Admin->>FE: Clicks "Preview & Send Announcement"
+    FE->>Admin: Renders Recipient Email Preview modal (macOS client style, non-cutoff)
+    Admin->>FE: Confirms and clicks "Send to All Recipients"
+    FE->>BE: POST /api/admin/messaging/send { event, subject, body, targetGroups }
+    BE->>BE: Validate Admin JWT cookie & verify X-CSRF-Token
+    BE->>DB: Fetch matching recipients for verified event
+    loop For each recipient
+        BE->>BE: Personalize greeting: replace {name} with recipient full name
+        BE->>BE: Wrap in institutional letterhead HTML template (Trinity College seal & signature)
+        BE->>GAS: POST JSON payload (to, subject, htmlBody) over HTTPS port 443
+        GAS->>Gmail: Authenticated OAuth send email
+        Gmail-->>GAS: 200 OK (Dispatched)
+        GAS-->>BE: Delivery acknowledged
+    end
+    BE->>DB: INSERT into activity_logs (username, action: "EVENT_MESSAGING_DISPATCH", details)
+    BE->>BE: Broadcast SSE "REFRESH_LOGS" signal
+    BE-->>FE: Return dispatch result { success: true, deliveredCount, errors: [] }
+    FE->>Admin: Display success toast notification & summary stats
+```
+
+#### Figure 13: Sequence Diagram E: Registration Desk Check-In & Room Allocation Flow
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor DeskStaff as Reg Desk Coordinator
+    participant DeskUI as Reg Desk Dashboard (React SPA)
+    participant BE as Express API Server
+    participant DB as Turso SQLite Database
+    participant AdminUI as Admin Dashboard (Superadmin)
+
+    DeskStaff->>DeskUI: Enters Desk ID (e.g. REG-DESK-01) & Password
+    DeskUI->>BE: POST /api/reg-desk/login { deskId, password }
+    BE->>DB: Query registration_desk_users where desk_id = ?
+    DB-->>BE: User record + salt + hashed password + status
+    BE->>BE: Validate bcrypt hash with cryptographic salt
+    BE->>BE: Sign reg_desk_token JWT session & csrfToken
+    BE-->>DeskUI: Return { token, deskId, hackathon, roomAssignment }
+    DeskUI->>DeskUI: Store reg_desk_token in localStorage
+
+    DeskUI->>BE: POST /api/reg-desk/verify-room { roomCode }
+    BE->>DB: Query registration_rooms where room_code = ? and assigned_desk_id = ?
+    DB-->>BE: Room record (room_name, capacity, event_name)
+    BE-->>DeskUI: 200 OK (Room verified & active)
+
+    DeskUI->>BE: GET /api/reg-desk/attendees?event=... (alias: /api/reg-desk/participants)
+    BE->>BE: Verify reg_desk_token JWT
+    BE->>DB: SELECT id, full_name, pin_number, team_name, attendance, room_code FROM hackathon_registrations
+    DB-->>BE: Attendee roster dataset
+    BE-->>DeskUI: Return attendee JSON records
+    DeskUI->>DeskStaff: Displays real-time check-in table & QR search filter
+
+    DeskStaff->>DeskUI: Scans attendee badge / clicks "Mark Present"
+    DeskUI->>BE: POST /api/reg-desk/attendance { registrationId, status: 'present', roomCode }
+    BE->>BE: Verify reg_desk_token
+    BE->>DB: UPDATE hackathon_registrations SET attendance = 'present', attendance_marked_by = ?, attendance_marked_at = CURRENT_TIMESTAMP WHERE id = ?
+    DB-->>BE: 1 row updated
+    BE->>DB: INSERT into activity_logs (desk_id, action: "ATTENDANCE_CHECKIN", details)
+    BE->>BE: Broadcast SSE "REFRESH_ATTENDANCE" signal to all connected clients
+    BE-->>DeskUI: 200 OK (Attendance marked)
+    DeskUI->>DeskStaff: Turn attendance status badge to green "Present"
+    AdminUI->>AdminUI: Automatically revalidates and increments live present count via SSE
+```
+
+#### Figure 14: Sequence Diagram F: Project Submissions & Hackathon Team Verification Flow
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor TeamLead as Student Team Lead
+    participant SubmitUI as Project Submission Form (React SPA)
+    participant BE as Express API Server
+    participant DB as Turso SQLite Database
+    participant AdminUI as Admin Submissions Dashboard
+
+    TeamLead->>SubmitUI: Accesses /apply/ProjectSubmission
+    SubmitUI->>BE: GET /api/project-submission/events
+    BE->>DB: SELECT title, date, category FROM events WHERE category = 'Hackathon'
+    DB-->>BE: Active hackathon event list
+    BE-->>SubmitUI: Return event JSON array
+    SubmitUI->>TeamLead: Populates Hackathon dropdown selection
+
+    TeamLead->>SubmitUI: Enters Team Name & Leader Email
+    SubmitUI->>BE: GET /api/project-submission/verify-team?teamName=...&leaderEmail=...
+    BE->>DB: SELECT id, leader_name, members, project_title FROM hackathon_registrations WHERE team_name = ? AND leader_email = ?
+    DB-->>BE: Registration record found
+    BE-->>SubmitUI: 200 OK { verified: true, leaderName, projectTitle, members }
+    SubmitUI->>TeamLead: Displays verified team roster & unlocks submission inputs
+
+    TeamLead->>SubmitUI: Enters GitHub repo URL, Demo link, Problem statement & uploads presentation
+    SubmitUI->>BE: POST /api/project-submission/submit (FormData)
+    BE->>BE: Validate required fields & link formatting
+    BE->>DB: INSERT into project_submissions (hackathon_registration_id, event_name, team_name, leader_name, leader_email, project_title, drive_file_url, drive_folder_url, file_name, status)
+    DB-->>BE: Record created (id)
+    BE->>DB: INSERT into activity_logs (action: "PROJECT_SUBMISSION_RECEIVED")
+    BE->>BE: Broadcast SSE "REFRESH_SUBMISSIONS" signal
+    BE-->>SubmitUI: 201 Created { success: true, submissionId }
+    SubmitUI->>TeamLead: Displays submission receipt confirmation & review instructions
+    AdminUI->>AdminUI: Live updates submissions table with new repository & evaluation links
+```
+
 ---
 
 # PART II: SYSTEM CORE COMPONENT DOCUMENTATION
 
 
 
-#### Production/Deployment Architecture Diagram
+#### Figure 15: Production & Cloud Deployment Architecture Diagram
 
 ```mermaid
 graph TD
-    User([Public User / Admin Client]) -->|"HTTPS: Port 443"| Firebase[Firebase Hosting CDN]
-    User -->|"HTTPS REST API / SSE Sync"| Render[Render Web Service Docker Container]
+    User([Public User / Admin / Desk Client]) -->|"HTTPS: Port 443"| Firebase[Firebase Hosting CDN <br/> (tcek-rd.web.app)]
+    User -->|"HTTPS REST API / SSE Sync"| Render[Render Web Service Docker Container <br/> (rd-backend-kbsm.onrender.com)]
     Render -->|"LibSQL Protocol: Port 443"| Turso[(Turso Edge Cloud SQLite)]
-    Render -->|"HTTPS POST JSON"| GoogleProxy[Google Apps Script Proxy]
+    Render -->|"HTTPS POST JSON: Port 443"| GoogleProxy[Google Apps Script Proxy Web App]
     GoogleProxy -->|"Gmail API OAuth Secure Relay"| Gmail[Gmail Dispatch Engine]
 
-    subgraph "Host Boundaries"
-        Firebase
-        Render
-        Turso
-        GoogleProxy
+    subgraph "Automated Verification Test Nodes"
+        TestRunner["verify_all_features.js <br/> (33/33 Tests Passed 100%)"] -.->|"Direct Probe"| Firebase
+        TestRunner -.->|"REST Validation"| Render
+        TestRunner -.->|"Query & Verify"| Turso
+    end
+
+    subgraph "Host Boundaries & Protections"
+        Firebase ---|"Global Edge Cache"| User
+        Render ---|"Sandboxed Debian Linux Container"| LibreOffice[Headless LibreOffice CLI]
     end
 ```
 
@@ -695,27 +961,25 @@ graph TD
 
 
 
-#### External Service Dependency Diagram
+#### Figure 16: External Service Dependency Diagram
 
 ```mermaid
 graph TD
-    subgraph "R&D Cell Bulk Certificate Platform"
+    subgraph "R&D Cell Platform Core"
         App[Node.js Express API Server]
     end
 
-    subgraph "External Dependencies"
-        Turso["Turso Edge SQLite (Cloud DB)"]
-        AppsScript["Google Apps Script Proxy (Web App)"]
-        GmailAPI["Gmail API (SMTP Relay Gateway)"]
-        Firebase["Firebase Hosting (Static Asset CDN)"]
-        UptimeRobot["UptimeRobot (Pings /api/health)"]
+    subgraph "External Cloud Dependencies"
+        Turso["Turso Edge SQLite (Cloud DB) <br/> Protocol: LibSQL over HTTPS"]
+        AppsScript["Google Apps Script Proxy (Web App) <br/> Protocol: HTTPS POST JSON"]
+        Gmail["Gmail API <br/> Protocol: Internal OAuth"]
+        Firebase["Firebase Hosting <br/> Static CDN Edge Distribution"]
     end
 
-    App -->|"LibSQL Query Exec"| Turso
-    App -->|"HTTPS JSON Relay"| AppsScript
-    AppsScript -->|"Secure Dispatch"| GmailAPI
-    App -.->|"Served static pages"| Firebase
-    UptimeRobot -->|"Periodic ping keeps awake"| App
+    App -->|"libsql:// protocol (Port 443)"| Turso
+    App -->|"HTTPS JSON Payload (Port 443)"| AppsScript
+    AppsScript -->|"Service Account OAuth"| Gmail
+    App -.->|"CORS Origin Verification"| Firebase
 ```
 
 ---
@@ -809,29 +1073,25 @@ Below are the mapped routes defined within [`frontend/src/App.tsx`](file:///c:/U
 
 ### C. Subsystem Relationships
 
-#### Frontend–Backend–Database Relationship Diagram
+#### Figure 17: Frontend–Backend–Database Multi-Tier Relationship Diagram
 
 ```mermaid
 graph LR
-    subgraph "Client Layer (Vite React TS)"
-        UI[User Interface Page Components] -->|"State Management"| State[React Hooks: useState/useEffect]
-        State -->|"HTTP Requests / SSE"| API_Client[Fetch Client / EventSource]
+    subgraph "Client Layer (Vite React 19 TS)"
+        UI[User Interface Page Components - 35 Routes] -->|"State Hooks"| State[React Hooks: useState/useEffect]
+        State -->|"HTTP Requests / SSE"| API_Client[Global Fetch Interceptor / EventSource]
     end
 
-    subgraph "Service Layer (Node Express TS)"
-        API_Client -->|"REST REST API Routing"| Express[Express App Router]
-        Express -->|"Request validation & JWT Auth"| Middleware[Middleware Controllers]
-        Middleware -->|"Business operations: PPTX/PDF"| Controllers[Service Handlers]
+    subgraph "Service Layer (Node Express 4.19 TS)"
+        API_Client -->|"REST API Routing"| Express[Express App Router - 60 Endpoints]
+        Express -->|"Token Auth & CSRF"| Middlewares[Auth & RateLimit Middlewares]
+        Middlewares -->|"Route Handlers"| Controllers[Application / Messaging / Certificate Controllers]
     end
 
-    subgraph "Storage Layer (Turso LibSQL Edge)"
-        Controllers -->|"SQL Execution / Transactions"| TursoClient[Turso Database Client]
-        TursoClient -->|"Synchronous Edge replication"| TursoDB[(Turso Edge SQL DB)]
+    subgraph "Persistence Layer (Turso Edge SQLite)"
+        Controllers -->|"SQL Prepared Statements"| LibSQL[LibSQL Client Driver]
+        LibSQL -->|"TCP/TLS (Port 443)"| EdgeDB[(Turso Edge SQLite - 16 Tables)]
     end
-
-    style UI fill:#61dafb,stroke:#00d8ff,stroke-width:2px,color:#000
-    style Express fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
-    style TursoDB fill:#00a3a6,stroke:#008080,stroke-width:2px,color:#fff
 ```
 
 ---
@@ -841,71 +1101,238 @@ graph LR
 
 ## 12. Database Design
 
-#### Database Entity-Relationship (ER) Diagram
+#### Figure 18: Database Entity-Relationship (ER) Diagram (16 Relational Tables)
 
 ```mermaid
 erDiagram
-    admins {
+    admin_users {
         integer id PK
         text username
-        text password_hash
+        text password
         text salt
         text role
-        text created_at
+        text email
+        datetime created_at
     }
     events {
         integer id PK
+        text category
         text title
         text description
         text date
-        text created_at
+        text time
+        text location
+        text speaker
+        text speaker_bio
+        datetime created_at
     }
     club_applications {
         integer id PK
         text full_name
+        text pin_number
         text email
-        text phone
+        text mobile
         text branch
         text year_of_study
+        text section
+        text interests
+        text skills
+        text reason_to_join
         text status
         integer offer_sent
-        text created_at
+        datetime created_at
     }
     event_registrations {
         integer id PK
-        integer event_id FK
+        text full_name
+        text pin_number
+        text email
+        text mobile
+        text branch
+        text year_of_study
+        text section
+        text event_name
+        text notes
+        text status
+        integer certificate_sent
+        text certificate_id
+        text attendance
+        text attendance_marked_by
+        datetime attendance_marked_at
+        text room_code
+        datetime created_at
+    }
+    hackathon_registrations {
+        integer id PK
+        text hackathon_name
         text team_name
+        text project_title
+        text project_description
+        text problem_statement
+        text leader_name
+        text leader_email
+        text leader_phone
+        text leader_role
+        text leader_year
+        text leader_branch
+        text leader_institution
+        text leader_company
+        text leader_job_title
+        text members
+        text status
+        integer certificate_sent
+        text certificate_type
+        text attendance
+        text attendance_marked_by
+        datetime attendance_marked_at
+        text room_code
+        datetime created_at
+    }
+    hackathon_certificates {
+        integer id PK
+        text certificate_id
+        integer registration_id FK
+        text participant_name
+        text participant_email
+        text participant_phone
+        text role
+        text year
+        text branch
+        text institution
+        text team_name
+        text project_title
+        text hackathon_name
+        text certificate_type
+        datetime created_at
+    }
+    recognition_applications {
+        integer id PK
         text full_name
         text email
-        text phone
-        text branch
+        text mobile
+        text designation
+        text organization
+        text event_name
+        text event_date
+        text domain_expertise
+        text experience_years
+        text notes
         text status
-        text certificate_id
         integer certificate_sent
-        text created_at
+        text certificate_id
+        datetime created_at
+    }
+    volunteer_applications {
+        integer id PK
+        text full_name
+        text pin_number
+        text email
+        text mobile
+        text branch
+        text year_of_study
+        text event_name
+        text volunteer_role
+        text skills
+        text past_experience
+        text availability
+        text notes
+        text status
+        integer certificate_sent
+        text certificate_id
+        datetime created_at
+    }
+    project_submissions {
+        integer id PK
+        integer hackathon_registration_id FK
+        text event_name
+        text team_name
+        text leader_name
+        text leader_email
+        text leader_phone
+        text institution
+        text members
+        text project_title
+        text project_info
+        text problem_statement
+        text drive_file_id
+        text drive_file_url
+        text drive_folder_id
+        text drive_folder_url
+        text file_name
+        integer file_size
+        text mime_type
+        text status
+        datetime created_at
+    }
+    registration_desk_users {
+        integer id PK
+        text desk_id
+        text name
+        text email
+        text password
+        text salt
+        text hackathon
+        text temp_password
+        datetime temp_password_expires_at
+        integer is_temporary_password
+        text status
+        datetime created_at
+    }
+    registration_rooms {
+        integer id PK
+        text event_type
+        text event_name
+        text room_name
+        text room_code
+        integer capacity
+        text assigned_desk_id
+        text assigned_desk_name
+        datetime created_at
     }
     templates {
+        text name PK
+        text filename
+        text data_base64
+        datetime updated_at
+    }
+    branches {
         integer id PK
         text name
-        text data_base64
-        text created_at
+        datetime created_at
+    }
+    contact_messages {
+        integer id PK
+        text name
+        text email
+        text subject
+        text message
+        datetime created_at
     }
     activity_logs {
         integer id PK
+        text username
         text action
         text details
-        text created_at
+        datetime created_at
     }
     password_reset_tokens {
         integer id PK
         text username
         text token_hash
         text salt
-        text expires_at
+        datetime expires_at
         integer used
     }
-    event_registrations }o--|| events : "registers for"
-    password_reset_tokens }o--|| admins : "belongs to"
+
+    events ||--o{ event_registrations : "hosts"
+    events ||--o{ recognition_applications : "engages"
+    events ||--o{ volunteer_applications : "organizes"
+    events ||--o{ registration_rooms : "allocates"
+    hackathon_registrations ||--o{ hackathon_certificates : "issues"
+    hackathon_registrations ||--o{ project_submissions : "submits"
+    registration_desk_users ||--o{ registration_rooms : "manages"
+    admin_users ||--o{ activity_logs : "audits"
+    admin_users ||--o{ password_reset_tokens : "requests"
 ```
 
 ### Schema Details
@@ -2376,7 +2803,7 @@ Admin Request  <---  Attach Bearer Token to "Authorization" & CSRF Token to "X-C
 * **Environment-Configured Credentials**: Seeding default developer and superadmin passwords from environment variables in `.env` rather than hardcoding them in the startup source code.
 * **Restricted Debug Endpoints**: Font debug endpoints require token authentication and are completely disabled in production mode.
 
-### Security Enforcement Architecture Flowchart (Figure 21)
+#### Figure 19: Security Enforcement Architecture Flowchart
 
 ```mermaid
 graph TD
@@ -2385,15 +2812,17 @@ graph TD
     CORS -->|No| BlockCORS[403 Forbidden / CORS Error]
     CORS -->|Yes| Limiter{Rate Limiter Threshold Exceeded?}
     Limiter -->|Yes| BlockRate[429 Too Many Requests]
-    Limiter -->|No| AuthCheck{Requires Admin Auth?}
+    Limiter -->|No| AuthCheck{Requires Admin or Desk Auth?}
     AuthCheck -->|No| PublicRoute[Execute Public API Route]
-    AuthCheck -->|Yes| CookieCheck{Valid admin_token Cookie?}
+    AuthCheck -->|Yes| CookieCheck{Valid JWT Cookie or Bearer Token?}
     CookieCheck -->|No| BlockAuth[401 Unauthorized]
-    CookieCheck -->|Yes| MethodCheck{Mutating Method?<br/>POST/PUT/DELETE}
-    MethodCheck -->|No| ReadRoute[Execute Admin Read Route]
-    MethodCheck -->|Yes| CSRFCheck{Valid X-CSRF-Token Header?}
-    CSRFCheck -->|No| BlockCSRF[403 Forbidden]
-    CSRFCheck -->|Yes| MutateRoute[Execute Admin Write/Update Route]
+    CookieCheck -->|Yes| MethodCheck{Mutating Request: POST/PUT/DELETE?}
+    MethodCheck -->|No| PassAuth[Execute GET Query]
+    MethodCheck -->|Yes| CSRFCheck{Valid X-CSRF-Token Matching Session?}
+    CSRFCheck -->|No| BlockCSRF[403 Forbidden: Invalid CSRF Token]
+    CSRFCheck -->|Yes| RoleCheck{Sufficient Role Privilege?}
+    RoleCheck -->|No| BlockRole[403 Forbidden: Insufficient Permissions]
+    RoleCheck -->|Yes| ExecuteRoute[Execute Mutating Controller Action]
 ```
 
 ---
@@ -2420,7 +2849,7 @@ graph TD
 
 The system's integrity, performance, and document compiler rendering have been verified using a comprehensive testing matrix. Tests were executed across local development environments and target production nodes.
 
-#### Testing Architecture & Verification Flow Diagram
+#### Figure 20: Testing Architecture & Multi-Phase Verification Flow Diagram
 
 ```mermaid
 graph TD
@@ -2431,23 +2860,26 @@ graph TD
         C -->|"Success: Exit Code 0"| D["Vite Production Bundle Compiler"]
         C -->|"Static Linter Warnings"| Z2["Apply ESLint Rules / Deferrals"]
         Z1 --> B
-        Z2 --> C
     end
 
-    subgraph "Phase 2: Local Integration Suite"
-        D -->|"Vite Compiles Client dist/"| E["Spawn Integration Test Runner (test_suite.js)"]
-        E -->|"Binds Node Server to test port 5001"| F["Run Native Assertion Tests (fetch calls)"]
-        F -->|"Verify events, branches, login blocks, lookups"| G{"All 5/5 assertions pass?"}
-        G -->|"No"| H1["Review Console Logs & Seeding Outputs"]
-        H1 --> E
+    subgraph "Phase 2: Local Logic Unit & Component Testing"
+        D --> E["test_suite.js Test Runner"]
+        E --> F["TC-001: Case Normalization & Casing Utilities"]
+        E --> G["TC-002: PPTX Slide XML Replacements & Pizzip Nodes"]
+        E --> H["TC-003: Timestamp Formatters & Date Normalizers"]
+        E --> I["TC-004: Express Route Registrations Checks"]
+        E --> J["TC-005: Security Sanitization & Script Stripping"]
+        F & G & H & I & J -->|"Assertions Passed (5/5)"| K["Internal Component Validation PASS"]
     end
 
-    subgraph "Phase 3: Production CD Pipeline"
-        G -->|"Yes: Exit Code 0"| H2["Git Push Master (Trigger Render Build)"]
-        H2 --> I["Render Debian Docker container builds (LibreOffice CLI setup)"]
-        I --> J["Firebase hosting deploys client static bundle"]
-        J --> K["Live Sandbox Environment operational"]
-        K -->|"Bulk dispatch requests"| L["Relay attachments via Google Apps Script Proxy over Port 443"]
+    subgraph "Phase 3: End-to-End Live Integration Verification"
+        K --> L["verify_all_features.js Live Test Runner"]
+        L --> M["18 Frontend Web CDN Routes Tested"]
+        L --> N["4 Public REST APIs Validated"]
+        L --> O["Registration Desk Login & Attendee Rosters"]
+        L --> P["Admin Auth, Applications & Room Allocations"]
+        L --> Q["Server-Sent Events Keep-Alive Pool Verified"]
+        M & N & O & P & Q -->|"100.0% PASS Rate (33/33)"| R["Production Deployment Certified Ready"]
     end
 ```
 
@@ -2463,7 +2895,7 @@ graph TD
 ### A. Unit Testing Results (Isolated Logic)
 Unit tests verify internal helper utilities and configuration checks in absolute isolation.
 
-#### Unit Testing Process & Data Flow Diagram
+#### Figure 21: Unit Testing Process & Data Flow Diagram
 
 ```mermaid
 graph TD
@@ -2474,24 +2906,24 @@ graph TD
     end
 
     subgraph "Isolated Helper Utilities (Logic Layer)"
-        UT1["findTemplateFile()"]
-        UT2["normalizeStatusCasing()"]
-        UT3["formatDate()"]
+        U1["replacePlaceholdersInPptx() Function"]
+        U2["toProperCase() Normalization Helper"]
+        U3["formatDate() Date Formatting Helper"]
     end
 
-    subgraph "Verification & Expected Outputs"
-        O1["Resolved Absolute Path / Null if missing"]
-        O2["Normalized Casing: Won Second Place / Coordinator"]
-        O3["Formatted String: August 16, 2026"]
+    subgraph "Validation Assertions & Expected Outputs"
+        O1["XML Slide Output with Substituted Strings"]
+        O2["Proper String Output: Won Second Place / Coordinator"]
+        O3["Formatted String Output: 16-Aug-2026"]
     end
 
-    I1 --> UT1 --> O1
-    I2 --> UT2 --> O2
-    I3 --> UT3 --> O3
+    I1 --> U1
+    I2 --> U2
+    I3 --> U3
 
-    style UT1 fill:#2b6cb0,stroke:#3182ce,stroke-width:2px,color:#fff
-    style UT2 fill:#2b6cb0,stroke:#3182ce,stroke-width:2px,color:#fff
-    style UT3 fill:#2b6cb0,stroke:#3182ce,stroke-width:2px,color:#fff
+    U1 --> O1
+    U2 --> O2
+    U3 --> O3
 ```
 
 | Test Case ID | Test Component / Function | Test Input & Conditions | Expected Result | Actual Result Obtained | Status | Bugs Found & Fixes Applied |
@@ -2506,7 +2938,7 @@ graph TD
 ### B. Black-Box Testing Results (API & GUI Boundaries)
 Black-Box tests validate functional endpoints and boundary limits from the client's perspective.
 
-#### Black-Box Testing Endpoint Verification Flow Diagram
+#### Figure 22: Black-Box Testing Endpoint Verification Flow Diagram
 
 ```mermaid
 sequenceDiagram
@@ -2517,31 +2949,22 @@ sequenceDiagram
     participant DB as Turso DB SQLite Cloud
 
     Note over Client, DB: BB-001/BB-002: Applicant Registrations
-    Client->>Router: POST /api/apply/club (JSON applicant payload)
-    Router->>DB: Write applicant details to DB
-    DB-->>Router: Confirm insertion
-    Router-->>Client: 201 Created (Success: true)
+    Client->>Router: POST /api/apply/club { full_name, email, pin, branch }
+    Router->>DB: INSERT INTO club_applications
+    DB-->>Router: Insert ID: 101
+    Router-->>Client: 201 Created { message: "Application submitted" }
 
-    Note over Client, DB: BB-003/BB-004: Admin Authentication Gateway
-    Client->>Router: POST /api/admin/login (Credentials payload)
-    Router->>Auth: Validate password hash
-    Auth-->>Router: Verification status
-    alt Valid Credentials
-        Router-->>Client: 200 OK (Set-Cookie: admin_token + CSRF Token + User Profile)
-    else Invalid Credentials
-        Router-->>Client: 401 Unauthorized (Error JSON)
-    end
+    Note over Client, DB: BB-003: Public Credential Verification
+    Client->>Router: GET /api/verify-certificate/VALID_CERT_ID
+    Router->>DB: SELECT * FROM event_registrations WHERE certificate_id = ?
+    DB-->>Router: Row details found
+    Router-->>Client: 200 OK { valid: true, event: "SIH Hackathon" }
 
-    Note over Client, DB: BB-005/BB-006: Public Certificate Lookup
-    Client->>Router: GET /api/verify-certificate/[id]
-    Router->>DB: Query certificate details
-    alt Certificate Exists & Issued
-        DB-->>Router: Record data
-        Router-->>Client: 200 OK (Candidate metadata JSON)
-    else Missing / Unissued Certificate
-        DB-->>Router: Null record
-        Router-->>Client: 404 Not Found (Error: Certificate not found)
-    end
+    Note over Client, DB: BB-004: Unauthenticated Mutation Attempt
+    Client->>Router: POST /api/admin/applications/status (No Cookie / No CSRF)
+    Router->>Auth: Verify JWT Cookie & X-CSRF-Token
+    Auth-->>Router: Verification Failed
+    Router-->>Client: 401 Unauthorized / 403 Forbidden
 ```
 
 | Test Case ID | Test Path / View | Test Input & Conditions | Expected Result | Actual Result Obtained | Status | Bugs Found & Fixes Applied |
@@ -2558,7 +2981,7 @@ sequenceDiagram
 ### C. White-Box Testing Results (Internal Code Paths)
 White-Box tests ensure internal statement execution, branches, exception catching, and file cleanup routines.
 
-#### White-Box Internal Operations & Execution Flow Diagram
+#### Figure 23: White-Box Internal Operations & Execution Flow Diagram
 
 ```mermaid
 graph TD
@@ -2571,17 +2994,11 @@ graph TD
         PDF1 -->|"Success"| Out1["Wipe Ephemeral Files in 'finally' block"]
     end
 
-    subgraph "WB-002: LibreOffice Concurrency Profile Isolation"
-        LO1["PDF convert request"] --> Prof1["Assign randomized directory: soffice-profile-batch-*"]
-        Prof1 --> LO2["soffice headless conversion"]
-        LO2 -->|"Prevents read/write locks"| Out2["Successful batch PDF compilation"]
-    end
-
-    subgraph "WB-003: Task Queue Concurrency Controls"
-        Q1["15 Parallel tasks queued"] --> Lim1["runWithConcurrency (Limit = 10)"]
-        Lim1 -->|"Process first 10 immediately"| R1["Active Thread Pool"]
-        Lim1 -->|"Queue remainder"| R2["Pending Queue Array"]
-        R1 -->|"Resolves"| Next1["Advance remaining 5 tasks sequentially"]
+    subgraph "WB-002: Concurrent Batch Conversion"
+        Q1["100 Candidate Records Queued"] --> Chunk["Slice into Concurrency Batches (e.g., 10)"]
+        Chunk --> Parallel["Promise.all() Parallel Conversions"]
+        Parallel --> LO["Spawn Isolated LibreOffice Instances"]
+        LO --> Merge["Merge Resulting PDF File Paths"]
     end
 ```
 
@@ -2597,7 +3014,7 @@ graph TD
 ### D. Gray-Box & Integration Testing Results (Components & State)
 Integration tests verify end-to-end network calls, database mutation logs, and real-time broadcasts.
 
-#### Gray-Box Multi-Subsystem Integration Diagram
+#### Figure 24: Gray-Box Multi-Subsystem Integration Diagram
 
 ```mermaid
 graph TD
@@ -2608,21 +3025,10 @@ graph TD
     end
 
     subgraph "GB-002: Google Apps Script HTTPS Email Proxy"
-        AdminUI["Admin UI Certificate Dispatch"] -->|"Trigger"| Backend["Backend PPTX to PDF Converter"]
-        Backend -->|"Base64 attachment JSON"| WebProxy["Apps Script Relay Gateway (Port 443)"]
-        WebProxy -->|"OAuth HTTPS Relay"| GoogleAPI["Gmail API Outbound Dispatch"]
-        GoogleAPI -->|"Inbox Delivery"| Inbox["Target email inbox receives PDF"]
-    end
-
-    subgraph "GB-003: Dynamic PDF Iframe Viewer"
-        Iframe["Iframe request: /api/verify-certificate/[id]/pdf"] --> Stream["Backend compiles buffer inline"]
-        Stream -->|"Stream response stream"| Render["Render PDF inline in 16:9 Panel"]
-    end
-
-    subgraph "GB-004: Turso Edge DB Schema Setup"
-        Launch["Docker startup initialization"] --> Schema["Turso Edge Database table check"]
-        Schema -->|"No tables"| BuildSchema["Execute SQLite Schema queries"]
-        BuildSchema --> Seeding["Insert default seeded user accounts"]
+        BE["Express Bulk Dispatch Worker"] -->|"HTTP POST (JSON Base64 Payload)"| GAS["Google Apps Script Web App"]
+        GAS -->|"Gmail API Internal Authorization"| Gmail["Gmail SMTP Server"]
+        Gmail -->|"Delivery"| Inbox["Candidate Mailbox"]
+        GAS -->|"Return Delivery Acknowledgement"| BE
     end
 ```
 
@@ -2923,7 +3329,7 @@ Static validation was executed locally using TypeScript compilation commands and
 
 This report outlines the lifecycle of each defect discovered during the verification phase of the R&D Cell bulk certificate platform.
 
-#### Defect Debugging & Resolution Visual Workflows
+#### Figure 25: Defect Debugging & Resolution Visual Workflows
 
 ```mermaid
 graph TD
@@ -2932,34 +3338,31 @@ graph TD
         D1 --> F1["Fix: Deploy Google Apps Script Web App Proxy over HTTPS"]
         F1 --> R1["Retest: Run bulk dispatch dashboard checks"]
         R1 --> S1{"Status?"}
-        S1 -->|"Delivered in &lt;2s"| P1["PASS (Delivered)"]
+        S1 -->|"Delivered in <2s"| P1["PASS (Delivered)"]
     end
 
-    subgraph "Defect 2: Turso DB IPv6 Connect Failure"
-        E2["Original Error: ENETUNREACH on IPv6 startup query"] --> D2["Debug: Render network uses IPv4-only stack"]
-        D2 --> F2["Fix: Set setDefaultResultOrder('ipv4first') globally"]
-        F2 --> R2["Retest: Restart backend node container service"]
+    subgraph "Defect 2: Temporal Dead Zone (TDZ) Crash"
+        E2["Original Error: ReferenceError in Verify Page"] --> D2["Debug: const functions are not hoisted in JS"]
+        D2 --> F2["Fix: Move handleVerify definition before useEffect"]
+        F2 --> R2["Retest: Direct route navigation query checks"]
         R2 --> S2{"Status?"}
-        S2 -->|"Turso DB connected successfully"| P2["PASS (Seeded)"]
+        S2 -->|"Clean load and PDF streaming"| P2["PASS (Verified)"]
     end
-```
 
-```mermaid
-graph TD
-    subgraph "Defect 3: Temporal Dead Zone (TDZ) Crash"
-        E3["Original Error: ReferenceError in Verify Page"] --> D3["Debug: const functions are not hoisted in JS"]
-        D3 --> F3["Fix: Move handleVerify definition before useEffect"]
-        F3 --> R3["Retest: Direct route navigation query checks"]
+    subgraph "Defect 3: Registration Desk Route Aliasing"
+        E3["Original Error: 404 on /api/reg-desk/attendees"] --> D3["Debug: Component queried /attendees while route was /participants"]
+        D3 --> F3["Fix: Express array aliasing app.get(['/participants', '/attendees'])"]
+        F3 --> R3["Retest: verify_all_features.js test 24"]
         R3 --> S3{"Status?"}
-        S3 -->|"Clean load and PDF streaming"| P3["PASS (Verified)"]
+        S3 -->|"200 OK Returned"| P3["PASS (Aliased)"]
     end
 
-    subgraph "Defect 4: Synchronous React Hook setState Loop"
-        E4["Original Error: react-hooks/set-state-in-effect warning"] --> D4["Debug: Synchronous state set forces pre-mount render cycle"]
-        D4 --> F4["Fix: Wrap mount triggers in setTimeout deferrals & align rules"]
-        F4 --> R4["Retest: Execute npm run lint & build commands"]
+    subgraph "Defect 4: Recipient Email Preview Modal Cutoff"
+        E4["Original Error: Modal bottom buttons cut off on smaller screens"] --> D4["Debug: Inner content overflowed fixed viewport without flexbox layout"]
+        D4 --> F4["Fix: flex-col with max-h-[92vh], sticky header/footer, scrollable body"]
+        F4 --> R4["Retest: Preview modal visual inspection across viewports"]
         R4 --> S4{"Status?"}
-        S4 -->|"Clean build output, exit code 0"| P4["PASS (100% Green)"]
+        S4 -->|"Flawless scroll & visible actions"| P4["PASS (Fixed)"]
     end
 ```
 
@@ -3266,7 +3669,7 @@ The novelty of the system lies not in any single technology but in the integrati
 
 The system has been evaluated against the standard United States Department of Defense (DoD) / NASA Technology Readiness Level (TRL) scale and software Implementation Readiness (IR) maturity index.
 
-#### Technology Readiness & Implementation Maturity Diagram
+#### Figure 26: Technology Readiness (TRL 6) & Implementation Maturity (IR 6) Diagram
 
 ```mermaid
 graph TD
@@ -3275,23 +3678,24 @@ graph TD
 
     subgraph "Validation Proofs & Evidence"
         V1["TypeScript Builds compile successfully (exit code 0)"]
-        V2["test_suite.js passes 5/5 assertions cleanly"]
-        V3["PPTX database seeding syncing complete"]
-        V4["Live deployments verified on Firebase / Render / Turso"]
+        V2["verify_all_features.js: 33/33 (100.0%) integration assertions passed"]
+        V3["test_suite.js: 5/5 unit assertions passed cleanly"]
+        V4["Firebase CDN (tcek-rd.web.app) hosting active"]
+        V5["Render Docker container (rd-backend-kbsm) active"]
+        V6["Turso Edge SQLite 16-table persistent cloud database active"]
     end
 
-    subgraph "Progression Roadmap to TRL 7 / IR 7"
-        R1["Upgrade Render to Web Service Starter (remove cold starts)"]
-        R2["Setup asynchronous Redis/BullMQ worker pools"]
-        R3["Secure session tokens inside HTTP-only SameSite cookies"]
-        R4["Establish Playwright E2E browser user UI tests"]
+    subgraph "Operational Transition Parameters (To TRL 7 / IR 7)"
+        T1["Target Pilot: Campus Technical Symposium Deployment"]
+        T2["Concurrency Stress Testing at 500 simultaneous users"]
+        T3["Automated Scheduled Database Backups"]
     end
 
-    TRL6 --> Validation
-    IR6 --> Validation
-    V1 & V2 & V3 & V4 --> Validation["Validation checkpoints verified"]
-    Validation --> Progression
-    R1 & R2 & R3 & R4 --> Progression["Progression path to Transition Readiness"]
+    V1 & V2 & V3 & V4 & V5 & V6 --> TRL6
+    V1 & V2 & V3 & V4 & V5 & V6 --> IR6
+
+    TRL6 -.->|"Demonstration in Operational Environment"| T1
+    IR6 -.->|"Stress Testing & Automated Backups"| T2 & T3
 ```
 
 ---
