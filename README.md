@@ -166,40 +166,102 @@ For your viva presentation, the core contribution is summarized in one sentence:
 
 
 ### Project Purpose
-The Research & Development (R&D) Cell at Trinity College requires a robust infrastructure to manage student applications for club membership, organize hackathons and technical events, and issue official authenticated credentials. The **R&D Cell Portal** digitizes these operations, replacing manual certificates and spreadsheets with an automated pipeline.
+The Research & Development (R&D) Cell at Trinity College of Engineering & Technology requires an enterprise-grade digital infrastructure to manage the complete student innovation and academic event lifecycle. The **Secure Cloud-Based Institutional Application & Automated Credential Management Platform** digitizes and automates these operations, replacing vulnerable spreadsheets, disconnected paper attendance sheets, manual certificate formatting, and unverified credentials with a unified, cloud-native automated pipeline.
+
+The platform serves as the central operational backbone for:
+* **Student Innovation & Club Recruitment**: Digitally receiving, vetting, and managing student applications for departmental research labs, innovation clubs, and executive coordinator positions.
+* **Large-Scale Technical Events & Hackathons**: Managing team formations, problem statement selections, presentation slide uploads, and technical project repository submissions for flagship initiatives (such as the Smart India Hackathon internal editions).
+* **On-Site Physical Event Orchestration**: Providing dedicated on-site Registration Desk terminals for real-time attendee check-in, dynamic room/lab venue allocations, capacity monitoring, and physical kit distribution tracking.
+* **Targeted Institutional Communication**: Empowering event organizers with an executive Event Messaging Studio to compose and broadcast official institutional announcements across segmented audiences (Participants, Evaluators/Judges, Coordinators, and Volunteers) with locked branding and dynamic per-recipient personalization.
+* **High-Throughput Credential Issuance**: Ingesting verified registration and achievement records, dynamically mapping in-database PowerPoint XML templates, executing parallel headless LibreOffice PDF conversions, and distributing credentials directly to student inboxes over secure HTTPS channels.
+* **Public Credential Verification**: Exposing an open, fraud-proof verification portal (`/verify`) allowing recruiters, academic institutions, and employers to confirm credential legitimacy in real-time via cryptographic certificate IDs and responsive 16:9 dynamic PDF streams.
 
 ### Problem the Project Solves
-* **Manual Data Entry & Errors**: Replaces manual formatting of certificates with automated database-driven replacement of student names, dates, and titles.
-* **SMTP Port Blockage**: Resolves Render and other hosting providers' SMTP port blocks on the free tier by routing email payloads over HTTPS (port 443) using a custom Google Apps Script proxy that talks directly to the Gmail API.
-* **Heavy CPU Processing**: Employs optimized headless LibreOffice within Docker to convert pptx slides in batch arrays concurrently, completing bulk operations in seconds instead of minutes.
-* **Credential Verification**: Prevents fraud by implementing a public verification portal (`/verify`) where employers or students verify certificate IDs and view original high-resolution PDFs dynamically rendered from database templates.
+* **Manual Data Entry, Fragmentation & Human Formatting Errors**: Eliminates scattered, unvalidated Google Forms and manual Excel workbooks by storing normalized candidate profiles in an edge cloud database (Turso Edge SQLite) with strict validation gates.
+* **On-Site Registration Chaos & Queue Bottlenecks**: Replaces paper check-in sheets with high-speed digital Registration Desk terminals featuring instant roll number lookups, allocated room verifications, and real-time attendance status toggles.
+* **Uncoordinated Multi-Group Event Messaging**: Solves disorganized announcement dissemination by providing an administrative messaging composer with multi-group audience selection (Members, Judges, Coordinators, Volunteers), locked institutional letterhead branding, and dynamic `{name}` personalizations.
+* **Cloud Container SMTP Egress Blocking**: Bypasses cloud container hosting limitations (where standard TCP SMTP ports 25, 465, and 587 are systematically blocked on free and entry tiers) by routing Base64-encoded PDF payloads over secure HTTPS (port 443) via a Google Apps Script Web App proxy directly into Google's authenticated Gmail API.
+* **Heavy Server CPU Bottlenecks & Document Generation Delays**: Replaces slow, single-threaded PDF generators with concurrency-controlled headless LibreOffice batch compilation running in sandboxed Debian Docker containers, producing hundreds of personalized PDF certificates in seconds.
+* **Rampant Credential Tampering & Certificate Fraud**: Eliminates unauthenticated, easily forged static PDF certificates by generating unique, cryptographically randomized certificate identifiers mapped to official database registers, verifiable by any third party via an interactive 16:9 dynamic viewer.
+* **Administrative Session Hijacking & Data Tampering**: Enforces defense-in-depth administrative security through HttpOnly SameSite=Lax JWT session cookies, Double-Submit CSRF header verification (`X-CSRF-Token`), multi-window rate limiting, and strict Role-Based Access Control (RBAC).
 
 ### Target Users
-* **Student Applicants**: Registration for events and applying for core team membership.
-* **Club Administrators/Super Admins**: Viewing applicant profiles, registering branches, managing events, approving teams, customizing actions, and executing bulk certificate dispatches.
-* **Developers**: Managing database schema, debugging system configurations, and synchronizing templates.
+1. **Student Applicants & Participants**:
+   * Browse institutional research domains, upcoming symposiums, workshops, and hackathons.
+   * Submit membership applications, register for technical events, and form multi-member hackathon teams.
+   * Upload project documentation, problem statements, GitHub repositories, and live demo links via dedicated submission portals.
+   * Receive authenticated PDF credentials and offer letters directly in their personal inboxes.
+2. **On-Site Registration Desk Coordinators & Volunteer Staff**:
+   * Authenticate via dedicated registration desk terminals (`/reg-desk/login`) using secure desk identifiers and 6-character temporary access codes.
+   * Verify allocated presentation halls, computer labs, and venue capacities.
+   * Search attendees dynamically by student PIN/roll number, full name, or team name.
+   * Mark real-time attendance check-in with automatic coordinator timestamping and track badge/kit distribution.
+3. **Evaluators, Hackathon Judges & Keynote Dignitaries**:
+   * Review submitted hackathon problem statements, technical project portfolios, and presentation decks.
+   * Assign evaluation scores, rank team achievements, and receive official institutional Certificates of Recognition and Appreciation.
+4. **Club Administrators & Department Faculty Leads**:
+   * Review, filter, approve, or reject club membership applications across academic engineering departments.
+   * Schedule workshops, manage event calendars, and allocate physical rooms and presentation venues.
+   * Compose and broadcast targeted event announcements via the executive Event Messaging Studio.
+   * Trigger bulk certificate generation and email dispatches with live progress tracking and automated retry mechanics.
+5. **Super Administrators & Platform Developers**:
+   * Manage system administrative accounts with strict RBAC privilege segregation (`developer`, `superadmin`, `admin`, `reg_desk`).
+   * Provision temporary credentials for event coordinators with automated 1-week expiration windows.
+   * Inspect real-time audit logs (`activity_logs`) tracking all administrative data mutations and email dispatches.
+   * Synchronize PowerPoint master templates and manage database schemas and branch catalogs.
+6. **Employers, Academic Institutions & Public Verifiers**:
+   * Scan QR codes embedded on physical certificates or navigate to `/verify`.
+   * Query unique institutional certificate identifiers to instantly verify candidate authenticity, event dates, achievement classifications, and view high-resolution official PDF documents.
 
 ### Core Functionality
-* **Dynamic Recipient Configuration**: Individual achievement actions (e.g. *Participation*, *Won First/Second/Third Place*, *Coordinated*) can be customized in the admin row.
-* **PowerPoint Modification**: Low-level XML parser updates Slide XML in PPTX buffers, disabling auto-fit to maintain certificate margins while mapping custom fonts (Bebas Neue, Cardo).
-* **Live Activity Logging & Event Dispatch**: Synchronizes changes across active clients via Server-Sent Events (SSE). Writes admin actions to audit tables.
-* **Dynamic Verification Views**: Embedded 16:9 widescreen PDF viewer that queries the API server and renders compiled certificates without client-side plugins.
+1. **Multi-Gateway Public Enrollment Hub**:
+   * Unified application portal (`/apply`) with dedicated, normalized sub-routes (`/apply/ClubRegistration`, `/apply/EventRegistration`, `/apply/HackathonRegistration`, `/apply/Recognition`, `/apply/Volunteer`, `/apply/ProjectSubmission`).
+   * Dynamic team formation interfaces allowing student leads to register multi-member rosters with client-side email format enforcement and duplicate entry prevention.
+2. **On-Site Registration Desk & Venue Orchestration Subsystem**:
+   * Dedicated registration desk portal (`/reg-desk/login`) featuring an auto-focusing 6-box temporary password / OTP interface.
+   * Real-time attendee roster search by college PIN or name, dynamic venue verification against `registration_rooms`, and single-click attendance status check-in.
+   * Immediate synchronization across all active administrator screens via Server-Sent Events (SSE).
+3. **Executive Event Messaging & Multi-Group Announcement Studio**:
+   * Multi-role audience filtering cards (Members/Participants, Judges/Evaluators, Coordinators, Volunteers) with live deduplicated recipient count badges.
+   * Institutional letterhead writing surface with locked official college greetings and formal sign-offs to maintain institutional correspondence standards.
+   * macOS-style Recipient Email Preview modal with responsive flexbox scrolling, simulated email client headers, and batch HTTPS dispatch.
+4. **Automated XML Slide Manipulation & Parallel Document Engine**:
+   * Decompresses OpenXML PowerPoint presentations (`.pptx`) directly in memory via `PizZip`.
+   * Injects `<a:spPr><a:noAutofit/></a:spPr>` tags into slide shapes to disable text auto-fit, preventing font compression for long candidate names.
+   * Dynamic casing normalizer (`toProperCase`) preserving uppercase academic abbreviations (`CSE`, `ECE`, `AI&ML`, `SIH`).
+   * Executes headless LibreOffice batch conversions in sandboxed Debian Docker containers with isolated `-env:UserInstallation` user profiles, eliminating configuration write-lock collisions during concurrent batch jobs.
+5. **Dual-Channel Cloud-Compatible Email Relay**:
+   * Encodes generated PDF certificates into Base64 buffers and forwards JSON payloads over HTTPS (port 443) via a Google Apps Script Web App proxy directly into Google's authenticated Gmail API, completely bypassing hosting provider SMTP port blocks.
+   * Automatic fallback to standard Nodemailer SMTP transport for local development environments.
+6. **Public Fraud-Proof Credential Verification & Dynamic 16:9 Streaming**:
+   * Resolves certificate codes via `GET /api/verify-certificate/:id`, querying database registers to confirm issue status and event details.
+   * Dynamically compiles the original high-resolution certificate on the fly and streams the raw PDF binary directly inline inside a responsive 16:9 widescreen frame.
+7. **Real-Time Administrative State Synchronization (SSE)**:
+   * Persistent keep-alive Server-Sent Events channel (`/api/sync-stream`) broadcasting refresh signals (`REFRESH_APPLICATIONS`, `REFRESH_ATTENDANCE`, `REFRESH_SUBMISSIONS`) to update dashboard counters and tables across connected clients without manual page reloading.
+8. **Defense-in-Depth Security & Governance**:
+   * Dual-JWT architecture: `admin_token` stored in HttpOnly SameSite=Lax cookies and `csrfToken` passed via `X-CSRF-Token` headers.
+   * Multi-window rate limiters protecting public forms, authentication gates, and password recovery endpoints.
+   * Stateful SHA-256 password recovery token cache with 1-hour expiration timestamps and immediate single-use invalidation.
 
 ### High-Level System Architecture & Workflow
 ```mermaid
 graph TD
-    User(["Public User / Admin"]) -->|"Interacts"| Frontend["Vite React TS Client"]
-    Frontend -->|"HTTPS REST / Cookies / X-CSRF-Token"| Backend["Node Express TS API Server"]
-    subgraph "Backend Server Security Pipeline"
-        Backend --> CORS["CORS filter"]
-        CORS --> Limiter["Rate Limiter"]
-        Limiter --> AuthGate["Auth & CSRF validator"]
+    User(["Public User / Admin / Desk Client"]) -->|"HTTPS: Port 443"| Frontend["Vite React 19 TS Client"]
+    Frontend -->|"HTTPS REST / Cookies / X-CSRF-Token"| Backend["Node.js Express 4.19 API Gateway"]
+    subgraph "Backend Security & Request Pipeline"
+        Backend --> CORS["CORS Origin Validator"]
+        CORS --> Limiter["Multi-Tier Rate Limiter"]
+        Limiter --> AuthGate["Dual-JWT & CSRF Validator"]
+        AuthGate --> RBAC["Role Authorizer: Dev/Super/Admin/Desk"]
     end
-    AuthGate -->|"SQL Execution"| Database[("Turso Edge SQLite")]
-    AuthGate -->|"Modify XML"| Pizzip["PizZip XML Editor"]
-    AuthGate -->|"Exec CLI Batch"| LibreOffice["LibreOffice PDF Converter"]
-    AuthGate -->|"HTTP POST JSON"| GASProxy["Google Apps Script Proxy"]
-    GASProxy -->|"Gmail API Auth"| Gmail["Gmail SMTP/HTTP Dispatch"]
+    RBAC -->|"libsql protocol / port 443"| Database[("Turso Edge SQLite - 16 Tables")]
+    RBAC -->|"In-Memory OpenXML Modification"| Pizzip["PizZip PPTX Engine"]
+    Pizzip -->|"Parallel CLI Batching"| LibreOffice["Headless LibreOffice PDF Batcher"]
+    RBAC -->|"Event Announcements & Audience Resolution"| MsgEngine["Event Messaging Engine"]
+    RBAC -->|"HTTP POST JSON Payload (Port 443)"| GASProxy["Google Apps Script Proxy Web App"]
+    GASProxy -->|"OAuth Service Auth"| Gmail["Gmail Mailing API"]
+    RBAC -.->|"Keep-Alive SSE Socket Stream"| SSE["Server-Sent Events /api/sync-stream"]
+    SSE -.->|"Real-Time CustomEvent Signal"| Frontend
 ```
 
 ---
@@ -207,111 +269,185 @@ graph TD
 ---
 
 ## 2. Problem Statement
-In traditional academic institutional workflows, managing applications and issuing event credentials introduces substantial operational overhead. The core problems are:
-* **Manual Student Registrations**: Signups for recruitment or technical events are collected through scattered spreadsheets or manual forms.
-* **Scattered Applicant Roster Data**: Candidate data resides in unstructured files, rendering dynamic validation or role-based filtering impossible.
-* **Repetitive Certificate Editing**: Coordinators manually copy-paste participant names, rolls, and achievement actions onto design files one-by-one.
-* **Heavy CPU Processing & Time Overhead**: Generating dozens or hundreds of PDF files manually takes significant time and delays dispatch.
-* **Repetitive Email Distribution**: Attaching and sending certificates manually via standard email is slow and prone to errors.
-* **Lack of Public Verification**: Employers or academic bodies have no immediate channel to verify certificate IDs against official institutional databases.
-* **Unprotected Operations**: Administrative actions (mutating applications, triggering bulk dispatches) lack secure session validation or audit logs.
+In conventional educational institutions and collegiate technical bodies, managing student applications, organizing hackathons, conducting on-site physical event registrations, and issuing authenticated credentials suffers from critical operational bottlenecks and vulnerabilities:
 
-This system solves these issues through a unified platform, integrating student portals, admin controllers, PizZip XML document generators, headless LibreOffice parallel PDF compilers, and secure HTTPS mail proxy relays.
+1. **Scattered Student Registrations & Unstructured Data**:
+   Collegiate teams rely on ad-hoc Google Forms and disjointed spreadsheets. Data resides across multiple unlinked sheets without referential integrity, making cross-event validation, duplicate filtering, and candidate tracking impossible.
+2. **On-Site Registration Chaos & Paper Check-In Bottlenecks**:
+   During physical events and hackathons with hundreds of attendees, desk staff rely on printed paper rosters. Searching student roll numbers manually causes long physical queues, unrecorded attendance, room assignment confusion, and inaccurate kit distribution records.
+3. **Disorganized Multi-Group Event Announcements**:
+   Broadcasting schedule changes, lab assignments, or judging criteria requires manual email copying into BCC fields. This introduces communication errors, misdirected messages, formatting inconsistencies, and lack of official college letterhead branding.
+4. **Manual Document Preparation & Design Distortions**:
+   Staff manually open PowerPoint or graphic design templates, copy-pasting student names and roll numbers one by one. Long student names cause text-box auto-wrapping and font shrinking, distorting certificate layouts and taking hours of repetitive manual labor.
+5. **Severe Server CPU Bottlenecks & Execution Timeouts**:
+   Compiling hundreds of high-resolution PDF documents on standard cloud servers triggers memory spikes, process lock collisions, and cloud gateway timeouts when handled sequentially.
+6. **Cloud Host SMTP Port Egress Blocking**:
+   To prevent spam, modern cloud container hosting providers (such as Render, Heroku, AWS free tier) systematically block outgoing TCP traffic on standard SMTP ports (25, 465, and 587). Standard Nodemailer scripts fail with `ETIMEDOUT` errors, preventing direct automated email distribution.
+7. **Credential Forgery & Inability to Publicly Authenticate**:
+   Static PDF certificates distributed via email are trivially manipulated using free online vector and PDF editors. Academic bodies, recruiters, and corporate hackathon sponsors have no automated channel to verify certificate authenticity against official institutional records.
+8. **Vulnerable Administrative Operations & Lack of Audit Trails**:
+   Uncontrolled spreadsheets lack authentication gates, audit logs, or role-based access boundaries, leaving sensitive student records vulnerable to unlogged modifications, deletions, or data leaks.
+
+This platform resolves these systemic inefficiencies through a unified, cloud-native architecture combining edge SQLite persistence, low-level XML template modification, parallel headless document compilation, HTTPS proxy email delivery, dedicated on-site check-in consoles, and public certificate verification.
 
 ---
 
 ## 3. Existing System
-The existing system relies on manual coordination across separate stages:
-* **Data Gathering**: Student applicant profiles are collected via external forms, generating CSV or spreadsheet dumps.
-* **Review & Selection**: Committees read spreadsheets, manually sorting selected names.
-* **Design & Editing**: Staff manually open PowerPoint or graphic design templates, copy-paste selected candidate names, section, and branches, and manually select "Save as PDF" for each student.
-* **Mailing**: Staff compile candidate email lists, write template messages, attach the PDF, and mail it to each candidate sequentially from a personal or departmental Gmail account.
-* **Verification**: Recruiters or employers must contact the college cell via official email channels to manually confirm certificate codes.
+The existing traditional institutional workflow operates through fragmented, manual procedures across isolated operational phases:
+
+* **Phase 1: Registration Collection**:
+  Student signups for club recruitments, technical workshops, and hackathons are collected through disparate Google Forms, generating detached CSV and spreadsheet files for each initiative.
+* **Phase 2: Review & Evaluation**:
+  Faculty coordinators and student leads manually review spreadsheet rows, updating candidate status in custom columns without centralized authorization or audit logging.
+* **Phase 3: On-Site Event Check-in**:
+  On the day of the event, organizers print multi-page paper rosters. Attendees stand in long queues while volunteers manually strike through names with pens, manually recording room assignments and kit issuances on clipboards.
+* **Phase 4: Participant Communication**:
+  Event updates are sent by manually copying student email addresses from spreadsheets into personal or departmental Gmail accounts, risking data leakage (accidental CC instead of BCC) and lacking standardized institutional branding.
+* **Phase 5: Certificate Design & Production**:
+  Organizers open desktop graphic design tools (Photoshop, Canva) or PowerPoint templates. For each attendee, they manually copy-paste the student's name, department, and achievement status, then manually select "Export to PDF" one candidate at a time.
+* **Phase 6: Credential Distribution**:
+  Staff draft standard emails, manually attach individual PDF files, and send them sequentially. For a 200-student hackathon, this manual process takes days of labor and is highly prone to sending the wrong certificate to the wrong student.
+* **Phase 7: Verification**:
+  External recruiters or universities seeking to verify a student's credential must send an inquiry letter or email to the college administrative office, requiring manual human verification against paper archives.
 
 ---
 
 ## 4. Limitations of Existing System
-* **Manual Entry & Formatting Errors**: Typing mistakes lead to misspelled names, wrong achievements, and misaligned layouts on certificates.
-* **Poor Scalability**: Batch sizes of 100+ candidates become a bottleneck, taking hours of repetitive human work.
-* **Outbound Mail Blocks**: Free-tier cloud instances systematically block outgoing TCP SMTP ports to prevent spam, disrupting direct mailing scripts.
-* **Security & Audits Vulnerabilities**: Excel files lack change histories, user roles, or session checking, leaving data open to unlogged modifications.
-* **Fraud Exposure**: Plain-text PDFs can be edited by students using online tools, making verification difficult without a public validator.
+* **High Rate of Human Formatting Errors**: Manual copy-pasting leads to misspelled candidate names, inaccurate achievement statuses (e.g. participant labeled as coordinator), and misaligned text boundaries on issued certificates.
+* **Severe Operational Inefficiency & Poor Scalability**: Managing 100+ candidates takes between 15 to 20 man-hours of manual editing, exporting, attaching, and mailing. As participant numbers grow, the manual workflow collapses.
+* **On-Site Queue Congestion & Lost Attendance Records**: Paper check-in sheets cause registration bottlenecks, paper damage, and misplaced attendance logs, leading to discrepancies when issuing certificates.
+* **Cloud SMTP Egress Failures**: Cloud-hosted servers cannot dispatch emails directly via standard SMTP ports due to egress firewall blocks on ports 25, 465, and 587, causing dispatch scripts to time out.
+* **Complete Absence of Tamper Detection**: Plain-text PDF documents distributed without digital verification can be easily altered using online PDF editors, creating severe exposure to academic credential fraud.
+* **Security Deficits & Lack of Role Isolation**: Unstructured spreadsheets lack access control, session validation, or transaction logging. Anyone with access to the sheet can modify status fields, delete rows, or leak student phone numbers without leaving an audit trail.
+* **Lack of Real-Time Coordination**: Multiple organizers working on separate copies of spreadsheets create conflicting records, duplicate registrations, and desynchronized rosters.
 
 ---
 
 ## 5. Proposed System
-The proposed system resolves manual vulnerabilities through an automated pipeline:
-* **Unified Portal**: Signups are managed via dynamic React forms, writing validation records directly to Turso Edge Cloud SQL databases.
-* **XML Token Manipulation**: In-memory parsing of PowerPoint slide XML packages via `PizZip`, replacing tokens (`{NAME}`, `{ROLE}`) in milliseconds.
-* **Docker Headless Compiler**: Instantiates headless LibreOffice to batch-convert PPTX drafts in parallel, unlinking transient files upon completion.
-* **HTTPS Proxy Relay**: Base64 PDF buffers are pushed via port 443 calls to Google Apps Script gateways, dispatching emails natively via Gmail APIs.
-* **Public Authenticator**: The public portal `/verify` queries database schemas, compiles the certificate PDF on the fly, and streams it inside a 16:9 widescreen frame.
-* **RBAC & Security Gateways**: Secured via HTTP-only JWT cookies, double-submit CSRF headers, rate limiting, and secure stateful password recovery reset tokens.
+The proposed platform establishes a fully automated, cloud-based institutional application management and credential processing ecosystem:
+
+* **Unified Digital Portal**: Dynamic React 19 single-page application providing specialized, rate-limited registration forms for club membership, technical workshops, hackathons, and project asset submissions, writing directly to an edge-replicated cloud database (Turso Edge SQLite).
+* **On-Site Registration Desk Subsystem**: High-speed check-in terminals for event volunteers featuring 6-box temporary password authentication, instant student PIN searching, room allocation verification, and real-time attendance status toggles.
+* **Executive Event Messaging Studio**: An administrative announcement composer enabling multi-group audience targeting (Participants, Judges, Coordinators, Volunteers), locked institutional letterhead branding, and dynamic `{name}` personalizations.
+* **Low-Level XML Slide Manipulation Engine**: In-memory parsing and modification of PowerPoint OpenXML archives (`PizZip`), dynamically replacing text tokens (`{NAME}`, `{EVENT}`, `{ROLE}`, `{DATE}`, `{CERT_ID}`) while injecting `<a:noAutofit/>` tags to preserve typography layouts and certificate margins.
+* **Containerized Parallel PDF Batch Compiler**: Spawns isolated headless LibreOffice CLI processes inside Debian Docker containers, batching document compilation in parallel concurrency pools (10 certificates per batch) with dedicated `-env:UserInstallation` configuration directories, eliminating profile write locks.
+* **HTTPS-Based Email Proxy Relay**: Bypasses cloud SMTP egress blocks by converting compiled PDF buffers into Base64 binaries and forwarding JSON payloads over HTTPS (port 443) to a Google Apps Script Web App proxy, which interacts natively with the Gmail API.
+* **Public Dynamic Credential Verification Portal**: An open verification interface (`/verify`) allowing anyone to validate certificate IDs, query matching database records, compile the certificate dynamically on the fly, and render it inline inside a responsive 16:9 widescreen frame.
+* **Defense-in-Depth Security & Auditing**: Enforces HttpOnly SameSite=Lax JWT session cookies, Double-Submit CSRF protection (`X-CSRF-Token`), multi-tier rate limiting, bcrypt cryptographic salt password hashing, stateful SHA-256 password recovery tokens, and comprehensive transaction audit logging (`activity_logs`).
+* **Real-Time Client Synchronization**: Establishes persistent Server-Sent Events (SSE) keep-alive channels (`/api/sync-stream`) to immediately broadcast database mutations to connected administrative and registration desk consoles without manual page reloads.
 
 ---
 
 ## 6. Objectives
-* **Automate Institutional Workflows**: Single-click bulk processing from registrations to inbox delivery.
-* **Solve Outbound SMTP Blocks**: Securely route mail payloads over HTTPS via Web App gateways.
-* **Preserve Document Design Layouts**: Automate name placements without text wrapping or layout distortion.
-* **Establish Secure Administrative Borders**: Implement role-based controls (Admin, Superadmin, Developer) and transaction audit logs.
-* **Eliminate Credential Forgery**: Provide public verification lookups with secure obfuscated certificate IDs.
-* **Facilitate Collaboration**: Sync admin screens in real-time using Server-Sent Events (SSE).
+The technical and operational objectives of the platform are:
+1. **Automate the Complete Credentialing Lifecycle**: Transform raw registration records into personalized, verified PDF certificates delivered to recipient inboxes in under 3 seconds per candidate.
+2. **Digitize On-Site Event Check-In Operations**: Provide responsive, dedicated registration desk consoles that reduce attendee check-in latency to under 5 seconds per participant while dynamically validating venue assignments.
+3. **Streamline Multi-Group Institutional Communication**: Enable event administrators to dispatch branded, personalized announcements to hundreds of attendees, judges, coordinators, and volunteers with zero formatting drift.
+4. **Overcome Cloud Infrastructure SMTP Blocks**: Reliably distribute email payloads and PDF attachments across modern cloud container environments by routing requests over HTTPS (port 443) via Google Apps Script proxies.
+5. **Guarantee Document Design Layout Integrity**: Prevent typography distortion and text auto-fit compression on generated credentials through in-memory OpenXML node manipulations and custom font embedding.
+6. **Eliminate Academic Credential Forgery**: Provide an instant, public, fraud-proof certificate verification mechanism with obfuscated identifiers and dynamic on-the-fly PDF rendering.
+7. **Enforce Enterprise Security & Administrative Borders**: Implement strict Role-Based Access Control (RBAC) segregating Developer, Superadmin, Admin, and Registration Desk privileges, reinforced by HttpOnly cookies, Double-Submit CSRF validation, and immutable activity audit logs.
+8. **Facilitate Multi-Client Real-Time Collaboration**: Maintain synchronization across administrative and on-site check-in terminals using persistent Server-Sent Events (SSE) broadcast channels.
 
 ---
 
 ## 7. Scope
-* **Student Interface**: Form validation (including strict client-side email format checks), event schedules, and team registrations.
-* **Administrative Interface**: Multi-tab dashboard, candidate rosters, branches/events setup, and sync logs.
-* **Compilation Pipeline**: Base64 PPTX database storage, PizZip string replacers, and LibreOffice CLI batch compilers.
-* **Distribution Subsystem**: Google Web App script HTTPS Gmail relayer.
-* **Verification Portal**: Obfuscated certificate ID lookup and dynamic PDF streaming.
+The platform encompasses four interconnected operational domains:
+
+### 1. Public & Student Portal Domain
+* Public institutional overview showcasing research domains, faculty advisory council, upcoming events calendar, and student FAQs.
+* Centralized registration gateway (`/apply`) with dedicated, normalized sub-routes for Club Membership, Technical Event Attendance, Hackathon Team Enrollment, Evaluator Recognition, Volunteer Signups, and Project Submissions.
+* Client-side input validation, dynamic multi-member team addition/removal, and strict email format checking.
+* Public credential verification interface (`/verify`) with QR code scanning, certificate ID queries, and interactive 16:9 dynamic PDF rendering.
+
+### 2. On-Site Physical Event Management Domain
+* Dedicated registration desk sign-in terminal (`/reg-desk/login`) with 6-box temporary password / OTP inputs.
+* Live attendee roster inspection with real-time college PIN search and attendance status toggling.
+* Physical presentation hall, computer lab, and review venue capacity tracking and desk assignment verification.
+* Self-service password recovery for event coordinators via email reset links.
+
+### 3. Administrative Governance & Communication Domain
+* Multi-tab administration dashboard for reviewing, filtering, approving, and archiving applications across Club recruitment, Events, Hackathons, Recognition, Volunteers, and Project Submissions.
+* Executive Event Messaging Studio with interactive audience cards, locked institutional letterhead branding, recipient preview modals, and batch email dispatching.
+* Master catalog management for academic engineering departments and branches.
+* Institutional event calendar manager supporting event scheduling, speaker profiling, and venue allocation.
+* Administrative account provisioning with strict RBAC privilege levels (Developer, Superadmin, Admin).
+* Immutable audit logging (`activity_logs`) capturing all administrative data mutations, logins, and email dispatches.
+
+### 4. Cloud Processing & Compilation Domain
+* In-database Base64 PowerPoint master template storage and synchronization.
+* Low-level OpenXML slide decompilation, token injection, and auto-fit disabling engine.
+* Concurrency-controlled parallel headless LibreOffice CLI document compilation in sandboxed Docker containers.
+* HTTPS-based JSON email proxy relay communicating with Google Apps Script gateways.
+* Server-Sent Events (SSE) keep-alive broadcast pool for real-time multi-client synchronization.
 
 ---
 
-## 8. Literature/Related Work
-* **Office Open XML Schema**: Microsoft PPTX formats are compressed Zip packages containing XML descriptions (`ppt/slides/slide[x].xml`). Manipulating XML directly bypasses heavy COM objects or Windows dependencies on servers.
-* **Headless Server-Side Document Engines**: LibreOffice headless execution (`--headless --convert-to pdf`) is a standard Linux practice for server-side PDF compilation without graphical displays.
-* **REST HTTPS Mail APIs**: Bypassing SMTP limitations by routing attachments inside Base64 JSON payloads over HTTPS (port 443) using OAuth-authorized Gmail gateways.
+## 8. Literature / Related Work
+The engineering architecture of this platform builds upon established computer science research and industry standards:
+
+1. **Office Open XML File Formats (ECMA-376 & ISO/IEC 29500)**:
+   Modern Microsoft PowerPoint documents (`.pptx`) are standardized OpenXML packages consisting of compressed ZIP archives containing interconnected XML descriptors (`ppt/slides/slide[x].xml`, `ppt/presentation.xml`). Manipulating XML DOM structures directly via low-level string replacement and DOM parsers bypasses the prohibitive overhead, platform dependencies, and licensing costs associated with proprietary Microsoft Office COM automation.
+2. **Headless Document Compilation Engines in Server Environments**:
+   Server-side PDF generation in Linux container environments traditionally relies on headless rendering engines. Utilizing LibreOffice CLI in headless batch mode (`soffice --headless --convert-to pdf`) provides native OpenXML layout fidelity, complex typography rendering, and vector drawing support. Operating batch conversions with isolated user configuration profiles (`-env:UserInstallation`) eliminates configuration lock collisions in multi-threaded container environments.
+3. **RESTful HTTPS Application Proxies vs Legacy SMTP Protocols**:
+   Cloud infrastructure security policies increasingly restrict outbound TCP connections on ports 25, 465, and 587 to prevent botnet spam abuse. Research into modern web API integration demonstrates that encapsulating binary email payloads within Base64 JSON structures routed over standard HTTPS (port 443) via authorized serverless proxies (such as Google Apps Script or AWS SES) provides high deliverability, resilience against network filtering, and direct integration with identity providers.
+4. **Stateless vs Stateful Session Security (RFC 6749 & OWASP CSRF Defenses)**:
+   Balancing stateless scalability with security in Single Page Applications requires defense-in-depth patterns. Storing primary JWT authentication tokens in HttpOnly, SameSite=Lax cookies prevents token extraction via Cross-Site Scripting (XSS). Coupling cookie sessions with Double-Submit CSRF protection (where a cryptographically bound CSRF token is verified from request headers on mutating HTTP verbs) completely neutralizes Cross-Site Request Forgery vulnerabilities.
+5. **Distributed Edge Database Architecture (LibSQL / SQLite at the Edge)**:
+   Traditional relational databases introduce round-trip latency when queried from serverless or globally distributed nodes. Utilizing Turso Edge SQLite with the LibSQL protocol over TLS/HTTPS enables low-latency transactional execution, sub-millisecond query performance, and embedded prepared statements without heavy connection pool management.
 
 ---
 
 ## 9. System Requirements
+
 ### Hardware Requirements
-* **Development Environment**: Intel i5/AMD Ryzen 5 processor or higher, 8GB RAM minimum, 10GB available storage.
-* **Hosting Container Environment**: Render Container Host (Bullseye Slim, 512MB RAM, shared CPU), Turso Edge Cloud SQLite DB.
+* **Development Workstation**:
+  * Processor: Multi-core 64-bit CPU (Intel Core i5/i7 or AMD Ryzen 5/7, 4 cores / 8 threads minimum).
+  * System Memory (RAM): 8 GB minimum (16 GB recommended for concurrent Docker container builds).
+  * Storage: 10 GB available SSD storage for Node runtime modules, Docker images, and temporary compilation buffers.
+* **Cloud Hosting Container Environment (Render)**:
+  * Container Image: Debian Bullseye Slim Linux (`node:20-bullseye-slim`).
+  * Memory Allocation: 512 MB RAM (configured with `runWithConcurrency` to maintain peak memory under 350 MB).
+  * CPU Allocation: 0.5 to 1.0 shared vCPU.
+  * Ephemeral Storage: 1 GB temporary filesystem storage for isolated `/tmp` LibreOffice batch profiles.
+* **Client Device Compatibility**:
+  * Compatible with any standard desktop, tablet, or smartphone device with a modern web browser supporting ES6, WebSockets, and HTML5 `EventSource`.
 
 ### Software Requirements
 
-### Frontend
-* **Build Tool**: Vite (v8.2.0)
-* **Framework**: React (v19.2.8)
-* **Language**: TypeScript (v6.0.2 / 5.4.5)
-* **Styling**: Vanilla CSS (CSS Custom Variables, Flexbox/Grids, Light/Dark Modes, custom glassmorphism components)
-* **Routing**: React Router DOM (v7.18.2)
-* **State Management**: React Hooks (`useState`, `useEffect`, `useRef`, `useSearchParams`)
-* **Icons**: Lucide React (v1.29.0)
+#### Frontend Client Subsystem
+* **Core Framework**: React 19 (`v19.2.8`) Single Page Application.
+* **Language & Typing**: TypeScript (`v5.4.5` / `v6.0.2`).
+* **Build Engine & Dev Server**: Vite (`v8.2.0`) utilizing Rollup production minification.
+* **Client-Side Routing**: React Router DOM (`v7.18.2`) with layout wrapping and dynamic route params.
+* **Vector Iconography**: Lucide React (`v1.29.0`) SVG icon suite.
+* **Styling System**: Custom Vanilla CSS Design System with CSS Custom Properties, Flexbox, CSS Grids, and Light Theme tokens.
 
-### Backend
-* **Runtime**: Node.js (v20 Bullseye-slim)
-* **Framework**: Express (v4.19.2)
-* **Language**: TypeScript (tsc compilation to ES2022)
-* **Execution Tools**: `ts-node-dev` (development live reloading)
-* **Authentication**: JSON Web Tokens (`jsonwebtoken` v9.0.3)
-* **Security & Hashing**: `bcryptjs` (v3.0.3)
-* **Email Engines**: `nodemailer` (v9.0.5) and Custom Google Apps Script HTTP POST Gateway
-* **PowerPoint Editor**: `pizzip` (v3.2.0) zip extractor & XML injector
+#### Backend Application Server
+* **Runtime Environment**: Node.js (`v20.x LTS Bullseye-slim`).
+* **Web Application Framework**: Express (`v4.19.2`).
+* **Language & Compilation**: TypeScript compiled to ECMAScript 2022 (`ES2022`).
+* **Development Server**: `ts-node-dev` with live hot-reloading.
+* **Authentication Primitives**: JSON Web Tokens (`jsonwebtoken` `v9.0.3`).
+* **Cryptographic Hashing**: `bcryptjs` (`v3.0.3`) and native Node.js `crypto` module (SHA-256).
+* **Document Engine**: `pizzip` (`v3.2.0`) in-memory OpenXML slide editor.
+* **PDF Compiler**: LibreOffice Headless CLI (`soffice`) bundled with system typography.
+* **Security Middlewares**: `cookie-parser` (`v1.4.7`), `cors` (`v2.8.5`), `express-rate-limit` (`v7.5.1`).
+* **File Uploads**: `multer` (`v1.4.5-lts.1`) with 50 MB payload constraints.
+* **Email Transport**: Custom Google Apps Script HTTPS Gateway proxy + `nodemailer` (`v9.0.5`) fallback.
 
-### Database
-* **Database engine**: Turso Database (SQLite/libsql API edge endpoints)
-* **ORM/Client**: `@libsql/client` (v0.17.4) executing raw prepared SQL statements.
-* **Migrations**: Direct query schemas verified on application start (`setupDatabase()`).
+#### Database & Persistence Subsystem
+* **Database Engine**: Turso Edge SQLite Cloud Database.
+* **Driver Protocol**: `@libsql/client` (`v0.17.4`) communicating over TLS/HTTPS WebSocket protocols (Port 443).
+* **Schema Topology**: 16 normalized relational tables with prepared statement bindings and transactional integrity.
+* **Migration Strategy**: Idempotent `CREATE TABLE IF NOT EXISTS` and `ALTER TABLE ADD COLUMN` migrations verified on server startup.
 
-### Infrastructure
-* **Frontend Host**: Firebase Hosting (`https://tcek-rd.web.app`)
-* **Backend Host**: Render (Docker web service)
-* **Database Provider**: Turso DB Edge Cloud
-* **DNS and Routing**: Custom domains configured via Cloudflare or Firebase custom setups.
+#### Cloud Deployment Infrastructure
+* **Static Client CDN**: Firebase Hosting (`https://tcek-rd.web.app`) with global edge caching and SPA rewrites.
+* **API Container Host**: Render Cloud Web Service (`https://rd-backend-kbsm.onrender.com`).
+* **Email Gateway Proxy**: Google Apps Script Web App deployed via Google Workspace API infrastructure.
+* **Source Control**: GitHub Repository with automated Render CI/CD deployment pipelines.
 
 ---
 
