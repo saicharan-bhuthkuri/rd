@@ -2,7 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '../config';
 import { AdminLayout } from '../components/AdminLayout';
-import { Users, UserPlus, Edit2, KeyRound, Trash2, CheckCircle, XCircle, AlertCircle, Loader2, X } from 'lucide-react';
+import { 
+  Users, UserPlus, Edit2, KeyRound, Trash2, CheckCircle, XCircle, 
+  AlertCircle, Loader2, X, RefreshCw, Eye, EyeOff, Copy, Check, Trophy, Clock
+} from 'lucide-react';
 import { AdminPagination } from '../components/AdminPagination';
 
 interface RegDeskUser {
@@ -10,6 +13,10 @@ interface RegDeskUser {
   desk_id: string;
   name: string;
   email: string;
+  hackathon?: string;
+  temp_password?: string;
+  temp_password_expires_at?: string;
+  is_temporary_password?: number;
   status: 'active' | 'inactive';
   created_at: string;
 }
@@ -21,6 +28,9 @@ export const AdminRegDeskPage: React.FC = () => {
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
 
+  // Hackathons list for dropdown
+  const [hackathonsList, setHackathonsList] = useState<string[]>([]);
+
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const PAGE_SIZE = 20;
@@ -31,25 +41,61 @@ export const AdminRegDeskPage: React.FC = () => {
   const [newName, setNewName] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [showAddPassword, setShowAddPassword] = useState(true);
+  const [newHackathon, setNewHackathon] = useState('');
   const [newStatus, setNewStatus] = useState<'active' | 'inactive'>('active');
   const [isSubmittingAdd, setIsSubmittingAdd] = useState(false);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  // Visible table passwords map (for eye toggle in table)
+  const [revealedPasswords, setRevealedPasswords] = useState<{ [id: number]: boolean }>({});
 
   // Edit Member Modal State
   const [editingUser, setEditingUser] = useState<RegDeskUser | null>(null);
   const [editName, setEditName] = useState('');
   const [editEmail, setEditEmail] = useState('');
+  const [editHackathon, setEditHackathon] = useState('');
   const [editStatus, setEditStatus] = useState<'active' | 'inactive'>('active');
   const [editPassword, setEditPassword] = useState('');
+  const [showEditPassword, setShowEditPassword] = useState(false);
   const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
 
   // Reset Password Modal State
   const [resettingUser, setResettingUser] = useState<RegDeskUser | null>(null);
   const [resetPasswordVal, setResetPasswordVal] = useState('');
+  const [showResetPassword, setShowResetPassword] = useState(true);
   const [isSubmittingReset, setIsSubmittingReset] = useState(false);
 
   // Delete Confirm Modal State
   const [deletingUser, setDeletingUser] = useState<RegDeskUser | null>(null);
   const [isSubmittingDelete, setIsSubmittingDelete] = useState(false);
+
+  // Generator: Unique Desk ID (e.g. TCEK-REG-DESK-A1G33N)
+  const generateDeskId = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = '';
+    for (let i = 0; i < 6; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return `TCEK-REG-DESK-${code}`;
+  };
+
+  // Generator: 6-char alphanumeric temporary password (e.g. k9X2m7)
+  const generateTempPassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789abcdefghjkmnpqrstuvwxyz';
+    let pwd = '';
+    for (let i = 0; i < 6; i++) {
+      pwd += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return pwd;
+  };
+
+  const copyToClipboard = (text: string, identifier: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedField(identifier);
+    setTimeout(() => setCopiedField(null), 2000);
+    showToast('Copied to clipboard!');
+  };
 
   const fetchUsers = async () => {
     setIsLoading(true);
@@ -81,8 +127,31 @@ export const AdminRegDeskPage: React.FC = () => {
     }
   };
 
+  const fetchHackathons = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/events`);
+      if (res.ok) {
+        const evts = await res.json();
+        const hacks = evts
+          .filter((e: any) => e.category === 'Hackathon' && e.title)
+          .map((e: any) => e.title as string);
+        const uniqueHacks = Array.from(new Set(hacks)) as string[];
+        if (!uniqueHacks.includes('Smart India Hackathon 2026')) {
+          uniqueHacks.unshift('Smart India Hackathon 2026');
+        }
+        setHackathonsList(uniqueHacks);
+        if (uniqueHacks.length > 0 && !newHackathon) {
+          setNewHackathon(uniqueHacks[0]);
+        }
+      }
+    } catch (e) {
+      setHackathonsList(['Smart India Hackathon 2026']);
+    }
+  };
+
   useEffect(() => {
     fetchUsers();
+    fetchHackathons();
 
     const handleSync = (e: Event) => {
       const eventType = (e as CustomEvent).detail;
@@ -97,6 +166,17 @@ export const AdminRegDeskPage: React.FC = () => {
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(''), 3000);
+  };
+
+  const handleOpenAddModal = () => {
+    setNewDeskId(generateDeskId());
+    setNewPassword(generateTempPassword());
+    setShowAddPassword(true);
+    setNewName('');
+    setNewEmail('');
+    setNewHackathon(hackathonsList[0] || 'Smart India Hackathon 2026');
+    setNewStatus('active');
+    setIsAddModalOpen(true);
   };
 
   // Add Desk Member Handler
@@ -117,7 +197,8 @@ export const AdminRegDeskPage: React.FC = () => {
           desk_id: newDeskId.trim(),
           name: newName.trim(),
           email: newEmail.trim(),
-          password: newPassword,
+          password: newPassword.trim(),
+          hackathon: newHackathon.trim(),
           status: newStatus
         })
       });
@@ -127,12 +208,8 @@ export const AdminRegDeskPage: React.FC = () => {
         throw new Error(data.error || 'Failed to add Registration Desk member.');
       }
 
-      showToast(`Member ${newDeskId} created successfully.`);
+      showToast(`Member ${data.desk_id || newDeskId} created with temporary password (valid for 1 week).`);
       setIsAddModalOpen(false);
-      setNewDeskId('');
-      setNewName('');
-      setNewEmail('');
-      setNewPassword('');
       fetchUsers();
     } catch (err: any) {
       setError(err.message);
@@ -159,8 +236,9 @@ export const AdminRegDeskPage: React.FC = () => {
         body: JSON.stringify({
           name: editName.trim(),
           email: editEmail.trim(),
+          hackathon: editHackathon.trim(),
           status: editStatus,
-          password: editPassword ? editPassword : undefined
+          password: editPassword.trim() ? editPassword.trim() : undefined
         })
       });
 
@@ -195,7 +273,7 @@ export const AdminRegDeskPage: React.FC = () => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ newPassword: resetPasswordVal })
+        body: JSON.stringify({ newPassword: resetPasswordVal.trim() })
       });
 
       const data = await res.json();
@@ -203,9 +281,10 @@ export const AdminRegDeskPage: React.FC = () => {
         throw new Error(data.error || 'Failed to reset password.');
       }
 
-      showToast(`Password updated for ${resettingUser.desk_id}.`);
+      showToast(`Temporary password generated for ${resettingUser.desk_id} (valid for 1 week).`);
       setResettingUser(null);
       setResetPasswordVal('');
+      fetchUsers();
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -241,6 +320,21 @@ export const AdminRegDeskPage: React.FC = () => {
     }
   };
 
+  // Helper for 1-week expiry status calculation
+  const getExpiryStatus = (u: RegDeskUser) => {
+    if (!u.is_temporary_password || !u.temp_password_expires_at) {
+      return { label: 'Permanent', isExpired: false, isTemp: false };
+    }
+    const expiresAt = new Date(u.temp_password_expires_at).getTime();
+    const now = Date.now();
+    const diffMs = expiresAt - now;
+    if (diffMs <= 0) {
+      return { label: 'Expired (Must Reset)', isExpired: true, isTemp: true };
+    }
+    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    return { label: `Valid (${diffDays}d left)`, isExpired: false, isTemp: true, days: diffDays };
+  };
+
   // Paginated records
   const totalPages = Math.ceil(users.length / PAGE_SIZE);
   const paginatedUsers = users.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
@@ -264,12 +358,12 @@ export const AdminRegDeskPage: React.FC = () => {
           <div>
             <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>Registration Desk Team</h1>
             <p style={{ color: 'var(--text-muted)', marginTop: '0.25rem', fontSize: '0.875rem' }}>
-              Manage Registration Desk personnel, access credentials, and team assignments.
+              Manage Registration Desk personnel, access credentials, and hackathon team assignments.
             </p>
           </div>
 
           <button
-            onClick={() => setIsAddModalOpen(true)}
+            onClick={handleOpenAddModal}
             className="btn btn-primary"
             style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.65rem 1.25rem', fontWeight: 600 }}
           >
@@ -318,106 +412,176 @@ export const AdminRegDeskPage: React.FC = () => {
             <table className="admin-table">
               <thead>
                 <tr>
-                  <th>Desk ID</th>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Status</th>
+                  <th>Registration Desk ID</th>
+                  <th>Team Name</th>
+                  <th>Registered Email</th>
+                  <th>Hackathon</th>
+                  <th>Temporary Password</th>
+                  <th>Status & Validity</th>
                   <th>Created Date</th>
                   <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {paginatedUsers.map((u) => (
-                  <tr key={u.id}>
-                    <td>
-                      <strong style={{ color: 'var(--primary)', fontFamily: 'monospace', fontSize: '0.9rem' }}>
-                        {u.desk_id}
-                      </strong>
-                    </td>
-                    <td>
-                      <strong>{u.name}</strong>
-                    </td>
-                    <td>
-                      <span style={{ color: 'var(--text-secondary)' }}>{u.email}</span>
-                    </td>
-                    <td>
-                      {u.status === 'active' ? (
-                        <span style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.35rem',
-                          backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                          color: '#059669',
-                          padding: '0.2rem 0.5rem',
-                          borderRadius: '4px',
-                          fontWeight: 700,
-                          fontSize: '0.75rem'
-                        }}>
-                          <CheckCircle size={12} /> ACTIVE
-                        </span>
-                      ) : (
-                        <span style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.35rem',
-                          backgroundColor: 'rgba(148, 163, 184, 0.1)',
-                          color: '#64748b',
-                          padding: '0.2rem 0.5rem',
-                          borderRadius: '4px',
-                          fontWeight: 700,
-                          fontSize: '0.75rem'
-                        }}>
-                          <XCircle size={12} /> INACTIVE
-                        </span>
-                      )}
-                    </td>
-                    <td style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-                      {new Date(u.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-                        {/* Edit Button */}
-                        <button
-                          onClick={() => {
-                            setEditingUser(u);
-                            setEditName(u.name);
-                            setEditEmail(u.email);
-                            setEditStatus(u.status);
-                            setEditPassword('');
-                          }}
-                          className="btn-action edit"
-                          title="Edit Details"
-                          style={{ padding: '0.35rem 0.6rem' }}
-                        >
-                          <Edit2 size={14} />
-                        </button>
+                {paginatedUsers.map((u) => {
+                  const expiryInfo = getExpiryStatus(u);
+                  const isRevealed = !!revealedPasswords[u.id];
 
-                        {/* Reset Password Button */}
-                        <button
-                          onClick={() => {
-                            setResettingUser(u);
-                            setResetPasswordVal('');
-                          }}
-                          className="btn-action"
-                          title="Reset Password"
-                          style={{ padding: '0.35rem 0.6rem', color: '#0284c7', borderColor: '#bae6fd', backgroundColor: '#f0f9ff' }}
-                        >
-                          <KeyRound size={14} />
-                        </button>
+                  return (
+                    <tr key={u.id}>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <strong style={{ color: 'var(--primary)', fontFamily: 'monospace', fontSize: '0.875rem' }}>
+                            {u.desk_id}
+                          </strong>
+                          <button
+                            onClick={() => copyToClipboard(u.desk_id, `desk_${u.id}`)}
+                            title="Copy Desk ID"
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '2px' }}
+                          >
+                            {copiedField === `desk_${u.id}` ? <Check size={12} color="#10b981" /> : <Copy size={12} />}
+                          </button>
+                        </div>
+                      </td>
+                      <td>
+                        <strong>{u.name}</strong>
+                      </td>
+                      <td>
+                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{u.email}</span>
+                      </td>
+                      <td>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                          <Trophy size={13} color="#f59e0b" /> {u.hackathon || 'Smart India Hackathon 2026'}
+                        </span>
+                      </td>
+                      <td>
+                        {u.temp_password ? (
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', background: 'rgba(2, 132, 199, 0.08)', padding: '0.2rem 0.5rem', borderRadius: '4px', border: '1px solid rgba(2, 132, 199, 0.2)' }}>
+                            <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '0.85rem', color: '#0284c7' }}>
+                              {isRevealed ? u.temp_password : '••••••'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setRevealedPasswords(prev => ({ ...prev, [u.id]: !prev[u.id] }))}
+                              title={isRevealed ? 'Hide Password' : 'Show Password'}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '2px', display: 'flex' }}
+                            >
+                              {isRevealed ? <EyeOff size={13} /> : <Eye size={13} />}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => copyToClipboard(u.temp_password || '', `pwd_${u.id}`)}
+                              title="Copy Password"
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '2px', display: 'flex' }}
+                            >
+                              {copiedField === `pwd_${u.id}` ? <Check size={13} color="#10b981" /> : <Copy size={13} />}
+                            </button>
+                          </div>
+                        ) : (
+                          <span style={{ color: '#10b981', fontSize: '0.75rem', fontWeight: 600 }}>
+                            Permanent (Reset by User)
+                          </span>
+                        )}
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                          {u.status === 'active' ? (
+                            <span style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.3rem',
+                              backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                              color: '#059669',
+                              padding: '0.15rem 0.45rem',
+                              borderRadius: '4px',
+                              fontWeight: 700,
+                              fontSize: '0.72rem',
+                              width: 'fit-content'
+                            }}>
+                              <CheckCircle size={11} /> ACTIVE
+                            </span>
+                          ) : (
+                            <span style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.3rem',
+                              backgroundColor: 'rgba(148, 163, 184, 0.1)',
+                              color: '#64748b',
+                              padding: '0.15rem 0.45rem',
+                              borderRadius: '4px',
+                              fontWeight: 700,
+                              fontSize: '0.72rem',
+                              width: 'fit-content'
+                            }}>
+                              <XCircle size={11} /> INACTIVE
+                            </span>
+                          )}
 
-                        {/* Delete Button */}
-                        <button
-                          onClick={() => setDeletingUser(u)}
-                          className="btn-action reject"
-                          title="Delete Member"
-                          style={{ padding: '0.35rem 0.6rem' }}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                          {expiryInfo.isTemp && (
+                            <span style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.25rem',
+                              fontSize: '0.7rem',
+                              fontWeight: 600,
+                              color: expiryInfo.isExpired ? '#ef4444' : '#0284c7'
+                            }}>
+                              <Clock size={11} /> {expiryInfo.label}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                        {new Date(u.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                          {/* Edit Button */}
+                          <button
+                            onClick={() => {
+                              setEditingUser(u);
+                              setEditName(u.name);
+                              setEditEmail(u.email);
+                              setEditHackathon(u.hackathon || hackathonsList[0] || 'Smart India Hackathon 2026');
+                              setEditStatus(u.status);
+                              setEditPassword('');
+                              setShowEditPassword(false);
+                            }}
+                            className="btn-action edit"
+                            title="Edit Details"
+                            style={{ padding: '0.35rem 0.6rem' }}
+                          >
+                            <Edit2 size={14} />
+                          </button>
+
+                          {/* Reset Password Button */}
+                          <button
+                            onClick={() => {
+                              setResettingUser(u);
+                              setResetPasswordVal(generateTempPassword());
+                              setShowResetPassword(true);
+                            }}
+                            className="btn-action"
+                            title="Reset Temporary Password"
+                            style={{ padding: '0.35rem 0.6rem', color: '#0284c7', borderColor: '#bae6fd', backgroundColor: '#f0f9ff' }}
+                          >
+                            <KeyRound size={14} />
+                          </button>
+
+                          {/* Delete Button */}
+                          <button
+                            onClick={() => setDeletingUser(u)}
+                            className="btn-action reject"
+                            title="Delete Member"
+                            style={{ padding: '0.35rem 0.6rem' }}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}
@@ -435,7 +599,7 @@ export const AdminRegDeskPage: React.FC = () => {
         {/* Add Member Modal */}
         {isAddModalOpen && (
           <div className="custom-modal-backdrop" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
-            <div className="custom-modal card" style={{ maxWidth: '480px', width: '100%', padding: '2rem' }}>
+            <div className="custom-modal card" style={{ maxWidth: '520px', width: '100%', padding: '2rem', maxHeight: '90vh', overflowY: 'auto' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
                 <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700 }}>Add Registration Desk Member</h3>
                 <button onClick={() => setIsAddModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
@@ -444,20 +608,56 @@ export const AdminRegDeskPage: React.FC = () => {
               </div>
 
               <form onSubmit={handleAddUser}>
+                {/* Registration Desk ID (Auto-generated) */}
                 <div className="form-group" style={{ marginBottom: '1rem' }}>
-                  <label>Registration Desk ID</label>
-                  <input
-                    type="text"
-                    required
-                    className="form-control"
-                    placeholder="e.g. REG-DESK-01 or DESK-TEAM-A"
-                    value={newDeskId}
-                    onChange={(e) => setNewDeskId(e.target.value)}
-                  />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                    <label style={{ margin: 0, fontWeight: 600 }}>Registration Desk ID</label>
+                    <button
+                      type="button"
+                      onClick={() => setNewDeskId(generateDeskId())}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--primary, #10b981)',
+                        fontSize: '0.75rem',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.25rem',
+                        fontWeight: 600
+                      }}
+                      title="Generate new unique Desk ID"
+                    >
+                      <RefreshCw size={12} /> Auto-Generate
+                    </button>
+                  </div>
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <input
+                      type="text"
+                      required
+                      className="form-control"
+                      placeholder="e.g. TCEK-REG-DESK-A1G33N"
+                      value={newDeskId}
+                      onChange={(e) => setNewDeskId(e.target.value.toUpperCase())}
+                      style={{ fontFamily: 'monospace', fontWeight: 700, paddingRight: '2.5rem' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(newDeskId, 'modal_desk_id')}
+                      title="Copy Desk ID"
+                      style={{ position: 'absolute', right: '0.75rem', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}
+                    >
+                      {copiedField === 'modal_desk_id' ? <Check size={16} color="#10b981" /> : <Copy size={16} />}
+                    </button>
+                  </div>
+                  <small style={{ color: 'var(--text-muted)', fontSize: '0.75rem', display: 'block', marginTop: '0.25rem' }}>
+                    Unique identifier (e.g. TCEK-REG-DESK-A1G33N) used by the team to log in.
+                  </small>
                 </div>
 
+                {/* Team Name */}
                 <div className="form-group" style={{ marginBottom: '1rem' }}>
-                  <label>Member / Team Name</label>
+                  <label style={{ fontWeight: 600 }}>Member / Team Name</label>
                   <input
                     type="text"
                     required
@@ -468,8 +668,9 @@ export const AdminRegDeskPage: React.FC = () => {
                   />
                 </div>
 
+                {/* Registered Email */}
                 <div className="form-group" style={{ marginBottom: '1rem' }}>
-                  <label>Registered Email</label>
+                  <label style={{ fontWeight: 600 }}>Registered Email</label>
                   <input
                     type="email"
                     required
@@ -478,23 +679,99 @@ export const AdminRegDeskPage: React.FC = () => {
                     value={newEmail}
                     onChange={(e) => setNewEmail(e.target.value)}
                   />
+                  <small style={{ color: 'var(--text-muted)', fontSize: '0.78rem', display: 'block', marginTop: '0.25rem' }}>
+                    Used for login recovery and OTP-based password reset.
+                  </small>
                 </div>
 
+                {/* Password / Generate Temporary Password */}
                 <div className="form-group" style={{ marginBottom: '1rem' }}>
-                  <label>Password / Temporary Password</label>
-                  <input
-                    type="password"
-                    required
-                    minLength={6}
-                    className="form-control"
-                    placeholder="At least 6 characters"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                  />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                    <label style={{ margin: 0, fontWeight: 600 }}>Password / Temporary Password</label>
+                    <button
+                      type="button"
+                      onClick={() => setNewPassword(generateTempPassword())}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--primary, #10b981)',
+                        fontSize: '0.75rem',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.25rem',
+                        fontWeight: 600
+                      }}
+                      title="Generate 6-character temporary password"
+                    >
+                      <RefreshCw size={12} /> Generate Temporary Password
+                    </button>
+                  </div>
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <input
+                      type={showAddPassword ? 'text' : 'password'}
+                      required
+                      minLength={6}
+                      className="form-control"
+                      placeholder="6-char alphanumeric password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      style={{ fontFamily: showAddPassword ? 'monospace' : undefined, fontWeight: 600, paddingRight: '4.5rem' }}
+                    />
+                    <div style={{ position: 'absolute', right: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(newPassword, 'modal_pwd')}
+                        title="Copy Password"
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}
+                      >
+                        {copiedField === 'modal_pwd' ? <Check size={16} color="#10b981" /> : <Copy size={16} />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowAddPassword(!showAddPassword)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}
+                      >
+                        {showAddPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                  </div>
+                  <div style={{
+                    marginTop: '0.35rem',
+                    padding: '0.4rem 0.65rem',
+                    backgroundColor: 'rgba(2, 132, 199, 0.08)',
+                    borderRadius: '4px',
+                    border: '1px solid rgba(2, 132, 199, 0.2)',
+                    fontSize: '0.75rem',
+                    color: '#0284c7',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.35rem'
+                  }}>
+                    <Clock size={13} />
+                    <span>6-char unique password. <strong>Valid for 1 week</strong> &mdash; user must reset password after expiration.</span>
+                  </div>
                 </div>
 
+                {/* Hackathon */}
+                <div className="form-group" style={{ marginBottom: '1rem' }}>
+                  <label style={{ fontWeight: 600 }}>Hackathon</label>
+                  <select
+                    className="form-control"
+                    value={newHackathon}
+                    onChange={(e) => setNewHackathon(e.target.value)}
+                  >
+                    {hackathonsList.map((h, i) => (
+                      <option key={i} value={h}>{h}</option>
+                    ))}
+                    <option value="Smart India Hackathon 2026">Smart India Hackathon 2026</option>
+                    <option value="General / All Hackathons">General / All Hackathons</option>
+                  </select>
+                </div>
+
+                {/* Initial Status */}
                 <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-                  <label>Initial Status</label>
+                  <label style={{ fontWeight: 600 }}>Initial Status</label>
                   <select
                     className="form-control"
                     value={newStatus}
@@ -521,7 +798,7 @@ export const AdminRegDeskPage: React.FC = () => {
         {/* Edit Member Modal */}
         {editingUser && (
           <div className="custom-modal-backdrop" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
-            <div className="custom-modal card" style={{ maxWidth: '480px', width: '100%', padding: '2rem' }}>
+            <div className="custom-modal card" style={{ maxWidth: '500px', width: '100%', padding: '2rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
                 <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700 }}>Edit Member: {editingUser.desk_id}</h3>
                 <button onClick={() => setEditingUser(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
@@ -531,7 +808,7 @@ export const AdminRegDeskPage: React.FC = () => {
 
               <form onSubmit={handleEditUser}>
                 <div className="form-group" style={{ marginBottom: '1rem' }}>
-                  <label>Member / Team Name</label>
+                  <label style={{ fontWeight: 600 }}>Member / Team Name</label>
                   <input
                     type="text"
                     required
@@ -542,7 +819,7 @@ export const AdminRegDeskPage: React.FC = () => {
                 </div>
 
                 <div className="form-group" style={{ marginBottom: '1rem' }}>
-                  <label>Registered Email</label>
+                  <label style={{ fontWeight: 600 }}>Registered Email</label>
                   <input
                     type="email"
                     required
@@ -550,10 +827,28 @@ export const AdminRegDeskPage: React.FC = () => {
                     value={editEmail}
                     onChange={(e) => setEditEmail(e.target.value)}
                   />
+                  <small style={{ color: 'var(--text-muted)', fontSize: '0.78rem', display: 'block', marginTop: '0.25rem' }}>
+                    Used for login recovery and OTP-based password reset.
+                  </small>
                 </div>
 
                 <div className="form-group" style={{ marginBottom: '1rem' }}>
-                  <label>Status</label>
+                  <label style={{ fontWeight: 600 }}>Hackathon</label>
+                  <select
+                    className="form-control"
+                    value={editHackathon}
+                    onChange={(e) => setEditHackathon(e.target.value)}
+                  >
+                    {hackathonsList.map((h, i) => (
+                      <option key={i} value={h}>{h}</option>
+                    ))}
+                    <option value="Smart India Hackathon 2026">Smart India Hackathon 2026</option>
+                    <option value="General / All Hackathons">General / All Hackathons</option>
+                  </select>
+                </div>
+
+                <div className="form-group" style={{ marginBottom: '1rem' }}>
+                  <label style={{ fontWeight: 600 }}>Status</label>
                   <select
                     className="form-control"
                     value={editStatus}
@@ -565,15 +860,49 @@ export const AdminRegDeskPage: React.FC = () => {
                 </div>
 
                 <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-                  <label>New Password (leave empty to keep current)</label>
-                  <input
-                    type="password"
-                    minLength={6}
-                    className="form-control"
-                    placeholder="••••••••"
-                    value={editPassword}
-                    onChange={(e) => setEditPassword(e.target.value)}
-                  />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                    <label style={{ margin: 0, fontWeight: 600 }}>New Password (Optional)</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditPassword(generateTempPassword());
+                        setShowEditPassword(true);
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--primary, #10b981)',
+                        fontSize: '0.75rem',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.25rem',
+                        fontWeight: 600
+                      }}
+                    >
+                      <RefreshCw size={12} /> Generate 6-char Temporary
+                    </button>
+                  </div>
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <input
+                      type={showEditPassword ? 'text' : 'password'}
+                      minLength={6}
+                      className="form-control"
+                      placeholder="Leave empty to keep current password"
+                      value={editPassword}
+                      onChange={(e) => setEditPassword(e.target.value)}
+                      style={{ fontFamily: showEditPassword && editPassword ? 'monospace' : undefined, paddingRight: '2.5rem' }}
+                    />
+                    {editPassword && (
+                      <button
+                        type="button"
+                        onClick={() => setShowEditPassword(!showEditPassword)}
+                        style={{ position: 'absolute', right: '0.75rem', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}
+                      >
+                        {showEditPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
@@ -592,7 +921,7 @@ export const AdminRegDeskPage: React.FC = () => {
         {/* Reset Password Modal */}
         {resettingUser && (
           <div className="custom-modal-backdrop" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
-            <div className="custom-modal card" style={{ maxWidth: '440px', width: '100%', padding: '2rem' }}>
+            <div className="custom-modal card" style={{ maxWidth: '460px', width: '100%', padding: '2rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
                 <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700 }}>Reset Password: {resettingUser.desk_id}</h3>
                 <button onClick={() => setResettingUser(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
@@ -601,17 +930,71 @@ export const AdminRegDeskPage: React.FC = () => {
               </div>
 
               <form onSubmit={handleResetPassword}>
-                <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-                  <label>Enter New Password</label>
-                  <input
-                    type="password"
-                    required
-                    minLength={6}
-                    className="form-control"
-                    placeholder="At least 6 characters"
-                    value={resetPasswordVal}
-                    onChange={(e) => setResetPasswordVal(e.target.value)}
-                  />
+                <div className="form-group" style={{ marginBottom: '1rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                    <label style={{ margin: 0, fontWeight: 600 }}>Temporary Password</label>
+                    <button
+                      type="button"
+                      onClick={() => setResetPasswordVal(generateTempPassword())}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--primary, #10b981)',
+                        fontSize: '0.75rem',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.25rem',
+                        fontWeight: 600
+                      }}
+                    >
+                      <RefreshCw size={12} /> Generate 6-Char
+                    </button>
+                  </div>
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <input
+                      type={showResetPassword ? 'text' : 'password'}
+                      required
+                      minLength={6}
+                      className="form-control"
+                      placeholder="At least 6 characters"
+                      value={resetPasswordVal}
+                      onChange={(e) => setResetPasswordVal(e.target.value)}
+                      style={{ fontFamily: showResetPassword ? 'monospace' : undefined, fontWeight: 700, paddingRight: '4.5rem' }}
+                    />
+                    <div style={{ position: 'absolute', right: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(resetPasswordVal, 'reset_pwd_copy')}
+                        title="Copy Password"
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}
+                      >
+                        {copiedField === 'reset_pwd_copy' ? <Check size={16} color="#10b981" /> : <Copy size={16} />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowResetPassword(!showResetPassword)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}
+                      >
+                        {showResetPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                  </div>
+                  <div style={{
+                    marginTop: '0.35rem',
+                    padding: '0.4rem 0.65rem',
+                    backgroundColor: 'rgba(2, 132, 199, 0.08)',
+                    borderRadius: '4px',
+                    border: '1px solid rgba(2, 132, 199, 0.2)',
+                    fontSize: '0.75rem',
+                    color: '#0284c7',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.35rem'
+                  }}>
+                    <Clock size={13} />
+                    <span>Valid for 1 week. Team member must reset password via OTP after expiration.</span>
+                  </div>
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
@@ -619,7 +1002,7 @@ export const AdminRegDeskPage: React.FC = () => {
                     Cancel
                   </button>
                   <button type="submit" disabled={isSubmittingReset} className="btn btn-primary">
-                    {isSubmittingReset ? 'Updating...' : 'Set Password'}
+                    {isSubmittingReset ? 'Updating...' : 'Set Temporary Password'}
                   </button>
                 </div>
               </form>

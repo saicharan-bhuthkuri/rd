@@ -569,6 +569,20 @@ async function setupDatabase() {
       await db.execute(`ALTER TABLE hackathon_registrations ADD COLUMN room_code TEXT;`);
     } catch (e) {}
 
+    // Columns for registration_desk_users: hackathon, temporary password, and 1-week expiration
+    try {
+      await db.execute(`ALTER TABLE registration_desk_users ADD COLUMN hackathon TEXT;`);
+    } catch (e) {}
+    try {
+      await db.execute(`ALTER TABLE registration_desk_users ADD COLUMN temp_password TEXT;`);
+    } catch (e) {}
+    try {
+      await db.execute(`ALTER TABLE registration_desk_users ADD COLUMN temp_password_expires_at DATETIME;`);
+    } catch (e) {}
+    try {
+      await db.execute(`ALTER TABLE registration_desk_users ADD COLUMN is_temporary_password INTEGER DEFAULT 1;`);
+    } catch (e) {}
+
     // Seed initial Registration Desk member if table is empty
     try {
       const deskCheck = await db.execute("SELECT id FROM registration_desk_users LIMIT 1");
@@ -2744,6 +2758,17 @@ app.post('/api/reg-desk/login', sensitiveLimiter, async (req, res) => {
       return res.status(401).json({ error: "Invalid Registration Desk ID or password." });
     }
 
+    // Enforce 1-week validity for temporary password
+    if (deskUser.is_temporary_password && deskUser.temp_password_expires_at) {
+      const expiresAt = new Date(deskUser.temp_password_expires_at as string);
+      if (new Date() > expiresAt) {
+        return res.status(403).json({
+          error: "Your temporary password has expired (it was valid for 1 week). Please use 'Forgot Password' to reset your password via OTP verification.",
+          code: "TEMP_PASSWORD_EXPIRED"
+        });
+      }
+    }
+
     const token = jwt.sign(
       {
         id: deskUser.id,
@@ -3095,7 +3120,7 @@ app.post('/api/reg-desk/reset-password', sensitiveLimiter, async (req, res) => {
     const newHash = await bcrypt.hash(newSalt + newPassword, 10);
 
     await db.execute({
-      sql: "UPDATE registration_desk_users SET password = ?, salt = ? WHERE LOWER(desk_id) = LOWER(?)",
+      sql: "UPDATE registration_desk_users SET password = ?, salt = ?, temp_password = NULL, temp_password_expires_at = NULL, is_temporary_password = 0 WHERE LOWER(desk_id) = LOWER(?)",
       args: [newHash, newSalt, deskId]
     });
 
@@ -3457,7 +3482,9 @@ app.post('/api/reg-desk/attendance', authenticateRegDeskToken, async (req: Authe
 // 10.7 Admin Registration Desk Team Management Endpoints
 app.get('/api/admin/reg-desk-users', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
-    const usersRes = await db.execute("SELECT id, desk_id, name, email, status, created_at FROM registration_desk_users ORDER BY created_at DESC");
+    const usersRes = await db.execute(
+      "SELECT id, desk_id, name, email, hackathon, temp_password, temp_password_expires_at, is_temporary_password, status, created_at FROM registration_desk_users ORDER BY created_at DESC"
+    );
     return res.status(200).json(usersRes.rows);
   } catch (err: any) {
     console.error("Error listing reg desk users:", err);
@@ -3466,34 +3493,56 @@ app.get('/api/admin/reg-desk-users', authenticateToken, async (req: Authenticate
 });
 
 app.post('/api/admin/reg-desk-users', authenticateToken, async (req: AuthenticatedRequest, res) => {
-  const { desk_id, name, email, password, status } = req.body;
-  if (!desk_id || !name || !email || !password) {
-    return res.status(400).json({ error: "Desk ID, Name, Email, and Password are required." });
+  const { desk_id, name, email, password, hackathon, status } = req.body;
+  if (!name || !email || !password) {
+    return res.status(400).json({ error: "Name, Email, and Password are required." });
   }
 
   try {
+    // Auto-generate unique desk_id if not provided or empty
+    let finalDeskId = (desk_id && desk_id.trim()) ? desk_id.trim().toUpperCase() : '';
+    if (!finalDeskId) {
+      const randomCode = crypto.randomBytes(3).toString('hex').toUpperCase();
+      finalDeskId = `TCEK-REG-DESK-${randomCode}`;
+    }
+
     const checkRes = await db.execute({
       sql: "SELECT id FROM registration_desk_users WHERE LOWER(desk_id) = LOWER(?)",
-      args: [desk_id.trim()]
+      args: [finalDeskId]
     });
     if (checkRes.rows.length > 0) {
-      return res.status(409).json({ error: `Registration Desk ID '${desk_id}' is already in use.` });
+      return res.status(409).json({ error: `Registration Desk ID '${finalDeskId}' is already in use.` });
     }
 
     const salt = generateSalt();
-    const hash = await bcrypt.hash(salt + password, 10);
+    const hash = await bcrypt.hash(salt + password.trim(), 10);
     const userStatus = status === 'inactive' ? 'inactive' : 'active';
+    const tempExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(); // 1 week validity
+    const hackathonVal = hackathon && hackathon.trim() ? hackathon.trim() : null;
 
     const result = await db.execute({
-      sql: "INSERT INTO registration_desk_users (desk_id, name, email, password, salt, status) VALUES (?, ?, ?, ?, ?, ?)",
-      args: [desk_id.trim().toUpperCase(), name.trim(), email.trim(), hash, salt, userStatus]
+      sql: `INSERT INTO registration_desk_users 
+            (desk_id, name, email, password, salt, status, hackathon, temp_password, temp_password_expires_at, is_temporary_password) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+      args: [
+        finalDeskId,
+        name.trim(),
+        email.trim(),
+        hash,
+        salt,
+        userStatus,
+        hackathonVal,
+        password.trim(),
+        tempExpiresAt
+      ]
     });
 
     notifySyncClients("REFRESH_REG_DESK_USERS");
     return res.status(201).json({
       success: true,
       message: "Registration Desk member added successfully.",
-      id: Number(result.lastInsertRowid)
+      id: Number(result.lastInsertRowid),
+      desk_id: finalDeskId
     });
   } catch (err: any) {
     console.error("Error creating reg desk user:", err);
@@ -3503,7 +3552,7 @@ app.post('/api/admin/reg-desk-users', authenticateToken, async (req: Authenticat
 
 app.put('/api/admin/reg-desk-users/:id', authenticateToken, async (req: AuthenticatedRequest, res) => {
   const { id } = req.params;
-  const { name, email, status, password } = req.body;
+  const { name, email, status, hackathon, password } = req.body;
 
   try {
     const existing = await db.execute({
@@ -3518,18 +3567,22 @@ app.put('/api/admin/reg-desk-users/:id', authenticateToken, async (req: Authenti
     const newName = name ? name.trim() : current.name;
     const newEmail = email ? email.trim() : current.email;
     const newStatus = status ? status : current.status;
+    const newHackathon = hackathon !== undefined ? (hackathon ? hackathon.trim() : null) : current.hackathon;
 
     if (password && password.trim() !== '') {
       const salt = generateSalt();
       const hash = await bcrypt.hash(salt + password.trim(), 10);
+      const tempExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
       await db.execute({
-        sql: "UPDATE registration_desk_users SET name = ?, email = ?, status = ?, password = ?, salt = ? WHERE id = ?",
-        args: [newName, newEmail, newStatus, hash, salt, id]
+        sql: `UPDATE registration_desk_users 
+              SET name = ?, email = ?, status = ?, hackathon = ?, password = ?, salt = ?, temp_password = ?, temp_password_expires_at = ?, is_temporary_password = 1 
+              WHERE id = ?`,
+        args: [newName, newEmail, newStatus, newHackathon, hash, salt, password.trim(), tempExpiresAt, id]
       });
     } else {
       await db.execute({
-        sql: "UPDATE registration_desk_users SET name = ?, email = ?, status = ? WHERE id = ?",
-        args: [newName, newEmail, newStatus, id]
+        sql: "UPDATE registration_desk_users SET name = ?, email = ?, status = ?, hackathon = ? WHERE id = ?",
+        args: [newName, newEmail, newStatus, newHackathon, id]
       });
     }
 
@@ -3552,12 +3605,15 @@ app.post('/api/admin/reg-desk-users/:id/reset-password', authenticateToken, asyn
   try {
     const salt = generateSalt();
     const hash = await bcrypt.hash(salt + newPassword.trim(), 10);
+    const tempExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(); // 1 week validity
     await db.execute({
-      sql: "UPDATE registration_desk_users SET password = ?, salt = ? WHERE id = ?",
-      args: [hash, salt, id]
+      sql: `UPDATE registration_desk_users 
+            SET password = ?, salt = ?, temp_password = ?, temp_password_expires_at = ?, is_temporary_password = 1 
+            WHERE id = ?`,
+      args: [hash, salt, newPassword.trim(), tempExpiresAt, id]
     });
 
-    return res.status(200).json({ success: true, message: "Password reset successfully." });
+    return res.status(200).json({ success: true, message: "Password reset successfully (valid for 1 week)." });
   } catch (err: any) {
     console.error("Error resetting password:", err);
     return res.status(500).json({ error: "Failed to reset password.", details: err.message });
