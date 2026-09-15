@@ -188,18 +188,18 @@ The Research & Development (R&D) Cell at Trinity College requires a robust infra
 ### High-Level System Architecture & Workflow
 ```mermaid
 graph TD
-    User([Public User / Admin]) -->|"Interacts"| Frontend[Vite React TS Client]
-    Frontend -->|"HTTPS REST / Cookies / X-CSRF-Token"| Backend[Node Express TS API Server]
+    User(["Public User / Admin"]) -->|"Interacts"| Frontend["Vite React TS Client"]
+    Frontend -->|"HTTPS REST / Cookies / X-CSRF-Token"| Backend["Node Express TS API Server"]
     subgraph "Backend Server Security Pipeline"
-        Backend --> CORS[CORS filter]
-        CORS --> Limiter[Rate Limiter]
-        Limiter --> AuthGate[Auth & CSRF validator]
+        Backend --> CORS["CORS filter"]
+        CORS --> Limiter["Rate Limiter"]
+        Limiter --> AuthGate["Auth & CSRF validator"]
     end
-    AuthGate -->|"SQL Execution"| Database[(Turso Edge SQLite)]
-    AuthGate -->|"Modify XML"| Pizzip[PizZip XML Editor]
-    AuthGate -->|"Exec CLI Batch"| LibreOffice[LibreOffice PDF Converter]
-    AuthGate -->|"HTTP POST JSON"| GASProxy[Google Apps Script Proxy]
-    GASProxy -->|"Gmail API Auth"| Gmail[Gmail SMTP/HTTP Dispatch]
+    AuthGate -->|"SQL Execution"| Database[("Turso Edge SQLite")]
+    AuthGate -->|"Modify XML"| Pizzip["PizZip XML Editor"]
+    AuthGate -->|"Exec CLI Batch"| LibreOffice["LibreOffice PDF Converter"]
+    AuthGate -->|"HTTP POST JSON"| GASProxy["Google Apps Script Proxy"]
+    GASProxy -->|"Gmail API Auth"| Gmail["Gmail SMTP/HTTP Dispatch"]
 ```
 
 ---
@@ -329,9 +329,9 @@ The Bulk Certificate Dispatch & Application Management System utilizes a modern,
 ```mermaid
 graph TD
     subgraph "Tier 1: Presentation & Client Layer (Firebase CDN)"
-        User([Public User / Candidate]) -->|"HTTPS: Port 443"| ClientSPA[React 19 SPA Client]
-        Admin([Club Admin / Superadmin]) -->|"HTTPS: Port 443"| ClientSPA
-        DeskStaff([Registration Desk Coordinator]) -->|"HTTPS: Port 443"| ClientSPA
+        User(["Public User / Candidate"]) -->|"HTTPS: Port 443"| ClientSPA["React 19 SPA Client"]
+        Admin(["Club Admin / Superadmin"]) -->|"HTTPS: Port 443"| ClientSPA
+        DeskStaff(["Registration Desk Coordinator"]) -->|"HTTPS: Port 443"| ClientSPA
         ClientSPA -->|"Institutional Theme Tokens"| ThemeEngine[Emerald Institutional Design System]
         ClientSPA -->|"Native EventSource"| SSEClient[SSE Real-time Listener]
     end
@@ -343,7 +343,7 @@ graph TD
         RateLimiter --> SecurityGate{Auth & Security Gates}
         SecurityGate -->|"Validate Session"| JWTCookie[JWT Cookie Parser]
         SecurityGate -->|"Double-Submit Check"| CSRFValidator[CSRF Token Verifier]
-        SecurityGate -->|"RBAC Guard"| RoleGate[Role Authorizer: Dev/Super/Admin/Desk]
+        SecurityGate -->|"RBAC Guard"| RoleGate["Role Authorizer: Dev/Super/Admin/Desk"]
     end
 
     subgraph "Tier 3: Business Logic & Processing Layer"
@@ -357,8 +357,8 @@ graph TD
     end
 
     subgraph "Tier 4: Data & Real-Time Sync Layer"
-        RoleGate -->|"libsql protocol / port 443"| Turso[(Turso Edge SQLite Database - 16 Tables)]
-        RoleGate -->|"Broadcast Event"| SSEStream[Server-Sent Events /api/sync-stream Pool]
+        RoleGate -->|"libsql protocol / port 443"| Turso[("Turso Edge SQLite Database - 16 Tables")]
+        RoleGate -->|"Broadcast Event"| SSEStream["Server-Sent Events /api/sync-stream Pool"]
         SSEStream -.->|"app-sync CustomEvent"| SSEClient
     end
 ```
@@ -368,9 +368,9 @@ graph TD
 ```mermaid
 graph TD
     subgraph "1. Candidate Applications & Team Registrations"
-        Candidate([Student / Applicant]) -->|"Submit Profile"| AppPortal[Apply Portal: Club / Event / Hackathon]
+        Candidate(["Student / Applicant"]) -->|"Submit Profile"| AppPortal["Apply Portal: Club / Event / Hackathon"]
         AppPortal -->|"POST /api/apply/* <br/>Rate-Limited"| ExpressAPI[Express API Backend]
-        ExpressAPI -->|"INSERT INTO applications"| TursoDB[(Turso Edge SQLite - 16 Tables)]
+        ExpressAPI -->|"INSERT INTO applications"| TursoDB[("Turso Edge SQLite - 16 Tables")]
     end
 
     subgraph "2. Registration Desk On-Site Check-In & Venue Allocation"
@@ -408,7 +408,7 @@ graph TD
     end
 
     subgraph "6. Public Verification & Dynamic Streaming"
-        Verifier([Employer / Student / Public]) -->|"Access /verify/:id or QR"| VerifyUI[Verify Portal]
+        Verifier(["Employer / Student / Public"]) -->|"Access /verify/:id or QR"| VerifyUI["Verify Portal"]
         VerifyUI -->|"GET /api/verify-certificate/:id"| ExpressAPI
         ExpressAPI -->|"Validate Record"| TursoDB
         ExpressAPI -->|"Compile On-The-Fly PDF"| LibreOffice
@@ -939,11 +939,11 @@ sequenceDiagram
 
 ```mermaid
 graph TD
-    User([Public User / Admin / Desk Client]) -->|"HTTPS: Port 443"| Firebase[Firebase Hosting CDN <br/> (tcek-rd.web.app)]
-    User -->|"HTTPS REST API / SSE Sync"| Render[Render Web Service Docker Container <br/> (rd-backend-kbsm.onrender.com)]
-    Render -->|"LibSQL Protocol: Port 443"| Turso[(Turso Edge Cloud SQLite)]
-    Render -->|"HTTPS POST JSON: Port 443"| GoogleProxy[Google Apps Script Proxy Web App]
-    GoogleProxy -->|"Gmail API OAuth Secure Relay"| Gmail[Gmail Dispatch Engine]
+    User(["Public User / Admin / Desk Client"]) -->|"HTTPS: Port 443"| Firebase["Firebase Hosting CDN <br/> (tcek-rd.web.app)"]
+    User -->|"HTTPS REST API / SSE Sync"| Render["Render Web Service Docker Container <br/> (rd-backend-kbsm.onrender.com)"]
+    Render -->|"LibSQL Protocol: Port 443"| Turso[("Turso Edge Cloud SQLite")]
+    Render -->|"HTTPS POST JSON: Port 443"| GoogleProxy["Google Apps Script Proxy Web App"]
+    GoogleProxy -->|"Gmail API OAuth Secure Relay"| Gmail["Gmail Dispatch Engine"]
 
     subgraph "Automated Verification Test Nodes"
         TestRunner["verify_all_features.js <br/> (33/33 Tests Passed 100%)"] -.->|"Direct Probe"| Firebase
@@ -953,7 +953,7 @@ graph TD
 
     subgraph "Host Boundaries & Protections"
         Firebase ---|"Global Edge Cache"| User
-        Render ---|"Sandboxed Debian Linux Container"| LibreOffice[Headless LibreOffice CLI]
+        Render ---|"Sandboxed Debian Linux Container"| LibreOffice["Headless LibreOffice CLI"]
     end
 ```
 
@@ -1078,19 +1078,19 @@ Below are the mapped routes defined within [`frontend/src/App.tsx`](file:///c:/U
 ```mermaid
 graph LR
     subgraph "Client Layer (Vite React 19 TS)"
-        UI[User Interface Page Components - 35 Routes] -->|"State Hooks"| State[React Hooks: useState/useEffect]
-        State -->|"HTTP Requests / SSE"| API_Client[Global Fetch Interceptor / EventSource]
+        UI["User Interface Page Components - 35 Routes"] -->|"State Hooks"| State["React Hooks: useState/useEffect"]
+        State -->|"HTTP Requests / SSE"| API_Client["Global Fetch Interceptor / EventSource"]
     end
 
     subgraph "Service Layer (Node Express 4.19 TS)"
         API_Client -->|"REST API Routing"| Express[Express App Router - 60 Endpoints]
         Express -->|"Token Auth & CSRF"| Middlewares[Auth & RateLimit Middlewares]
-        Middlewares -->|"Route Handlers"| Controllers[Application / Messaging / Certificate Controllers]
+        Middlewares -->|"Route Handlers"| Controllers["Application / Messaging / Certificate Controllers"]
     end
 
     subgraph "Persistence Layer (Turso Edge SQLite)"
         Controllers -->|"SQL Prepared Statements"| LibSQL[LibSQL Client Driver]
-        LibSQL -->|"TCP/TLS (Port 443)"| EdgeDB[(Turso Edge SQLite - 16 Tables)]
+        LibSQL -->|"TCP/TLS (Port 443)"| EdgeDB[("Turso Edge SQLite - 16 Tables")]
     end
 ```
 
@@ -3021,16 +3021,16 @@ Admin Request  <---  Attach Bearer Token to "Authorization" & CSRF Token to "X-C
 
 ```mermaid
 graph TD
-    Client([React SPA Client]) -->|HTTPS Request| Gateway[Internet / Render Gateway]
+    Client(["React SPA Client"]) -->|HTTPS Request| Gateway["Internet / Render Gateway"]
     Gateway -->|CORS Check| CORS{Allowed Origin?}
-    CORS -->|No| BlockCORS[403 Forbidden / CORS Error]
+    CORS -->|No| BlockCORS["403 Forbidden / CORS Error"]
     CORS -->|Yes| Limiter{Rate Limiter Threshold Exceeded?}
     Limiter -->|Yes| BlockRate[429 Too Many Requests]
     Limiter -->|No| AuthCheck{Requires Admin or Desk Auth?}
     AuthCheck -->|No| PublicRoute[Execute Public API Route]
     AuthCheck -->|Yes| CookieCheck{Valid JWT Cookie or Bearer Token?}
     CookieCheck -->|No| BlockAuth[401 Unauthorized]
-    CookieCheck -->|Yes| MethodCheck{Mutating Request: POST/PUT/DELETE?}
+    CookieCheck -->|Yes| MethodCheck{"Mutating Request: POST/PUT/DELETE?"}
     MethodCheck -->|No| PassAuth[Execute GET Query]
     MethodCheck -->|Yes| CSRFCheck{Valid X-CSRF-Token Matching Session?}
     CSRFCheck -->|No| BlockCSRF[403 Forbidden: Invalid CSRF Token]
@@ -3565,7 +3565,7 @@ graph TD
 
     subgraph "Defect 3: Registration Desk Route Aliasing"
         E3["Original Error: 404 on /api/reg-desk/attendees"] --> D3["Debug: Component queried /attendees while route was /participants"]
-        D3 --> F3["Fix: Express array aliasing app.get(['/participants', '/attendees'])"]
+        D3 --> F3["Fix: Express array aliasing app.get for participants and attendees"]
         F3 --> R3["Retest: verify_all_features.js test 24"]
         R3 --> S3{"Status?"}
         S3 -->|"200 OK Returned"| P3["PASS (Aliased)"]
