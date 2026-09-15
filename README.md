@@ -124,6 +124,10 @@ For your viva presentation, the core contribution is summarized in one sentence:
   * **Club Membership Application**: [https://tcek-rd.web.app/apply/ClubRegistration](https://tcek-rd.web.app/apply/ClubRegistration)
   * **Event Registration**: [https://tcek-rd.web.app/apply/EventRegistration](https://tcek-rd.web.app/apply/EventRegistration)
 * **Public Certificate Verification**: [https://tcek-rd.web.app/verify](https://tcek-rd.web.app/verify)
+* **Admin Event Messaging**: [https://tcek-rd.web.app/admin/messaging](https://tcek-rd.web.app/admin/messaging)
+* **Registration Desk Portal**: [https://tcek-rd.web.app/reg-desk/login](https://tcek-rd.web.app/reg-desk/login)
+* **Registration Desk Dashboard**: [https://tcek-rd.web.app/reg-desk/dashboard](https://tcek-rd.web.app/reg-desk/dashboard)
+* **Room & Venue Allocations**: [https://tcek-rd.web.app/admin/rooms](https://tcek-rd.web.app/admin/rooms)
 * **Deployed API Server (Backend)**: [https://rd-backend-kbsm.onrender.com](https://rd-backend-kbsm.onrender.com)
 * **Designer/Developer Portfolio**: [https://saivortex.web.app/](https://saivortex.web.app/)
 
@@ -131,7 +135,7 @@ For your viva presentation, the core contribution is summarized in one sentence:
 * **Technology Readiness Level (TRL)**: **TRL 6** (System/Subsystem Prototype Demonstration in a Representative Environment)
   * *Proof & Evidence*: The fully integrated systems compile cleanly (exit code `0`) and run successfully across target cloud nodes (Firebase CDN static distribution, Dockerised API containers on Render, and edge Turso DB SQLite cloud nodes).
 * **Implementation Readiness (IR)**: **IR 6** (System Integration & Verification Complete)
-  * *Proof & Evidence*: Execution of the automated integration test script [`backend/test_suite.js`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/test_suite.js) on test port `5001` returns a **100% PASS** rate on all 5 integration assertions (event lists, branches indexes, security blocks, invalid code filters). Templates sync scripts successfully seed Base64 PPTX structures directly into Turso database nodes. See [Section 35](#35-technology-readiness-level-trl--implementation-readiness-ir-assessment) for full detailed justifications and roadmap.
+  * *Proof & Evidence*: Execution of the automated integration test script [`backend/test_suite.js`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/test_suite.js) on test port `5001` returns a **100% PASS** rate on all 5 integration assertions (event lists, branches indexes, security blocks, invalid code filters). Templates sync scripts successfully seed Base64 PPTX structures directly into Turso database nodes. See [Section 35](#35-technology-readiness-level-trl--implementation-readiness-ir-assessment) for full detailed justifications and roadmap.
 
 
 ### Project Purpose
@@ -408,30 +412,30 @@ sequenceDiagram
 
 ### Core Architectural Subsystems
 
-#### 1. Frontend Client ([`Vite + React + TypeScript`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend))
+#### 1. Frontend Client ([`Vite + React + TypeScript`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/frontend))
 * **Role & Host**: The user interface is built as a Single Page Application (SPA) using React 19 and compiled with Vite. It is hosted on **Firebase Hosting** for high-availability CDN-level static asset delivery.
 * **Routing**: Managed via **React Router DOM v7**, separating public pages (such as registration and verification) from protected admin features using client-side route guards and tokens.
-* **State & Syncing**: To ensure real-time collaboration across multiple administrator panels, the client establishes a persistent connection to the backend's `/api/sync-stream` endpoint using the browser's native `EventSource` (SSE) API in [`App.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/App.tsx#L106-L129). Upon receiving sync events, it revalidates internal states and refreshes tables.
+* **State & Syncing**: To ensure real-time collaboration across multiple administrator panels, the client establishes a persistent connection to the backend's `/api/sync-stream` endpoint using the browser's native `EventSource` (SSE) API in [`App.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/frontend/src/App.tsx#L106-L129). Upon receiving sync events, it revalidates internal states and refreshes tables.
 
-#### 2. Backend Server ([`Node.js + Express + TypeScript`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend))
+#### 2. Backend Server ([`Node.js + Express + TypeScript`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend))
 * **Role & Host**: Functions as the core backend orchestrator, packaged within a **Docker Container** and deployed on **Render Web Services**. It hosts the REST endpoints, implements JWT-based authentication guards, and operates the file-generation worker threads.
-* **Concurrency Control**: Implements standard concurrency-limiting utility [`runWithConcurrency`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts#L1327-L1359) to pace and queue CPU-heavy PowerPoint edits and PDF conversions, avoiding system locks or container OOM errors.
+* **Concurrency Control**: Implements standard concurrency-limiting utility [`runWithConcurrency`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/src/index.ts#L1327-L1359) to pace and queue CPU-heavy PowerPoint edits and PDF conversions, avoiding system locks or container OOM errors.
 
-#### 3. Database Layer ([`Turso Edge Database`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts#L39-L53))
+#### 3. Database Layer ([`Turso Edge Database`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/src/index.ts#L39-L53))
 * **Role & Architecture**: Leverages Turso DB, a serverless edge SQLite driver powered by `libsql`. Queries are executed directly as raw parameterized SQL strings via the `@libsql/client` SDK.
 * **Dynamic Template Cache**: Synced PowerPoint templates are converted to Base64 and stored directly inside the `templates` database table, enabling zero-downtime hot reloading of certificate layouts without changing Docker assets.
 
-#### 4. Template Manipulation Engine ([`PizZip XML Editor`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts#L12))
+#### 4. Template Manipulation Engine ([`PizZip XML Editor`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/src/index.ts#L12))
 * **Role & Mechanism**: To substitute certificate text placeholders on the fly without heavy PowerPoint COM objects or full decompression, the system utilizes `PizZip` in memory.
 * **XML Injection**: Parses the `.pptx` zip structure, reads target slide XML code (`ppt/slides/slide1.xml`), and performs raw string replacement for custom tags (`{NAME}`, `{ROLE}`, `{EVENT}`, `{DATE}`, `{CERT_ID}`). It updates specific XML nodes, keeping structural fonts and sizing styling contexts intact while disabling PPTX text autofit to avoid text compression.
 
-#### 5. Headless PDF Converter Subsystem ([`Headless LibreOffice`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts#L1291-L1324))
+#### 5. Headless PDF Converter Subsystem ([`Headless LibreOffice`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/src/index.ts#L1291-L1324))
 * **Role & Deployment**: Converts PPTX layouts into portable documents (PDF).
-* **Batch Execution**: Instantiating separate headless `soffice` sub-processes for every document results in significant CPU overhead. The system bundles multiple conversion files into a single execution context via [`convertPptxToPdfBatch`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts#L1291-L1324).
+* **Batch Execution**: Instantiating separate headless `soffice` sub-processes for every document results in significant CPU overhead. The system bundles multiple conversion files into a single execution context via [`convertPptxToPdfBatch`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/src/index.ts#L1291-L1324).
 * **Race Condition Isolation**: Uses unique user installation folder paths (`-env:UserInstallation=file://...`) for each parallel batch call, isolating LibreOffice runtime locks.
 * **Fallback Handler**: On local development Windows environments, the server falls back to sequential Windows ActiveX COM commands, ensuring zero local dependencies for developers.
 
-#### 6. Email Dispatch Subsystem ([`Google Apps Script Proxy`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts#L1247-L1289))
+#### 6. Email Dispatch Subsystem ([`Google Apps Script Proxy`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/src/index.ts#L1247-L1289))
 * **Role & Technique**: Resolves Render outbound SMTP port blocking on the free tier.
 * **HTTPS Proxy Relay**: Converts compiled PDF buffers into Base64 strings and ships them inside a JSON payload over HTTPS (port 443) using an HTTP POST to a secure, custom **Google Apps Script Web App**.
 * **Gmail SMTP Delivery**: The Google Script proxy, authenticated with Google API credentials, constructs and sends email packages containing PDF attachments directly via the candidate-facing Gmail profile.
@@ -760,7 +764,7 @@ graph TD
 
 ### B. Routes and Pages
 
-Below are the mapped routes defined within [`frontend/src/App.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/App.tsx):
+Below are the mapped routes defined within [`frontend/src/App.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/frontend/src/App.tsx):
 
 | Route Path | View Component | Access Privileges | Purpose |
 | :--- | :--- | :--- | :--- |
@@ -773,16 +777,32 @@ Below are the mapped routes defined within [`frontend/src/App.tsx`](file:///c:/U
 | `/faqs` | `FAQPage` | Public | Renders answers to common questions. |
 | `/contact` | `ContactPage` | Public | Form to submit questions and feedback. |
 | `/apply` | `ApplyPage` | Public | Single enrollment portal for club membership, events, or hackathons. |
+| `/apply/:registrationType` | `ApplyPage` | Public | Direct deep-linked registration routes (`HackathonRegistration`, `ClubRegistration`, `EventRegistration`). |
 | `/verify` | `VerifyCertificatePage`| Public | Public certificate validator and PDF viewer. |
-| `/admin/login` | `AdminLoginPage` | Public | Verification portal generating admin tokens. |
-| `/admin/club` | `AdminDashboardPage` | Authenticated | Roster of club recruitment applicants. |
-| `/admin/events` | `AdminDashboardPage` | Authenticated | Roster of event registrations, certificate actions, and dispatches. |
-| `/admin/hackathons`| `AdminDashboardPage` | Authenticated | Roster of registered teams and members for hackathons. |
+| `/reg-desk/login` | `RegDeskLoginPage` | Public | Dedicated Registration Desk sign-in with 6-character temporary password / OTP box inputs. |
+| `/reg-desk/forgot-password` | `RegDeskForgotPasswordPage` | Public | Self-service credential recovery for registration desk staff. |
+| `/reg-desk/reset-password` | `RegDeskResetPasswordPage` | Public | Secure password reset with token verification for desk personnel. |
+| `/reg-desk` | `Navigate` | Registration Desk / Admin | Redirects to `/reg-desk/dashboard`. |
+| `/reg-desk/dashboard` | `RegDeskDashboardPage` | `reg_desk` / Admin | On-site attendee search, PIN lookup, attendance marking, and kit/badge distribution tracking. |
+| `/admin/login` | `AdminLoginPage` | Public | Secure Admin Console login with password show/hide toggle. |
+| `/admin/forgot-password` | `AdminForgotPasswordPage` | Public | Password reset request with 15-minute expiring signed tokens. |
+| `/admin/reset-password` | `AdminResetPasswordPage` | Public | Secure password reset submission with token validation. |
+| `/admin/dashboard` | `Navigate` | Authenticated Admin | Redirects to default admin section (`/admin/club`). |
+| `/admin/club` | `AdminDashboardPage` | Authenticated Admin | Roster of club recruitment applicants and offer letter dispatch. |
+| `/admin/events` | `AdminDashboardPage` | Authenticated Admin | Roster of event registrations, certificate actions, and dispatches. |
+| `/admin/hackathons` | `AdminDashboardPage` | Authenticated Admin | Roster of registered teams and members for hackathons. |
+| `/admin/recognition` | `AdminDashboardPage` | Authenticated Admin | Roster of judges, evaluators, and dignitaries with certificates of appreciation. |
+| `/admin/volunteers` | `AdminDashboardPage` | Authenticated Admin | Roster of student volunteers with event assignment and certificates. |
+| `/admin/submissions` | `AdminDashboardPage` | Authenticated Admin | Hackathon project submissions and abstract review roster. |
+| `/admin/project-submissions` | `AdminDashboardPage` | Authenticated Admin | Event project deliverables and Google Drive file attachments. |
 | `/admin/users` | `AdminUsersPage` | Developer / Superadmin | Management view to list or delete admin accounts. |
-| `/admin/users/create`| `AdminCreateUserPage`| Developer / Superadmin | Creates new admin accounts. |
-| `/admin/events/manage`| `AdminManageEventsPage`| Authenticated | Manage and delete created events. |
-| `/admin/events/create`| `AdminCreateEventPage`| Authenticated | Form to register new technical events. |
-| `/admin/branches` | `AdminBranchesPage` | Authenticated | Roster of engineering departments and branches. |
+| `/admin/users/create` | `AdminCreateUserPage` | Developer / Superadmin | Creates new admin accounts with role constraints. |
+| `/admin/events/manage` | `AdminManageEventsPage` | Authenticated Admin | Manage and delete created events. |
+| `/admin/events/create` | `AdminCreateEventPage` | Authenticated Admin | Form to register new technical events. |
+| `/admin/branches` | `AdminBranchesPage` | Authenticated Admin | Roster of engineering departments and branches. |
+| `/admin/reg-desk` | `AdminRegDeskPage` | Authenticated Admin | Management of registration desk coordinator credentials and event assignments. |
+| `/admin/messaging` | `AdminMessagingPage` | Authenticated Admin | Event announcement composer with recipient group checkboxes, locked greeting/sign-off, and batch email dispatch. |
+| `/admin/rooms` | `AdminRoomsPage` | Authenticated Admin | Lab, presentation hall, and room allocation for event and hackathon tracks. |
 
 ---
 
@@ -911,17 +931,40 @@ erDiagram
 +-----------------------+     +------------------------+     +-------------------------+
 ```
 
-### Table Schema and Column Metadata
-1. **`club_applications`**: Manages recruitment entries. Status values: `'pending'`, `'approved'`, `'rejected'`. Column `offer_sent` determines if they received appointment letters (0 or 1).
-2. **`event_registrations`**: Student attendees. Column `status` represents actions (e.g. `'Participation'`, `'Won First Place'`). Column `certificate_id` stores a unique certificate code with a cryptographically secure random suffix to prevent ID guessing. Column `certificate_sent` locks status modifications once set to 1.
-3. **`hackathon_registrations`**: Roster of hackathons. Column `members` holds a JSON string of team members.
-4. **`contact_messages`**: Public contact form messages.
-5. **`admin_users`**: Stores admin profiles. Includes a unique `salt` column used to secure passwords before hashing, checked via role constraints (`role IN ('developer', 'superadmin', 'admin')`).
-6. **`activity_logs`**: Logs admin actions for auditing.
-7. **`events`**: Registered events. Category can be `'Workshop'`, `'Seminar'`, `'Colloquium'`, or `'Hackathon'`.
-8. **`templates`**: Holds base64 representations of PPTX templates.
-9. **`branches`**: Holds branch names.
-10. **`password_reset_tokens`**: Stores active and expired password recovery tokens. Includes a `token_hash` and `salt` (using SHA-256) to secure tokens at rest against database compromises, and a `used` status column to enforce one-time usage.
+### Complete Database Tables & Schema (16 Tables)
+
+1. **`club_applications`**: Manages student recruitment entries for R&D Cell teams.
+   * Columns: `id`, `full_name`, `pin_number`, `email`, `mobile`, `branch`, `year_of_study`, `section`, `interests`, `skills`, `reason_to_join`, `status` (`'pending'`, `'approved'`, `'rejected'`), `offer_sent` (`0` or `1`), `created_at`.
+2. **`event_registrations`**: Registered attendees for workshops, seminars, and technical events.
+   * Columns: `id`, `full_name`, `pin_number`, `email`, `mobile`, `branch`, `year_of_study`, `section`, `event_name`, `notes`, `status` (e.g. `'Participation'`, `'Won First Place'`), `certificate_sent` (`0` or `1`), `certificate_id` (unique verifiable code), `attendance` (`'pending'`, `'present'`, `'absent'`), `attendance_marked_by`, `attendance_marked_at`, `room_code`, `created_at`.
+3. **`contact_messages`**: Inquiries submitted through public contact forms.
+   * Columns: `id`, `name`, `email`, `subject`, `message`, `created_at`.
+4. **`admin_users`**: Administrator credentials and role-based permissions.
+   * Columns: `id`, `username`, `password`, `salt` (cryptographic salt per user), `role` (`'developer'`, `'superadmin'`, `'admin'`), `email`, `created_at`.
+5. **`activity_logs`**: Audit trail recording administrative operations (logins, event creation, branch changes, email dispatches).
+   * Columns: `id`, `username`, `action`, `details`, `created_at`.
+6. **`events`**: Institutional calendar entries and technical event listings.
+   * Columns: `id`, `category` (`'Workshop'`, `'Seminar'`, `'Colloquium'`, `'Hackathon'`), `title`, `description`, `date`, `time`, `location`, `speaker`, `speaker_bio`, `created_at`.
+7. **`templates`**: In-database Base64 encoded PowerPoint (`.pptx`) certificate templates.
+   * Columns: `name` (PK), `filename`, `data_base64`, `updated_at`.
+8. **`branches`**: Master catalog of academic engineering departments and branches.
+   * Columns: `id`, `name` (unique), `created_at`.
+9. **`hackathon_registrations`**: Team signups for hackathons (e.g., SIH Internal Hackathon).
+   * Columns: `id`, `hackathon_name`, `team_name`, `project_title`, `project_description`, `problem_statement`, `leader_name`, `leader_email`, `leader_phone`, `leader_role`, `leader_year`, `leader_branch`, `leader_institution`, `leader_company`, `leader_job_title`, `members` (JSON string of team members), `status`, `certificate_sent`, `certificate_type`, `attendance`, `attendance_marked_by`, `attendance_marked_at`, `room_code`, `created_at`.
+10. **`password_reset_tokens`**: State-managed password recovery tokens for self-service account recovery.
+    * Columns: `id`, `username`, `token_hash` (SHA-256), `salt`, `expires_at`, `used` (`0` or `1`).
+11. **`hackathon_certificates`**: Generated certificates catalog for hackathon leaders and individual team members.
+    * Columns: `id`, `certificate_id` (unique), `registration_id`, `participant_name`, `participant_email`, `participant_phone`, `role`, `year`, `branch`, `institution`, `team_name`, `project_title`, `hackathon_name`, `certificate_type`, `created_at`.
+12. **`recognition_applications`**: Applications and credentials for judges, evaluators, speakers, and dignitaries.
+    * Columns: `id`, `full_name`, `email`, `mobile`, `designation`, `organization`, `event_name`, `event_date`, `domain_expertise`, `experience_years`, `notes`, `status`, `certificate_sent`, `certificate_id`, `created_at`.
+13. **`volunteer_applications`**: Student volunteer registrations and committee assignments.
+    * Columns: `id`, `full_name`, `pin_number`, `email`, `mobile`, `branch`, `year_of_study`, `event_name`, `volunteer_role`, `skills`, `past_experience`, `availability`, `notes`, `status`, `certificate_sent`, `certificate_id`, `created_at`.
+14. **`project_submissions`**: Submissions for hackathons and technical project expos.
+    * Columns: `id`, `hackathon_registration_id`, `event_name`, `team_name`, `leader_name`, `leader_email`, `leader_phone`, `institution`, `members`, `project_title`, `project_info`, `problem_statement`, `drive_file_id`, `drive_file_url`, `drive_folder_id`, `drive_folder_url`, `file_name`, `file_size`, `mime_type`, `status`, `created_at`.
+15. **`registration_desk_users`**: Registration desk accounts for physical event check-in staff.
+    * Columns: `id`, `desk_id` (unique e.g. `REG-DESK-01`), `name`, `email`, `password` (hashed with salt), `salt`, `hackathon` (assigned event), `temp_password`, `temp_password_expires_at` (1-week expiry), `is_temporary_password` (`1` or `0`), `status` (`'active'`, `'inactive'`), `created_at`.
+16. **`registration_rooms`**: Allocated presentation rooms, computer labs, and review venues.
+    * Columns: `id`, `event_type` (`'event'`, `'hackathon'`), `event_name`, `room_name`, `room_code`, `capacity`, `assigned_desk_id`, `assigned_desk_name`, `created_at`.
 
 ---
 
@@ -931,22 +974,22 @@ erDiagram
 ---
 
 ## 13. Module Design
-The proposed institutional system is structured into 7 core functional modules:
+The proposed institutional system is structured into 13 core functional modules:
 
 ### Module 1 — Student Application Management
 * **Description**: Consists of public-facing enrollment portals, dedicated registration routes, and registration sheets.
 * **Code Components**: `ApplyPage.tsx`, recruitment signup sheets, event attendee registry forms.
-* **Functionality**: Dynamically renders input rows for team signups (hackathons), collects candidate details, branches, sections, and interest descriptions, and handles rate-limited signups. Supports direct dedicated registration routes (`/apply/HackathonRegistration`, `/apply/ClubRegistration`, `/apply/EventRegistration`) with automatic route normalization. Hackathon registration streamlines onboarding by removing mandatory upfront project disclosures.
+* **Functionality**: Dynamically renders input rows for team signups (hackathons), collects candidate details, branches, sections, and interest descriptions, and handles rate-limited signups. Supports direct dedicated registration routes (`/apply/HackathonRegistration`, `/apply/ClubRegistration`, `/apply/EventRegistration`) with automatic route normalization.
 
 ### Module 2 — Administrator Management
 * **Description**: Controls administrative dashboard consoles and supervisor actions.
 * **Code Components**: `AdminLoginPage.tsx`, `AdminLayout.tsx`, `AdminDashboardPage.tsx`, `AdminBranchesPage.tsx`, `AdminCreateUserPage.tsx`.
-* **Functionality**: Multi-tab table view (Club recruitment, Event attendance lists, Hackathon registries) with search filters, branch list editors, event calendar creators, and account registrars.
+* **Functionality**: Multi-tab table view (Club recruitment, Event attendance lists, Hackathon registries, Recognition/Dignitaries, Volunteers, Project Submissions) with search filters, branch list editors, event calendar creators, and account registrars.
 
 ### Module 3 — Automated Certificate Engine
 * **Description**: Parses slides and compiles high-resolution credentials.
 * **Code Components**: `replacePlaceholdersInPptx()`, `convertPptxToPdfBatch()` inside `backend/src/index.ts`.
-* **Functionality**: normalizes casing status labels, choice templates from DB templates cache (Base64), edits Slide XML nodes in-memory via Pizzip, forces font overrides, and converts slides to PDF concurrently using Docker headless LibreOffice.
+* **Functionality**: Normalizes casing status labels, selects templates from DB cache (Base64), edits Slide XML nodes in-memory via PizZip, forces font overrides, and converts slides to PDF concurrently using Docker headless LibreOffice.
 
 ### Module 4 — Automated Email Distribution
 * **Description**: Relays credentials directly to recipient mailboxes.
@@ -960,12 +1003,54 @@ The proposed institutional system is structured into 7 core functional modules:
 
 ### Module 6 — Security
 * **Description**: Governs borders, rates, and authentications.
-* **Code Components**: CORS filters, `express-rate-limit` gateways, JWT session cookies, Double-Submit CSRF headers checks, Bcrypt salting algorithms, password recovery reset token caches.
+* **Code Components**: CORS filters, `express-rate-limit` gateways, JWT session cookies, Double-Submit CSRF headers checks, Bcrypt salting algorithms, password recovery reset token caches, and registration desk role segregation.
 
 ### Module 7 — Real-Time Synchronization
 * **Description**: Synchronizes active administrative clients.
 * **Code Components**: SSE endpoints stream `GET /api/sync-stream`, frontend EventSource hooks.
 * **Functionality**: Maintains open keep-alive connections; broadcasts refresh commands on DB updates; triggers UI table updates dynamically.
+
+### Module 8 — Event Messaging & Multi-Group Communication Engine
+* **Description**: Broadcasts official institutional announcements to targeted event audience segments.
+* **Code Components**: `AdminMessagingPage.tsx`, `POST /api/admin/messaging/send`, `GET /api/admin/messaging/recipients`.
+* **Functionality**:
+  * **Audience Filtering via Checkboxes**: Targets Members (Participants), Judges, Coordinators, Volunteers, or all groups simultaneously with deduplication.
+  * **Locked Official Branding**: Top greeting (`Dear Mr./Ms. {name}, We are pleased to share an important announcement regarding "[Event]".`) and bottom sign-off (`Warm regards, Event Organizing Committee & R&D Cell, Trinity College of Engineering & Technology (Autonomous), Peddapalli`) are locked as non-editable boilerplate to guarantee institutional standards.
+  * **Editable Middle Text**: The Admin only writes and edits the middle announcement body.
+  * **Dynamic Per-Recipient Personalization**: Automatically replaces `{name}` with each recipient's actual verified name upon sending.
+  * **Live Email Preview Modal**: Previews the rendered email formatted in the institutional light theme before sending.
+  * **High-Throughput Batch Delivery**: Sends emails concurrently with error resilience via the Google Apps Script HTTPS proxy.
+
+### Module 9 — Registration Desk & Physical Event Check-In Subsystem
+* **Description**: Streamlines in-person event check-in, attendance verification, and badge/kit distribution on event day.
+* **Code Components**: `AdminRegDeskPage.tsx`, `RegDeskLoginPage.tsx`, `RegDeskDashboardPage.tsx`, `RegDeskForgotPasswordPage.tsx`, `RegDeskResetPasswordPage.tsx`, `POST /api/reg-desk/login`, `GET /api/reg-desk/attendees`, `POST /api/reg-desk/attendance`.
+* **Functionality**:
+  * **Desk Coordinator Account Management**: Admins assign coordinators with unique Desk IDs (e.g., `REG-DESK-01`), assigned events, and 6-character temporary passwords with 1-week expiry.
+  * **Temporary Password OTP Input UI**: A 6-box OTP entry interface tailored for mobile and laptop check-in terminals.
+  * **Attendee Lookup**: Live search across attendees by PIN, name, email, or mobile phone.
+  * **One-Click Attendance Marking**: Logs check-in timestamp and coordinator attribution (`attendance_marked_at`, `attendance_marked_by`).
+  * **Self-Service Credential Recovery**: Dedicated forgot/reset password flow for registration desk staff.
+
+### Module 10 — Venue & Room Allocation Subsystem
+* **Description**: Assigns computer labs, seminar halls, and presentation venues to event tracks and hackathon rounds.
+* **Code Components**: `AdminRoomsPage.tsx`, `GET /api/admin/rooms`, `POST /api/admin/rooms`, `DELETE /api/admin/rooms/:id`.
+* **Functionality**: Manages room codes, room names, capacities, assigned registration desks, and event association (`registration_rooms`).
+
+### Module 11 — Project Submissions & Abstract Review Subsystem
+* **Description**: Collects project code repositories, Google Drive presentation decks, and problem statement write-ups.
+* **Code Components**: `project_submissions` table, submission review dashboard tabs.
+* **Functionality**: Stores Drive file/folder IDs, URLs, problem statement categories, and submission status for jury evaluation.
+
+### Module 12 — Recognition, Dignitaries & Volunteer Management
+* **Description**: Orchestrates invitations, profiles, and certificates for guest speakers, jury members, evaluators, and student organizers.
+* **Code Components**: `recognition_applications` and `volunteer_applications` management views, dedicated appreciation certificate dispatches.
+
+### Module 13 — Institutional Design System & Landing Page Light Theme
+* **Description**: Enforces a clean, modern, and accessible visual design language across the entire platform.
+* **Key Visual Standards**:
+  * **Canvas & Surfaces**: Clean white cards (`#ffffff`) on neutral slate background (`#f8fafc`) with subtle borders (`#e2e8f0`).
+  * **Primary Institutional Accent**: Emerald green (`#059669` / `#047857`) signifying innovation, growth, and institutional authority.
+  * **Email Templates**: HTML emails styled with white cards, emerald headers, clean typography, and responsive widths to match the web portal aesthetics.
 
 ### Mapped Technical Features
 Below are the implementation details of key features mapped to their modules:
@@ -976,52 +1061,52 @@ The system is split into distinct functional modules:
 
 #### 1. Dynamic Certificate Actions & Template Resolution
 * **What it does**: Admins choose specific actions per student. The system parses casing normalized strings (e.g., `'won Second Place'` $\rightarrow$ `"Won Second Place"`) and maps them to the appropriate pptx template. Participation keywords map to the `Participation Template`, whereas others map to the `Appreciation Template` and inject custom achievement titles.
-* **Implementation Location**: [`backend/src/index.ts:L1588-1839`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts#L1588-1839)
-* **Frontend Component**: [`AdminDashboardPage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/pages/AdminDashboardPage.tsx)
+* **Implementation Location**: [`backend/src/index.ts:L1588-1839`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/src/index.ts#L1588-1839)
+* **Frontend Component**: [`AdminDashboardPage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/frontend/src/pages/AdminDashboardPage.tsx)
 * **Backend API**: `POST /api/admin/bulk-send/certificates`
 * **Database Tables**: `event_registrations`, `templates`, `events`
 * **Auth Requirements**: Admin JWT token required.
 
 #### 2. Automatic Modification Guard & Status Indicators
 * **What it does**: Once a certificate is successfully sent, the status updates to `Sented` (represented by a green badge), and the select action dropdown is permanently disabled with a `not-allowed` cursor to prevent post-dispatch modifications.
-* **Implementation Location**: [`AdminDashboardPage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/pages/AdminDashboardPage.tsx)
+* **Implementation Location**: [`AdminDashboardPage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/frontend/src/pages/AdminDashboardPage.tsx)
 * **Auth Requirements**: Admin JWT authentication.
 
 #### 3. Hackathon Team Registrations & Bulk Certificate Engine
 * **What it does**: An interactive application form that dynamically appends team member input rows, collects role designations (Student vs Professional), captures disclaimers, and exports customized participant certificates for the whole team (including leaders).
-* **Implementation Location**: [`ApplyPage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/pages/ApplyPage.tsx) and [`backend/src/index.ts:L1842-2141`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts#L1842-2141)
+* **Implementation Location**: [`ApplyPage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/frontend/src/pages/ApplyPage.tsx) and [`backend/src/index.ts:L1842-2141`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/src/index.ts#L1842-2141)
 * **Backend API**: `POST /api/apply/hackathon`, `POST /api/admin/bulk-send/hackathon-certificates`
 * **Database Tables**: `hackathon_registrations`, `templates`
 
 #### 4. Headless LibreOffice PDF Compiler (Batch Mode)
 * **What it does**: Feeds the PPTX paths to LibreOffice CLI (`soffice`), converting files in a single batch to reduce startup overhead to less than 2 seconds.
-* **Implementation Location**: [`backend/src/index.ts:L1291-1324`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts#L1291-1324)
+* **Implementation Location**: [`backend/src/index.ts:L1291-1324`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/src/index.ts#L1291-1324)
 
 #### 5. Public Certificate Verification Portal
 * **What it does**: Public interface validating certificate IDs (e.g. `TCEK/RD/2026-A9B2E3F4` or `TCEK/RD/HACK/2026-A9B2E3F4`), querying metadata, compiling the PPTX on the fly, converting it to PDF, and streaming the file buffer inline inside a 16:9 widescreen frame.
-* **Implementation Location**: [`VerifyCertificatePage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/pages/VerifyCertificatePage.tsx) and [`backend/src/index.ts:L2317-2466`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts#L2317-2466)
+* **Implementation Location**: [`VerifyCertificatePage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/frontend/src/pages/VerifyCertificatePage.tsx) and [`backend/src/index.ts:L2317-2466`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/src/index.ts#L2317-2466)
 * **Backend API**: `GET /api/verify-certificate/*`
 * **Database Tables**: `event_registrations`, `events`, `templates`
 * **Auth Requirements**: None (Public Access).
 
 #### 6. Live Synchronizer (SSE Stream)
 * **What it does**: Binds clients to an HTTP Server-Sent Events pool. When registrations, events, or branches are updated, it emits sync events (`REFRESH_APPLICATIONS`, `REFRESH_EVENTS`, `REFRESH_BRANCHES`) causing active admin screens to reload data instantly.
-* **Implementation Location**: [`backend/src/index.ts`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts) and [`App.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/App.tsx)
+* **Implementation Location**: [`backend/src/index.ts`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/src/index.ts) and [`App.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/frontend/src/App.tsx)
 
 #### 7. Cookie-based Session Authentication & CSRF Protection
 * **What it does**: Dynamic Token/Cookie Authentication: On login, the backend issues an HttpOnly cookie and returns a signed JWT. In cross-origin production (Firebase to Render), the client attaches the JWT to the `Authorization` header. In same-site deployments, the backend authenticates requests via the HttpOnly cookie fallback. Mutating requests validate a double-submit CSRF token via the `X-CSRF-Token` header.
-* **Implementation Location**: [`backend/src/index.ts`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts) and [`App.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/App.tsx)
+* **Implementation Location**: [`backend/src/index.ts`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/src/index.ts) and [`App.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/frontend/src/App.tsx)
 * **Auth Requirements**: Enforced across all administrative paths.
 
 #### 8. Automated Administrator Account Recovery
 * **What it does**: Self-service forgot-password workflow. Admins enter their registered email, which generates a short-lived (15 minutes) secure, stateful, one-time reset token stored in the database. Clicking the link takes the user to a reset page where the React frontend automatically parses and validates the token. If expired or already used, it blocks form entry and displays a warning.
-* **Implementation Location**: [`AdminForgotPasswordPage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/pages/AdminForgotPasswordPage.tsx), [`AdminResetPasswordPage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/pages/AdminResetPasswordPage.tsx), and [`backend/src/index.ts`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts)
+* **Implementation Location**: [`AdminForgotPasswordPage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/frontend/src/pages/AdminForgotPasswordPage.tsx), [`AdminResetPasswordPage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/frontend/src/pages/AdminResetPasswordPage.tsx), and [`backend/src/index.ts`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/src/index.ts)
 * **Backend API**: `POST /api/admin/forgot-password`, `POST /api/admin/reset-password`
 * **Database Tables**: `admin_users`, `password_reset_tokens`
 
 #### 9. Hide/Unhide Password Toggle
 * **What it does**: Adds a show/hide password visibility toggle directly inside the admin login credentials form to enhance usability and prevent entry mistakes.
-* **Implementation Location**: [`AdminLoginPage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/pages/AdminLoginPage.tsx)
+* **Implementation Location**: [`AdminLoginPage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/frontend/src/pages/AdminLoginPage.tsx)
 
 ### B. Partially Implemented Features
 * **Nodemailer SMTP Fallback**: Configured to send email via standard SMTP on host port 587 using the `transporter` client, but is generally blocked on cloud environments like Render. Render deployments must use `GMAIL_HTTP_PROXY_URL`.
@@ -1040,7 +1125,7 @@ The system is split into distinct functional modules:
 This section provides a clean algorithmic breakdown of the critical processes implemented within the system.
 
 ### A. PPTX XML Placeholder Replacement Algorithm
-* **File Reference**: [`replacePlaceholdersInPptx()`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts#L1134-1222)
+* **File Reference**: [`replacePlaceholdersInPptx()`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/src/index.ts#L1134-1222)
 * **Goal**: Modify PowerPoint layout nodes directly inside the slide's compressed XML archive without breaking standard properties or fonts.
 
 ```text
@@ -1090,7 +1175,7 @@ FUNCTION replacePlaceholdersInPptx(templateBuffer, outputPath, replacements):
 ---
 
 ### B. Bulk Event Certificate Dispatch Pipeline
-* **File Reference**: [`POST /api/admin/bulk-send/certificates`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts#L1590-1839)
+* **File Reference**: [`POST /api/admin/bulk-send/certificates`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/src/index.ts#L1590-1839)
 * **Goal**: Customizes, converts, and emails event certificates concurrently while sending SSE logs to the administrator.
 
 ```text
@@ -1179,7 +1264,7 @@ FUNCTION bulkSendCertificates(eventTitle):
 ---
 
 ### C. Bulk Hackathon Certificate Dispatch Pipeline
-* **File Reference**: [`POST /api/admin/bulk-send/hackathon-certificates`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts#L1842-2141)
+* **File Reference**: [`POST /api/admin/bulk-send/hackathon-certificates`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/src/index.ts#L1842-2141)
 * **Goal**: Resolves approved hackathon teams, parses team member arrays, generates credentials, batch-converts slides, and sends notifications.
 
 ```text
@@ -1298,7 +1383,7 @@ FUNCTION bulkSendHackathonCertificates(hackathonName):
 ---
 
 ### D. Bulk Offer Letter Dispatch Pipeline
-* **File Reference**: [`POST /api/admin/bulk-send/offers`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts#L1375-1586)
+* **File Reference**: [`POST /api/admin/bulk-send/offers`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/src/index.ts#L1375-1586)
 * **Goal**: Generates and dispatches coordinator appointment letters.
 
 ```text
@@ -1378,7 +1463,7 @@ FUNCTION bulkSendOffers():
 ---
 
 ### E. Public Certificate Verification & PDF Streaming
-* **File Reference**: [`GET /api/verify-certificate/*`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts#L2317-2466)
+* **File Reference**: [`GET /api/verify-certificate/*`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/src/index.ts#L2317-2466)
 * **Goal**: Receives public verification requests. If requesting metadata, returns JSON. If path ends with `/pdf`, generates and streams the compiled PDF directly to the browser.
 
 ```text
@@ -1446,7 +1531,7 @@ FUNCTION verifyCertificateRoute(req, res):
 ---
 
 ### F. Real-time Synchronization Engine (Server SSE Stream & Client Listeners)
-* **File Reference**: [`GET /api/sync-stream`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts#L489-512) and [`App.tsx:L106-129`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/App.tsx#L106-129)
+* **File Reference**: [`GET /api/sync-stream`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/src/index.ts#L489-512) and [`App.tsx:L106-129`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/frontend/src/App.tsx#L106-129)
 * **Goal**: Maintains persistent Server-Sent Events (SSE) connections with client tabs to broadcast updates and reload states.
 
 ```text
@@ -1574,7 +1659,7 @@ FUNCTION initializeClientSync():
 
 ### Important Files Breakdown
 
-#### 1. [`backend/src/index.ts`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts)
+#### 1. [`backend/src/index.ts`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/src/index.ts)
 * **Purpose**: Application Server Entry Point & Controllers.
 * **Responsibility**: Bootstraps the Express application; establishes Turso SQL connections and configures automated DB migrations; validates admin credentials using JWT tokens; executes dynamic PPTX XML manipulations and parallel headless LibreOffice conversions; manages email dispatch handlers.
 * **Dependencies**: `express`, `cors`, `dotenv`, `bcryptjs`, `jsonwebtoken`, `@libsql/client`, `pizzip`, `nodemailer`.
@@ -1583,15 +1668,15 @@ FUNCTION initializeClientSync():
 * **Important Routines**: `setupDatabase()`, `replacePlaceholdersInPptx()`, `convertPptxToPdf()`, `convertPptxToPdfBatch()`, `runWithConcurrency()`, `postToAppsScript()`.
 * **Required for Production**: Yes.
 
-#### 2. [`frontend/src/App.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/App.tsx)
+#### 2. [`frontend/src/App.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/frontend/src/App.tsx)
 * **Purpose**: Client Routing, Layout, & Synchronizer.
 * **Responsibility**: Declares the page router configuration using React Router DOM; wraps pages in layouts; defines token verification guards; manages SSE connections via `EventSource` and publishes custom sync event triggers.
 * **Dependencies**: `react`, `react-router-dom`.
-* **What Calls It**: Client entry point [`main.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/main.tsx).
+* **What Calls It**: Client entry point [`main.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/frontend/src/main.tsx).
 * **What It Calls**: Routed views (`HomePage`, `ApplyPage`, `VerifyCertificatePage`, `AdminDashboardPage`, `AdminUsersPage`, etc.).
 * **Required for Production**: Yes.
 
-#### 3. [`frontend/src/pages/AdminDashboardPage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/pages/AdminDashboardPage.tsx)
+#### 3. [`frontend/src/pages/AdminDashboardPage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/frontend/src/pages/AdminDashboardPage.tsx)
 * **Purpose**: Admin Roster & Dispatch Console view.
 * **Responsibility**: Renders list tables for applications, events, and hackathon teams; provides search filters, branch selection tabs, and status controls; executes backend API calls for bulk dispatches and renders log streams in a drawer.
 * **Dependencies**: `react`, `react-router-dom`, `lucide-react`.
@@ -1599,7 +1684,7 @@ FUNCTION initializeClientSync():
 * **What It Calls**: `GET /api/admin/applications`, `POST /api/admin/applications/status`, `POST /api/admin/bulk-send/offers`, `POST /api/admin/bulk-send/certificates`, `POST /api/admin/bulk-send/hackathon-certificates`.
 * **Required for Production**: Yes.
 
-#### 4. [`frontend/src/pages/VerifyCertificatePage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/pages/VerifyCertificatePage.tsx)
+#### 4. [`frontend/src/pages/VerifyCertificatePage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/frontend/src/pages/VerifyCertificatePage.tsx)
 * **Purpose**: Public Certificate Authenticator.
 * **Responsibility**: Validates credential codes, retrieves student registration metadata from the backend API, and draws the generated certificate PDF inside a responsive 16:9 frame.
 * **Dependencies**: `react`, `react-router-dom`, `lucide-react`.
@@ -1607,7 +1692,7 @@ FUNCTION initializeClientSync():
 * **What It Calls**: `GET /api/verify-certificate/[id]` (metadata) and `GET /api/verify-certificate/[id]/pdf` (iframe loader).
 * **Required for Production**: Yes.
 
-#### 5. [`frontend/src/pages/ApplyPage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/pages/ApplyPage.tsx)
+#### 5. [`frontend/src/pages/ApplyPage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/frontend/src/pages/ApplyPage.tsx)
 * **Purpose**: Public Application Forms portal.
 * **Responsibility**: Renders dynamic signup screens for club recruitment, event attendance, and hackathon teams; handles real-time addition/removal of team member row profiles; filters out hackathons from the event dropdown list in the event registration form; enforces strict client-side email format validation with interactive error alerts upon submission.
 * **Dependencies**: `react`, `react-router-dom`.
@@ -1615,26 +1700,52 @@ FUNCTION initializeClientSync():
 * **What It Calls**: `GET /api/events`, `GET /api/branches`, `POST /api/apply/club`, `POST /api/apply/event`, `POST /api/apply/hackathon`.
 * **Required for Production**: Yes.
 
-#### 6. [`backend/Dockerfile`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/Dockerfile)
+#### 6. [`backend/Dockerfile`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/Dockerfile)
 * **Purpose**: Docker Container configuration.
 * **Responsibility**: Orchestrates Debian-based container packaging; installs node runtime dependencies alongside headless LibreOffice and system fonts (Dejavu, Carlito, Cardo, Bebas Neue, Calibri, Arial, Times New Roman).
 * **Dependencies**: `node:20-bullseye-slim` base image.
 * **What Calls It**: Cloud Render deployment runner.
 * **Required for Production**: Yes (for Docker host environments).
 
-#### 7. [`backend/update_db_templates.js`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/update_db_templates.js)
+#### 7. [`backend/update_db_templates.js`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/update_db_templates.js)
 * **Purpose**: PowerPoint Template Sync script.
 * **Responsibility**: Reads local PowerPoint templates (`CERTIFICATE_TEMPLATE.pptx`, `CERTIFICATE_TEMPLATE - APPRECIATION.pptx`), converts them to Base64, and syncs them into the database.
 * **Dependencies**: `@libsql/client`, `fs`, `dotenv`.
 * **What Calls It**: Developer Terminal command run.
 * **Required for Production**: No (utility script for setup/migration).
 
-#### 8. [`backend/clear_db.js`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/clear_db.js)
+#### 8. [`backend/clear_db.js`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/clear_db.js)
 * **Purpose**: Database Reset script.
 * **Responsibility**: Clears all candidate entries, registrations, hackathon teams, and activity logs from the database, resetting auto-increment IDs.
 * **Dependencies**: `@libsql/client`, `dotenv`.
 * **What Calls It**: Developer Terminal command run.
 * **Required for Production**: No (test/development utility only).
+
+#### 9. [`frontend/src/pages/AdminMessagingPage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/frontend/src/pages/AdminMessagingPage.tsx)
+* **Purpose**: Event Messaging & Announcement Broadcast Composer.
+* **Responsibility**: Provides multi-audience selection (Members, Judges, Coordinators, Volunteers, Select All), live recipient count preview, locked top greeting and bottom sign-off boilerplate, middle announcement editor, live email preview modal, and batch dispatch integration.
+* **Dependencies**: `react`, `lucide-react`, `API_BASE_URL`.
+* **Required for Production**: Yes.
+
+#### 10. [`frontend/src/pages/AdminRegDeskPage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/frontend/src/pages/AdminRegDeskPage.tsx)
+* **Purpose**: Registration Desk Coordinator Account Manager.
+* **Responsibility**: Manages desk user accounts, issues 6-character temporary passwords with 1-week expiry, assigns events, and toggles active status.
+* **Required for Production**: Yes.
+
+#### 11. [`frontend/src/pages/RegDeskLoginPage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/frontend/src/pages/RegDeskLoginPage.tsx)
+* **Purpose**: Dedicated Registration Desk Sign-in Interface.
+* **Responsibility**: Provides Desk ID and 6-box OTP temporary password inputs, session storage under `reg_desk_token`, and redirection to the check-in dashboard.
+* **Required for Production**: Yes.
+
+#### 12. [`frontend/src/pages/RegDeskDashboardPage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/frontend/src/pages/RegDeskDashboardPage.tsx)
+* **Purpose**: On-Site Event Check-in & Attendance Terminal.
+* **Responsibility**: Live attendee search, check-in validation, attendance marking with timestamp and coordinator signature, and badge/kit distribution tracking.
+* **Required for Production**: Yes.
+
+#### 13. [`frontend/src/pages/AdminRoomsPage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/frontend/src/pages/AdminRoomsPage.tsx)
+* **Purpose**: Event & Hackathon Room / Lab Allocation Manager.
+* **Responsibility**: Allocates computer labs, presentation halls, and review venues, managing room capacities and assigned check-in desks.
+* **Required for Production**: Yes.
 
 ---
 
@@ -1647,7 +1758,7 @@ FUNCTION initializeClientSync():
 * **`App.tsx`**: Configures routes, layouts, and handles the SSE `EventSource` connection, dispatching custom `app-sync` events to update state.
 
 ### Reusable Styling System
-Styling is managed via [`frontend/src/index.css`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/index.css). Key parameters:
+Styling is managed via [`frontend/src/index.css`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/frontend/src/index.css). Key parameters:
 * **Theming**: Selectors `:root` (light) and `[data-theme="dark"]` define color tokens.
 * **Core Variables**: Colors like `--primary-rgb`, `--accent-rgb`, `--bg-dark`, and font-families (`Outfit`, `Inter`).
 * **Glassmorphism**: `.glass-panel` utilizes `backdrop-filter: blur(12px)` and transparent border variables.
@@ -1860,15 +1971,15 @@ Styling is managed via [`frontend/src/index.css`](file:///c:/Users/bhuth/OneDriv
 
 #### 4. Important Code Files
 
-* **`replacePlaceholdersInPptx()`** ([`backend/src/index.ts:L1134-1222`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts#L1134-1222)):
+* **`replacePlaceholdersInPptx()`** ([`backend/src/index.ts:L1134-1222`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/src/index.ts#L1134-1222)):
   Low-level XML parser. Opens the PPTX file structure, targets slide layouts, updates placeholders dynamically, and disables text-box wrapping configurations to maintain certificate margins.
-* **`convertPptxToPdfBatch()`** ([`backend/src/index.ts:L1291-1324`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts#L1291-1324)):
+* **`convertPptxToPdfBatch()`** ([`backend/src/index.ts:L1291-1324`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/src/index.ts#L1291-1324)):
   Handles batch conversions using LibreOffice CLI (`soffice`), converting all PPTX templates to PDF in a single call to save resources.
-* **`setupDatabase()`** ([`backend/src/index.ts:L80-484`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts#L80-484)):
+* **`setupDatabase()`** ([`backend/src/index.ts:L80-484`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/src/index.ts#L80-484)):
   Runs database setup on start, verifying tables exist and seeding initial values (branches, users, default events).
-* **`AdminDashboardPage`** ([`AdminDashboardPage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/pages/AdminDashboardPage.tsx)):
+* **`AdminDashboardPage`** ([`AdminDashboardPage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/frontend/src/pages/AdminDashboardPage.tsx)):
   Admin panel featuring a real-time event-log console drawer, attendee table filtering, and action status updates.
-* **`VerifyCertificatePage`** ([`VerifyCertificatePage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/pages/VerifyCertificatePage.tsx)):
+* **`VerifyCertificatePage`** ([`VerifyCertificatePage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/frontend/src/pages/VerifyCertificatePage.tsx)):
   Renders the public verification view, drawing certificate details dynamically inside a 16:9 widescreen frame.
 
 ---
@@ -1877,7 +1988,7 @@ Styling is managed via [`frontend/src/index.css`](file:///c:/Users/bhuth/OneDriv
 ### C. Configuration and Deployment
 #### 1. Environment Variables
 
-Below are the environment variables defined within [`backend/src/index.ts`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts):
+Below are the environment variables defined within [`backend/src/index.ts`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/src/index.ts):
 
 | Variable | Purpose | Required | Example | Used By |
 | :--- | :--- | :--- | :--- | :--- |
@@ -1914,7 +2025,7 @@ The backend API server requires a Linux container to execute headless LibreOffic
 
 * **Service Type**: Web Service (Docker-based).
 * **Repository & Branch**: Master/main branch of the connected GitHub/GitLab repository.
-* **Docker Image**: Builds on `node:20-bullseye-slim` (defined in the [`backend/Dockerfile`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/Dockerfile)).
+* **Docker Image**: Builds on `node:20-bullseye-slim` (defined in the [`backend/Dockerfile`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/Dockerfile)).
 * **Build Command**: Custom commands are handled by the Docker file, which executes `npm install` and `npm run build` (compiles TypeScript to JS under the `/app/dist` folder) automatically inside the container.
 * **Start Command**: `npm start` (runs `node dist/index.js`).
 * **Root Directory**: `backend` (configured in the Render settings page).
@@ -2000,7 +2111,7 @@ To prevent Render instances from going into sleep mode (avoiding the 50-second c
 Frontend React assets are built and deployed directly to Firebase Hosting.
 
 #### Firebase Deployment Steps:
-1. Update `VITE_API_URL` inside [`frontend/.env.production`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/.env.production) with the Render API URL.
+1. Update `VITE_API_URL` inside [`frontend/.env.production`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/frontend/.env.production) with the Render API URL.
 2. Build the optimized static assets:
    ```bash
    cd frontend
@@ -2050,7 +2161,7 @@ GMAIL_HTTP_PROXY_URL=your_google_script_deployment_url
    node update_db_templates.js
    ```
 2. Download and install custom fonts so local LibreOffice installs match templates:
-   * **Windows**: Right-click and execute the PowerShell script [`download_fonts.ps1`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/download_fonts.ps1) with Admin privileges. Select all files in the explorer window, right-click, and click **Install**.
+   * **Windows**: Right-click and execute the PowerShell script [`download_fonts.ps1`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/download_fonts.ps1) with Admin privileges. Select all files in the explorer window, right-click, and click **Install**.
    * **Linux/Ubuntu**: Copy the TTF files from the `fonts` folder to `/usr/share/fonts/truetype/` and update font cache: `fc-cache -fv`.
 
 ### Step 4: Run Development Servers
@@ -2122,7 +2233,7 @@ Before deploying changes, verify the following:
 - [ ] Verify that `GMAIL_HTTP_PROXY_URL` is set to bypass Render SMTP port blocks.
 - [ ] Run the template synchronization script (`node update_db_templates.js`) to sync PowerPoint templates into the DB.
 - [ ] Download and install the custom fonts (Cardo and Bebas Neue) on the local host or verify they are in the Docker image.
-- [ ] Update the production API endpoint `VITE_API_URL` inside [`frontend/.env.production`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/.env.production).
+- [ ] Update the production API endpoint `VITE_API_URL` inside [`frontend/.env.production`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/frontend/.env.production).
 - [ ] Run `npm run build` inside the `frontend` folder and verify it builds without errors.
 - [ ] Deploy the backend to Render and verify the deployment status is "Live".
 - [ ] Deploy the frontend to Firebase and confirm the site loads over HTTPS.
@@ -2135,20 +2246,20 @@ Before deploying changes, verify the following:
 Follow these steps to update or add features:
 
 ### A. Adding a New Frontend Page
-1. Create a page component in [`frontend/src/pages/`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/pages).
-2. Configure the route mapping inside [`frontend/src/App.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/App.tsx).
-3. If public, register the navigation path in [`Header.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/components/Header.tsx).
+1. Create a page component in [`frontend/src/pages/`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/frontend/src/pages).
+2. Configure the route mapping inside [`frontend/src/App.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/frontend/src/App.tsx).
+3. If public, register the navigation path in [`Header.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/frontend/src/components/Header.tsx).
 
 ### B. Adding a New Backend Endpoint
-1. Open [`backend/src/index.ts`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts).
+1. Open [`backend/src/index.ts`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/src/index.ts).
 2. Add the endpoint route and configure permissions (e.g. `authenticateToken` middleware for authenticated routes).
 3. Update the API reference table in this documentation.
 
 ### C. Updating the Database Schema
-1. Open [`backend/src/index.ts`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts).
+1. Open [`backend/src/index.ts`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/src/index.ts).
 2. Locate the database initialization script `setupDatabase()`.
 3. Add the new table query or execute `ALTER TABLE` schema changes.
-4. If necessary, update the clearing utility [`clear_db.js`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/clear_db.js) to clear the new table during resets.
+4. If necessary, update the clearing utility [`clear_db.js`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/clear_db.js) to clear the new table during resets.
 
 ---
 
@@ -2209,9 +2320,10 @@ cd ../frontend && npm run dev
   * Username: `akhya`
 
 ### Role-Based Access Control (RBAC)
-* **`developer`**: Can perform any dashboard action and create or delete other developers, superadmins, or admins.
-* **`superadmin`**: Can access all data, manage branches/events, and create/delete **admin** accounts only. Cannot create developers or delete other superadmins.
-* **`admin`**: Full access to dashboard rosters and bulk dispatch engines. Cannot create or view user profiles, manage administrators, or delete admin accounts.
+* **`developer`**: Superuser access. Can perform any dashboard action and create or delete other developers, superadmins, or admins.
+* **`superadmin`**: Administrative supervisor. Can access all data, manage branches/events, and create/delete **admin** accounts only. Cannot create developers or delete other superadmins.
+* **`admin`**: Operations manager. Full access to dashboard rosters, event messaging, room allocations, registration desk coordinators, and bulk dispatch engines. Cannot manage other admin user accounts.
+* **`reg_desk`**: Registration Desk coordinator. Isolated strictly to event check-in operations (`/api/reg-desk/*`). Blocked by middleware from accessing administrative controllers, user tables, or certificate generation pipelines.
 
 ### Authentication Flow
 The system utilizes a dual-authentication mechanism to support both local development (same-site cookies) and cross-site production deployments (Firebase and Render hosted on separate domains):
@@ -2368,7 +2480,7 @@ graph TD
 
 | Test Case ID | Test Component / Function | Test Input & Conditions | Expected Result | Actual Result Obtained | Status | Bugs Found & Fixes Applied |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **UT-001** | `findTemplateFile` | Input: `'CERTIFICATE_TEMPLATE.pptx'` (Running in backend root) | Resolve to absolute path on container filesystem | Resolved: `c:\Users\bhuth\OneDrive\Desktop\New folder\CERTIFICATE_TEMPLATE.pptx` | **PASS** | None |
+| **UT-001** | `findTemplateFile` | Input: `'CERTIFICATE_TEMPLATE.pptx'` (Running in backend root) | Resolve to absolute path on container filesystem | Resolved: `c:\Users\bhuth\OneDrive\Desktop\CER\CERTIFICATE_TEMPLATE.pptx` | **PASS** | None |
 | **UT-002** | `findTemplateFile` | Input: `'MISSING_TEMPLATE.pptx'` | Return `null` safely | Returned `null` | **PASS** | None |
 | **UT-003** | Template Casing Norm | Inputs: `"won second place"`, `"PARTICIPATION"`, `"coordinator"` | Normalize to `"Won Second Place"`, `"Participation"`, `"Coordinator"` | Normalized outputs returned exactly | **PASS** | None |
 | **UT-004** | Date Formatter utility | Input: ISO Timestamp `2026-08-16T17:48:40` | Output: Formatted string `"August 16, 2026"` | Returned `"August 16, 2026"` | **PASS** | None |
@@ -2508,7 +2620,7 @@ graph TD
 
 ### E. Automated Integration Test Suite & Execution Logs
 
-To validate API endpoint connectivity, database record integrity, and route structures under a real server-side configuration, an automated integration test script was created at [`backend/test_suite.js`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/test_suite.js).
+To validate API endpoint connectivity, database record integrity, and route structures under a real server-side configuration, an automated integration test script was created at [`backend/test_suite.js`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/test_suite.js).
 
 #### Test Suite Implementation (`backend/test_suite.js`)
 ```javascript
@@ -2663,15 +2775,15 @@ runTests().catch(err => {
   Setting up Turso database tables...
   Seeding verification: Developer 'charan' verified/seeded.
   Seeding verification: Super Admin 'akhya' verified/seeded.
-  Syncing/updating 'offer_letter' template into database from C:\Users\bhuth\OneDrive\Desktop\New folder\backend\OFFER LETTER (1).pptx...
+  Syncing/updating 'offer_letter' template into database from C:\Users\bhuth\OneDrive\Desktop\CER\backend\OFFER LETTER (1).pptx...
   Template 'offer_letter' synced successfully.
-  Syncing/updating 'certificate_participation' template into database from C:\Users\bhuth\OneDrive\Desktop\New folder\backend\CERTIFICATE_TEMPLATE.pptx...
+  Syncing/updating 'certificate_participation' template into database from C:\Users\bhuth\OneDrive\Desktop\CER\backend\CERTIFICATE_TEMPLATE.pptx...
   Template 'certificate_participation' synced successfully.
-  Syncing/updating 'certificate' template into database from C:\Users\bhuth\OneDrive\Desktop\New folder\backend\CERTIFICATE_TEMPLATE.pptx...
+  Syncing/updating 'certificate' template into database from C:\Users\bhuth\OneDrive\Desktop\CER\backend\CERTIFICATE_TEMPLATE.pptx...
   Template 'certificate' synced successfully.
-  Syncing/updating 'certificate_appreciation' template into database from C:\Users\bhuth\OneDrive\Desktop\New folder\backend\CERTIFICATE_TEMPLATE - APPRECIATION.pptx...
+  Syncing/updating 'certificate_appreciation' template into database from C:\Users\bhuth\OneDrive\Desktop\CER\backend\CERTIFICATE_TEMPLATE - APPRECIATION.pptx...
   Template 'certificate_appreciation' synced successfully.
-  Syncing/updating 'certificate_hackathon' template into database from C:\Users\bhuth\OneDrive\Desktop\New folder\backend\CERTIFICATE_TEMPLATE - hackathon.pptx...
+  Syncing/updating 'certificate_hackathon' template into database from C:\Users\bhuth\OneDrive\Desktop\CER\backend\CERTIFICATE_TEMPLATE - hackathon.pptx...
 
   === TEST SUITE RESULTS SUMMARY ===
   Executed: 5 | Passed: 5 | Failed: 0
@@ -2791,7 +2903,7 @@ graph TD
   * Deployed a custom **Google Apps Script** relay proxy exposing a secure REST HTTP endpoint.
   * Updated backend dispatch routines to compile candidate details, convert PDFs to Base64 buffers, and POST them as standard JSON payloads to the Apps Script endpoint over port `443` (unblocked HTTPS).
 * **Files & Components Affected**:
-  * [`backend/src/index.ts`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts#L1375-1586) (Outbound mail routing endpoints).
+  * [`backend/src/index.ts`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/src/index.ts#L1375-1586) (Outbound mail routing endpoints).
 * **Before / After Code Comparison**:
   ```diff
   // BEFORE: Direct SMTP connections (Blocked by Render)
@@ -2846,7 +2958,7 @@ graph TD
 * **Fix & Solution Implemented**:
   * Configured Node.js's global DNS resolution order at backend initialization to force IPv4 targets to resolve first.
 * **Files & Components Affected**:
-  * [`backend/src/index.ts`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts#L15-L16) (API Server boot entry point).
+  * [`backend/src/index.ts`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/src/index.ts#L15-L16) (API Server boot entry point).
 * **Before / After Code Comparison**:
   ```diff
   // BEFORE: Direct node startup
@@ -2884,7 +2996,7 @@ graph TD
 * **Fix & Solution Implemented**:
   * Re-ordered the component body so that the declaration and definition of `handleVerify` sits above any mount effect hooks (`useEffect`) that invoke it.
 * **Files & Components Affected**:
-  * [`frontend/src/pages/VerifyCertificatePage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/pages/VerifyCertificatePage.tsx) (Public lookup form).
+  * [`frontend/src/pages/VerifyCertificatePage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/frontend/src/pages/VerifyCertificatePage.tsx) (Public lookup form).
 * **Before / After Code Comparison**:
   ```diff
   // BEFORE: Const definition placed below hook invoker
@@ -2933,10 +3045,10 @@ graph TD
   * Wrapped mounting handler invocations inside asynchronous `setTimeout(..., 0)` scopes, scheduling state updates to compile on the browser's next event loop tick and avoiding render collisions.
   * Added rules overrides to the ESLint config file to suppress alerts for auxiliary navigation wrappers.
 * **Files & Components Affected**:
-  * [`frontend/src/pages/AdminUsersPage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/pages/AdminUsersPage.tsx)
-  * [`frontend/src/pages/AdminManageEventsPage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/pages/AdminManageEventsPage.tsx)
-  * [`frontend/src/pages/VerifyCertificatePage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/src/pages/VerifyCertificatePage.tsx)
-  * [`frontend/eslint.config.js`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/frontend/eslint.config.js)
+  * [`frontend/src/pages/AdminUsersPage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/frontend/src/pages/AdminUsersPage.tsx)
+  * [`frontend/src/pages/AdminManageEventsPage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/frontend/src/pages/AdminManageEventsPage.tsx)
+  * [`frontend/src/pages/VerifyCertificatePage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/frontend/src/pages/VerifyCertificatePage.tsx)
+  * [`frontend/eslint.config.js`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/frontend/eslint.config.js)
 * **Before / After Code Comparison**:
   ```diff
   // BEFORE: Direct execution inside mounting effect
@@ -3120,7 +3232,7 @@ graph TD
   * **Backend API Server**: [https://rd-backend-kbsm.onrender.com](https://rd-backend-kbsm.onrender.com)
 * **Subsystem Integrations**:
   * **PowerPoint Customization**: The `PizZip` XML compiler runs successfully in memory, updating dynamic tags without layout corruption.
-  * **Batch PDF Generation**: Headless LibreOffice CLI (`soffice`) compiles PowerPoint drafts into PDFs inside the container, utilizing isolation switches and concurrency-limited scheduling ([`runWithConcurrency`](file:///c:/Users/bhuth/OneDrive/Desktop/New%20folder/backend/src/index.ts#L1327-L1359)).
+  * **Batch PDF Generation**: Headless LibreOffice CLI (`soffice`) compiles PowerPoint drafts into PDFs inside the container, utilizing isolation switches and concurrency-limited scheduling ([`runWithConcurrency`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/src/index.ts#L1327-L1359)).
   * **Email Routing**: Outbound SMTP port blocks on Render are successfully bypassed by encoding compiled attachments in Base64 and posting them to a custom **Google Apps Script** proxy Web App, which relays dispatches directly via Google Mail APIs.
   * **Real-time Synchronization**: Server-Sent Events (SSE) keep open connections with admin clients to synchronize state mutations dynamically across dashboards.
 
