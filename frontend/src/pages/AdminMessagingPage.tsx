@@ -5,10 +5,6 @@ import {
   Mail, 
   Send, 
   Users, 
-  Calendar, 
-  Award, 
-  HeartHandshake, 
-  Sparkles, 
   CheckCircle2, 
   AlertCircle, 
   Loader2, 
@@ -16,8 +12,7 @@ import {
   Edit3, 
   RotateCcw,
   CheckSquare,
-  Square,
-  Info
+  Square
 } from 'lucide-react';
 
 interface EventItem {
@@ -264,19 +259,20 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`;
 
   return (
     <AdminLayout>
-      <div className="admin-page-container" style={{ maxWidth: '1280px', margin: '0 auto', paddingBottom: '3rem' }}>
-        {/* Top Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
+      <div className="admin-page-container" style={{ maxWidth: '1280px', margin: '0 auto', paddingBottom: '1rem' }}>
+        {/* Top Header (Compact & Viewport-Friendly) */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem', flexWrap: 'wrap', gap: '0.75rem' }}>
           <div>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', backgroundColor: '#ecfdf5', color: '#047857', padding: '0.2rem 0.65rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.35rem', border: '1px solid #a7f3d0' }}>
-              <Mail size={13} />
-              <span>Event Communication Broadcast</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+              <h1 style={{ fontSize: '1.45rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                Event Messaging
+              </h1>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', backgroundColor: '#ecfdf5', color: '#047857', padding: '0.15rem 0.6rem', borderRadius: '9999px', fontSize: '0.72rem', fontWeight: 700, border: '1px solid #a7f3d0' }}>
+                <Mail size={12} /> Broadcast
+              </span>
             </div>
-            <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
-              Event Messaging
-            </h1>
-            <p style={{ color: '#64748b', fontSize: '0.875rem', margin: '0.2rem 0 0 0' }}>
-              Compose and send targeted emails directly to participants, judges, coordinators, and volunteers
+            <p style={{ color: '#64748b', fontSize: '0.8rem', margin: '0.15rem 0 0 0' }}>
+              Targeted messaging to event participants, judges, coordinators, and volunteers
             </p>
           </div>
 
@@ -284,9 +280,9 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`;
             type="button"
             onClick={() => setShowPreviewModal(true)}
             className="btn btn-secondary"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.85rem', fontWeight: 600, padding: '0.6rem 1.1rem' }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', fontWeight: 600, padding: '0.45rem 0.95rem' }}
           >
-            <Eye size={16} color="#059669" />
+            <Eye size={15} color="#059669" />
             <span>Live Email Preview</span>
           </button>
         </div>
@@ -295,25 +291,25 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`;
         {statusMessage && (
           <div
             style={{
-              padding: '0.9rem 1.25rem',
-              borderRadius: '12px',
-              marginBottom: '1.25rem',
+              padding: '0.65rem 1rem',
+              borderRadius: '10px',
+              marginBottom: '0.85rem',
               display: 'flex',
               alignItems: 'center',
-              gap: '0.75rem',
+              gap: '0.6rem',
               backgroundColor: statusMessage.type === 'success' ? '#f0fdf4' : '#fef2f2',
               border: `1px solid ${statusMessage.type === 'success' ? '#bbf7d0' : '#fecaca'}`,
               color: statusMessage.type === 'success' ? '#15803d' : '#b91c1c',
-              fontSize: '0.9rem',
+              fontSize: '0.85rem',
               fontWeight: 600
             }}
           >
-            {statusMessage.type === 'success' ? <CheckCircle2 size={20} /> : <AlertCircle size={20} />}
+            {statusMessage.type === 'success' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
             <span style={{ flex: 1 }}>{statusMessage.text}</span>
             <button
               type="button"
               onClick={() => setStatusMessage(null)}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', fontWeight: 800, fontSize: '1.2rem' }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', fontWeight: 800, fontSize: '1.1rem' }}
             >
               ×
             </button>
@@ -323,8 +319,8 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`;
         <style>{`
           .messaging-grid-layout {
             display: grid;
-            grid-template-columns: 370px 1fr;
-            gap: 1.5rem;
+            grid-template-columns: 350px 1fr;
+            gap: 1.15rem;
             align-items: start;
           }
           @media (max-width: 990px) {
@@ -339,64 +335,53 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`;
           }
         `}</style>
 
-        {/* 2-COLUMN LAYOUT: Left (Event & Recipients) + Right (Subject & Write Message Box) */}
+        {/* 2-COLUMN COMPACT WORKSPACE */}
         <form onSubmit={handleSendSubmit}>
           <div className="messaging-grid-layout">
             
-            {/* LEFT COLUMN: 1. Select Event & 2. Select Recipients */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            {/* LEFT COLUMN: 1. Target Event & 2. Select Recipients in ONE Unified Panel */}
+            <div className="card" style={{ padding: '1.15rem', borderRadius: '14px', border: '1px solid #e2e8f0', backgroundColor: '#ffffff', display: 'flex', flexDirection: 'column', gap: '0.85rem', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
               
               {/* 1. SELECT EVENT */}
-              <div className="card" style={{ padding: '1.35rem', borderRadius: '16px', border: '1px solid #e2e8f0', backgroundColor: '#ffffff' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.85rem' }}>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '26px', height: '26px', borderRadius: '50%', backgroundColor: '#059669', color: '#ffffff', fontSize: '0.8rem', fontWeight: 800 }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.45rem' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '22px', height: '22px', borderRadius: '50%', backgroundColor: '#059669', color: '#ffffff', fontSize: '0.75rem', fontWeight: 800 }}>
                     1
                   </span>
-                  <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#0f172a' }}>
+                  <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#0f172a' }}>
                     Select Event
                   </h3>
                 </div>
 
-                <div className="form-group" style={{ marginBottom: '0.75rem' }}>
-                  <label style={{ fontSize: '0.82rem', fontWeight: 600, color: '#475569', marginBottom: '0.35rem', display: 'block' }}>
-                    Target Event
-                  </label>
-                  <select
-                    className="form-control"
-                    value={selectedEvent}
-                    onChange={(e) => handleEventSelect(e.target.value)}
-                    style={{ fontWeight: 600, padding: '0.65rem 0.85rem', borderColor: '#cbd5e1' }}
-                  >
-                    {events.length === 0 ? (
-                      <option value="">No events found</option>
-                    ) : (
-                      events.map((ev) => (
-                        <option key={ev.id} value={ev.title}>
-                          {ev.title} ({ev.category})
-                        </option>
-                      ))
-                    )}
-                  </select>
-                </div>
-
-                {selectedEvent && (
-                  <div style={{ backgroundColor: '#f0fdf4', padding: '0.65rem 0.85rem', borderRadius: '8px', border: '1px solid #bbf7d0', fontSize: '0.8rem', color: '#166534' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 600 }}>
-                      <Calendar size={14} color="#059669" />
-                      <span>{selectedEvent}</span>
-                    </div>
-                  </div>
-                )}
+                <select
+                  className="form-control"
+                  value={selectedEvent}
+                  onChange={(e) => handleEventSelect(e.target.value)}
+                  style={{ fontWeight: 600, padding: '0.45rem 0.75rem', fontSize: '0.85rem', borderColor: '#cbd5e1' }}
+                >
+                  {events.length === 0 ? (
+                    <option value="">No events found</option>
+                  ) : (
+                    events.map((ev) => (
+                      <option key={ev.id} value={ev.title}>
+                        {ev.title} ({ev.category})
+                      </option>
+                    ))
+                  )}
+                </select>
               </div>
 
+              {/* DIVIDER */}
+              <div style={{ height: '1px', backgroundColor: '#f1f5f9' }} />
+
               {/* 2. SELECT RECIPIENTS */}
-              <div className="card" style={{ padding: '1.35rem', borderRadius: '16px', border: '1px solid #e2e8f0', backgroundColor: '#ffffff' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '26px', height: '26px', borderRadius: '50%', backgroundColor: '#059669', color: '#ffffff', fontSize: '0.8rem', fontWeight: 800 }}>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.55rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '22px', height: '22px', borderRadius: '50%', backgroundColor: '#059669', color: '#ffffff', fontSize: '0.75rem', fontWeight: 800 }}>
                       2
                     </span>
-                    <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#0f172a' }}>
+                    <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#0f172a' }}>
                       Select Recipients
                     </h3>
                   </div>
@@ -408,48 +393,46 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`;
                       background: 'none',
                       border: 'none',
                       color: '#059669',
-                      fontSize: '0.8rem',
+                      fontSize: '0.78rem',
                       fontWeight: 700,
                       cursor: 'pointer',
                       display: 'inline-flex',
                       alignItems: 'center',
-                      gap: '0.25rem'
+                      gap: '0.2rem'
                     }}
                   >
-                    {isAllSelected ? <CheckSquare size={16} /> : <Square size={16} />}
+                    {isAllSelected ? <CheckSquare size={14} /> : <Square size={14} />}
                     <span>Select All</span>
                   </button>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
-                  {/* Members / Participants */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.38rem' }}>
+                  {/* Members */}
                   <label
                     onClick={() => toggleGroup('members')}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      padding: '0.65rem 0.85rem',
+                      padding: '0.42rem 0.65rem',
                       borderRadius: '8px',
                       border: `1.5px solid ${recipients.members ? '#10b981' : '#e2e8f0'}`,
                       backgroundColor: recipients.members ? '#f0fdf4' : '#ffffff',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease'
+                      cursor: 'pointer'
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
                       <input
                         type="checkbox"
                         checked={recipients.members}
                         onChange={() => {}}
-                        style={{ accentColor: '#059669', width: '16px', height: '16px' }}
+                        style={{ accentColor: '#059669', width: '15px', height: '15px' }}
                       />
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.88rem', fontWeight: 600, color: '#1e293b' }}>
-                        <Users size={16} color="#059669" />
-                        <span>Members (Participants)</span>
-                      </div>
+                      <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#1e293b' }}>
+                        Members (Participants)
+                      </span>
                     </div>
-                    <span style={{ fontSize: '0.78rem', fontWeight: 700, padding: '0.15rem 0.6rem', borderRadius: '9999px', backgroundColor: recipients.members ? '#bbf7d0' : '#f1f5f9', color: recipients.members ? '#166534' : '#64748b' }}>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '0.1rem 0.45rem', borderRadius: '9999px', backgroundColor: recipients.members ? '#bbf7d0' : '#f1f5f9', color: recipients.members ? '#166534' : '#64748b' }}>
                       {counts.members}
                     </span>
                   </label>
@@ -461,27 +444,25 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`;
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      padding: '0.65rem 0.85rem',
+                      padding: '0.42rem 0.65rem',
                       borderRadius: '8px',
                       border: `1.5px solid ${recipients.judges ? '#10b981' : '#e2e8f0'}`,
                       backgroundColor: recipients.judges ? '#f0fdf4' : '#ffffff',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease'
+                      cursor: 'pointer'
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
                       <input
                         type="checkbox"
                         checked={recipients.judges}
                         onChange={() => {}}
-                        style={{ accentColor: '#059669', width: '16px', height: '16px' }}
+                        style={{ accentColor: '#059669', width: '15px', height: '15px' }}
                       />
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.88rem', fontWeight: 600, color: '#1e293b' }}>
-                        <Award size={16} color="#0284c7" />
-                        <span>Judges</span>
-                      </div>
+                      <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#1e293b' }}>
+                        Judges
+                      </span>
                     </div>
-                    <span style={{ fontSize: '0.78rem', fontWeight: 700, padding: '0.15rem 0.6rem', borderRadius: '9999px', backgroundColor: recipients.judges ? '#bbf7d0' : '#f1f5f9', color: recipients.judges ? '#166534' : '#64748b' }}>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '0.1rem 0.45rem', borderRadius: '9999px', backgroundColor: recipients.judges ? '#bbf7d0' : '#f1f5f9', color: recipients.judges ? '#166534' : '#64748b' }}>
                       {counts.judges}
                     </span>
                   </label>
@@ -493,27 +474,25 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`;
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      padding: '0.65rem 0.85rem',
+                      padding: '0.42rem 0.65rem',
                       borderRadius: '8px',
                       border: `1.5px solid ${recipients.coordinators ? '#10b981' : '#e2e8f0'}`,
                       backgroundColor: recipients.coordinators ? '#f0fdf4' : '#ffffff',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease'
+                      cursor: 'pointer'
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
                       <input
                         type="checkbox"
                         checked={recipients.coordinators}
                         onChange={() => {}}
-                        style={{ accentColor: '#059669', width: '16px', height: '16px' }}
+                        style={{ accentColor: '#059669', width: '15px', height: '15px' }}
                       />
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.88rem', fontWeight: 600, color: '#1e293b' }}>
-                        <Sparkles size={16} color="#d97706" />
-                        <span>Coordinators</span>
-                      </div>
+                      <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#1e293b' }}>
+                        Coordinators
+                      </span>
                     </div>
-                    <span style={{ fontSize: '0.78rem', fontWeight: 700, padding: '0.15rem 0.6rem', borderRadius: '9999px', backgroundColor: recipients.coordinators ? '#bbf7d0' : '#f1f5f9', color: recipients.coordinators ? '#166534' : '#64748b' }}>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '0.1rem 0.45rem', borderRadius: '9999px', backgroundColor: recipients.coordinators ? '#bbf7d0' : '#f1f5f9', color: recipients.coordinators ? '#166534' : '#64748b' }}>
                       {counts.coordinators}
                     </span>
                   </label>
@@ -525,102 +504,80 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`;
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      padding: '0.65rem 0.85rem',
+                      padding: '0.42rem 0.65rem',
                       borderRadius: '8px',
                       border: `1.5px solid ${recipients.volunteers ? '#10b981' : '#e2e8f0'}`,
                       backgroundColor: recipients.volunteers ? '#f0fdf4' : '#ffffff',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease'
+                      cursor: 'pointer'
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
                       <input
                         type="checkbox"
                         checked={recipients.volunteers}
                         onChange={() => {}}
-                        style={{ accentColor: '#059669', width: '16px', height: '16px' }}
+                        style={{ accentColor: '#059669', width: '15px', height: '15px' }}
                       />
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.88rem', fontWeight: 600, color: '#1e293b' }}>
-                        <HeartHandshake size={16} color="#db2777" />
-                        <span>Volunteers</span>
-                      </div>
+                      <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#1e293b' }}>
+                        Volunteers
+                      </span>
                     </div>
-                    <span style={{ fontSize: '0.78rem', fontWeight: 700, padding: '0.15rem 0.6rem', borderRadius: '9999px', backgroundColor: recipients.volunteers ? '#bbf7d0' : '#f1f5f9', color: recipients.volunteers ? '#166534' : '#64748b' }}>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '0.1rem 0.45rem', borderRadius: '9999px', backgroundColor: recipients.volunteers ? '#bbf7d0' : '#f1f5f9', color: recipients.volunteers ? '#166534' : '#64748b' }}>
                       {counts.volunteers}
                     </span>
                   </label>
                 </div>
 
-                {/* Total Recipients Count Banner */}
-                <div style={{ marginTop: '1rem', paddingTop: '0.85rem', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ color: '#64748b', fontSize: '0.85rem', fontWeight: 600 }}>Total Unique Recipients:</span>
-                  <strong style={{ color: '#059669', fontSize: '1.15rem', fontWeight: 800 }}>
+                {/* TOTAL RECIPIENTS BANNER (ALWAYS VISIBLE DIRECTLY ON SCREEN) */}
+                <div style={{ marginTop: '0.75rem', padding: '0.55rem 0.75rem', borderRadius: '8px', backgroundColor: '#ecfdf5', border: '1px solid #a7f3d0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: '#065f46', fontSize: '0.82rem', fontWeight: 700 }}>Total Audience:</span>
+                  <strong style={{ color: '#047857', fontSize: '1.05rem', fontWeight: 800 }}>
                     {isLoadingPreview ? '...' : `${counts.total} recipients`}
                   </strong>
                 </div>
 
                 {previewList.length > 0 && (
-                  <div style={{ marginTop: '0.75rem', padding: '0.6rem 0.75rem', borderRadius: '8px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', fontSize: '0.75rem', color: '#64748b' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 700, color: '#334155', marginBottom: '0.35rem' }}>
-                      <Info size={13} color="#059669" />
-                      <span>Sample verified recipients ({Math.min(previewList.length, 3)} of {counts.total}):</span>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                      {previewList.slice(0, 3).map((r, i) => (
-                        <div key={i} style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', padding: '0.2rem 0.45rem', borderRadius: '4px', fontSize: '0.72rem', color: '#334155' }}>
-                          <strong>{r.name || 'Recipient'}</strong> &lt;{r.email}&gt;
-                        </div>
-                      ))}
-                      {counts.total > 3 && (
-                        <span style={{ color: '#059669', fontWeight: 700, marginTop: '0.15rem' }}>
-                          +{counts.total - 3} more contacts ready
-                        </span>
-                      )}
-                    </div>
+                  <div style={{ marginTop: '0.45rem', fontSize: '0.72rem', color: '#64748b' }}>
+                    <span>Verified: {previewList[0]?.name || 'Mohammad Fayaz'} {counts.total > 1 ? `+ ${counts.total - 1} others` : ''}</span>
                   </div>
                 )}
               </div>
             </div>
 
-            {/* RIGHT COLUMN: 3. SUBJECT & 4. WRITE MESSAGE & 5. SEND (HERO COMPOSER) */}
-            <div className="card" style={{ padding: '1.75rem', borderRadius: '16px', border: '1.5px solid #cbd5e1', backgroundColor: '#ffffff', boxShadow: '0 4px 20px -2px rgba(0,0,0,0.06)' }}>
+            {/* RIGHT COLUMN: 3. SUBJECT & 4. WRITE MESSAGE & 5. SEND */}
+            <div className="card" style={{ padding: '1.15rem 1.35rem', borderRadius: '14px', border: '1.5px solid #cbd5e1', backgroundColor: '#ffffff', boxShadow: '0 4px 18px -2px rgba(0,0,0,0.05)' }}>
               
-              {/* Header for Composer */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', paddingBottom: '0.85rem', borderBottom: '1px solid #f1f5f9' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#059669', color: '#ffffff', fontSize: '0.85rem', fontWeight: 800 }}>
+              {/* Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', paddingBottom: '0.5rem', borderBottom: '1px solid #f1f5f9' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '24px', height: '24px', borderRadius: '50%', backgroundColor: '#059669', color: '#ffffff', fontSize: '0.75rem', fontWeight: 800 }}>
                     ✍️
                   </span>
-                  <div>
-                    <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: '#0f172a' }}>
-                      Write & Compose Message
-                    </h3>
-                    <span style={{ fontSize: '0.78rem', color: '#64748b' }}>
-                      Steps 3, 4 & 5: Type your subject line and complete message body
-                    </span>
-                  </div>
+                  <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
+                    Write & Compose Message
+                  </h3>
                 </div>
 
                 <button
                   type="button"
                   onClick={() => handleEventSelect(selectedEvent, true)}
                   title="Reset to default template"
-                  style={{ background: 'none', border: 'none', color: '#059669', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.3rem 0.6rem', borderRadius: '6px' }}
+                  style={{ background: 'none', border: 'none', color: '#059669', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.2rem 0.5rem' }}
                 >
-                  <RotateCcw size={14} /> Reset Template
+                  <RotateCcw size={12} /> Reset Template
                 </button>
               </div>
 
               {/* 3. SUBJECT FIELD */}
-              <div className="form-group" style={{ marginBottom: '1.25rem' }}>
-                <label style={{ fontSize: '0.88rem', fontWeight: 700, color: '#1e293b', marginBottom: '0.4rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '20px', height: '20px', borderRadius: '50%', backgroundColor: '#ecfdf5', color: '#047857', fontSize: '0.72rem', fontWeight: 800, border: '1px solid #a7f3d0' }}>3</span>
-                    <Edit3 size={15} color="#059669" />
-                    <strong>Subject Line</strong>
-                  </span>
-                  <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 500 }}>Editable by Admin</span>
-                </label>
+              <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+                  <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1e293b', margin: 0, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '18px', height: '18px', borderRadius: '50%', backgroundColor: '#ecfdf5', color: '#047857', fontSize: '0.68rem', fontWeight: 800, border: '1px solid #a7f3d0' }}>3</span>
+                    <Edit3 size={13} color="#059669" />
+                    <span>Subject Line</span>
+                  </label>
+                  <span style={{ fontSize: '0.7rem', color: '#64748b' }}>Editable</span>
+                </div>
                 <input
                   type="text"
                   required
@@ -628,87 +585,80 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`;
                   placeholder="Enter email subject line..."
                   value={subject}
                   onChange={(e) => setSubject(e.target.value)}
-                  style={{ fontWeight: 600, fontSize: '0.95rem', padding: '0.75rem 1rem', borderColor: '#cbd5e1', borderRadius: '8px' }}
+                  style={{ fontWeight: 600, fontSize: '0.88rem', padding: '0.5rem 0.75rem', borderColor: '#cbd5e1', borderRadius: '8px' }}
                 />
               </div>
 
               {/* 4. WRITE COMPLETE MESSAGE */}
-              <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.45rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                  <label style={{ fontSize: '0.88rem', fontWeight: 700, color: '#1e293b', margin: 0, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '20px', height: '20px', borderRadius: '50%', backgroundColor: '#ecfdf5', color: '#047857', fontSize: '0.72rem', fontWeight: 800, border: '1px solid #a7f3d0' }}>4</span>
-                    <Mail size={15} color="#059669" />
-                    <strong>Write Complete Message (Message Box)</strong>
+              <div className="form-group" style={{ marginBottom: '0.85rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                  <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1e293b', margin: 0, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '18px', height: '18px', borderRadius: '50%', backgroundColor: '#ecfdf5', color: '#047857', fontSize: '0.68rem', fontWeight: 800, border: '1px solid #a7f3d0' }}>4</span>
+                    <Mail size={13} color="#059669" />
+                    <span>Write Complete Message (Message Box)</span>
                   </label>
-                  <span style={{ fontSize: '0.75rem', color: '#059669', fontWeight: 700, backgroundColor: '#ecfdf5', padding: '0.15rem 0.5rem', borderRadius: '4px' }}>
-                    {message.length} characters
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => setMessage(prev => prev + ' {name}')}
+                      title="Inserts receiver name"
+                      style={{ fontSize: '0.68rem', padding: '0.15rem 0.45rem', backgroundColor: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', borderRadius: '4px', cursor: 'pointer', fontWeight: 700 }}
+                    >
+                      + {'{name}'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMessage(prev => prev + ' {event}')}
+                      title="Inserts event title"
+                      style={{ fontSize: '0.68rem', padding: '0.15rem 0.45rem', backgroundColor: '#f0f9ff', color: '#0369a1', border: '1px solid #bae6fd', borderRadius: '4px', cursor: 'pointer', fontWeight: 700 }}
+                    >
+                      + {'{event}'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMessage(prev => prev + ' {role}')}
+                      title="Inserts recipient role"
+                      style={{ fontSize: '0.68rem', padding: '0.15rem 0.45rem', backgroundColor: '#faf5ff', color: '#7e22ce', border: '1px solid #e9d5ff', borderRadius: '4px', cursor: 'pointer', fontWeight: 700 }}
+                    >
+                      + {'{role}'}
+                    </button>
+                    <span style={{ fontSize: '0.7rem', color: '#059669', fontWeight: 700, backgroundColor: '#ecfdf5', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>
+                      {message.length} chars
+                    </span>
+                  </div>
                 </div>
 
-                {/* Personalization Tag Helper Toolbar */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.6rem', padding: '0.45rem 0.65rem', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
-                  <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#475569' }}>Insert Tag:</span>
-                  <button
-                    type="button"
-                    onClick={() => setMessage(prev => prev + ' {name}')}
-                    title="Inserts receiver name (Mr./Ms. Name)"
-                    style={{ fontSize: '0.72rem', padding: '0.2rem 0.55rem', backgroundColor: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', borderRadius: '6px', cursor: 'pointer', fontWeight: 700 }}
-                  >
-                    + Receiver Name: {'{name}'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMessage(prev => prev + ' {event}')}
-                    title="Inserts event title"
-                    style={{ fontSize: '0.72rem', padding: '0.2rem 0.55rem', backgroundColor: '#f0f9ff', color: '#0369a1', border: '1px solid #bae6fd', borderRadius: '6px', cursor: 'pointer', fontWeight: 700 }}
-                  >
-                    + Event: {'{event}'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMessage(prev => prev + ' {role}')}
-                    title="Inserts participant / coordinator / judge role"
-                    style={{ fontSize: '0.72rem', padding: '0.2rem 0.55rem', backgroundColor: '#faf5ff', color: '#7e22ce', border: '1px solid #e9d5ff', borderRadius: '6px', cursor: 'pointer', fontWeight: 700 }}
-                  >
-                    + Role: {'{role}'}
-                  </button>
-                </div>
-
-                <div style={{ position: 'relative' }}>
-                  <textarea
-                    required
-                    rows={13}
-                    className="form-control message-compose-textarea"
-                    placeholder="Write, edit, and format your complete message here before sending..."
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                    style={{
-                      lineHeight: 1.65,
-                      fontSize: '0.94rem',
-                      padding: '1rem',
-                      fontFamily: 'inherit',
-                      borderRadius: '10px',
-                      borderColor: '#94a3b8',
-                      backgroundColor: '#ffffff',
-                      color: '#0f172a',
-                      minHeight: '280px',
-                      resize: 'vertical'
-                    }}
-                  />
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.45rem', fontSize: '0.75rem', color: '#64748b' }}>
-                  <span>💡 <strong>Receiver Name:</strong> "{'{name}'}" will automatically be replaced with each recipient's actual name (e.g. Mr./Ms. Mohammad Fayaz).</span>
+                <textarea
+                  required
+                  rows={7}
+                  className="form-control message-compose-textarea"
+                  placeholder="Write, edit, and format your complete message here before sending..."
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  style={{
+                    lineHeight: 1.5,
+                    fontSize: '0.88rem',
+                    padding: '0.75rem',
+                    fontFamily: 'inherit',
+                    borderRadius: '8px',
+                    borderColor: '#94a3b8',
+                    backgroundColor: '#ffffff',
+                    color: '#0f172a',
+                    minHeight: '150px',
+                    maxHeight: '210px',
+                    resize: 'vertical'
+                  }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.25rem', fontSize: '0.7rem', color: '#64748b' }}>
+                  <span>💡 <strong>Receiver Name:</strong> "{'{name}'}" will be dynamically replaced with each recipient's actual name.</span>
                   <span style={{ fontWeight: 600, color: '#059669' }}>✓ Live formatting</span>
                 </div>
               </div>
 
-              {/* 5. SEND MESSAGE ACTION BAR */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '1.25rem', borderTop: '1px solid #f1f5f9', flexWrap: 'wrap', gap: '1rem' }}>
-                <div style={{ fontSize: '0.85rem', color: '#475569' }}>
-                  <div style={{ fontWeight: 700, color: '#0f172a' }}>
-                    Ready to broadcast:
-                  </div>
-                  <span><strong>{counts.total}</strong> recipient(s) selected across <strong>{getSelectedGroupsList().length}</strong> group(s)</span>
+              {/* 5. SEND MESSAGE ACTION BAR (ALWAYS VISIBLE DIRECTLY BELOW TEXTAREA) */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.75rem', borderTop: '1px solid #f1f5f9', flexWrap: 'wrap', gap: '0.75rem' }}>
+                <div style={{ fontSize: '0.82rem', color: '#475569' }}>
+                  <span>Audience: <strong>{counts.total} recipients</strong> selected across <strong>{getSelectedGroupsList().length} group(s)</strong></span>
                 </div>
 
                 <button
@@ -718,24 +668,24 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`;
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: '0.6rem',
-                    padding: '0.85rem 2rem',
-                    fontSize: '1rem',
+                    gap: '0.5rem',
+                    padding: '0.65rem 1.65rem',
+                    fontSize: '0.92rem',
                     fontWeight: 800,
-                    borderRadius: '10px',
+                    borderRadius: '8px',
                     backgroundColor: '#059669',
                     borderColor: '#059669',
-                    boxShadow: '0 4px 14px rgba(5, 150, 105, 0.35)',
+                    boxShadow: '0 3px 12px rgba(5, 150, 105, 0.3)',
                     cursor: (isSending || counts.total === 0 || !subject.trim() || !message.trim()) ? 'not-allowed' : 'pointer'
                   }}
                 >
                   {isSending ? (
                     <>
-                      <Loader2 className="spinner-icon" size={18} /> Dispatching Emails...
+                      <Loader2 className="spinner-icon" size={16} /> Dispatching...
                     </>
                   ) : (
                     <>
-                      <Send size={18} /> 5. Send Message ({counts.total})
+                      <Send size={16} /> 5. Send Message ({counts.total})
                     </>
                   )}
                 </button>
