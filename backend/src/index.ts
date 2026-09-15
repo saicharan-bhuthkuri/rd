@@ -3315,8 +3315,8 @@ app.post('/api/reg-desk/verify-room', authenticateRegDeskToken, async (req: Auth
   }
 });
 
-// 10.5 Registration Desk Participants List & Statistics
-app.get('/api/reg-desk/participants', authenticateRegDeskToken, async (req: AuthenticatedRequest, res) => {
+// 10.5 Registration Desk Participants & Attendees List & Statistics
+app.get(['/api/reg-desk/participants', '/api/reg-desk/attendees'], authenticateRegDeskToken, async (req: AuthenticatedRequest, res) => {
   const { type = 'hackathon', name = 'all', branch, attendance, search } = req.query;
 
   try {
@@ -3550,7 +3550,7 @@ app.post('/api/reg-desk/attendance', authenticateRegDeskToken, async (req: Authe
 });
 
 // 10.7 Admin Registration Desk Team Management Endpoints
-app.get('/api/admin/reg-desk-users', authenticateToken, async (req: AuthenticatedRequest, res) => {
+app.get(['/api/admin/reg-desk-users', '/api/admin/reg-desk'], authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
     const usersRes = await db.execute(
       "SELECT id, desk_id, name, email, hackathon, temp_password, temp_password_expires_at, is_temporary_password, status, created_at FROM registration_desk_users ORDER BY created_at DESC"
