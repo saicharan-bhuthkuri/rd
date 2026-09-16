@@ -6091,7 +6091,6 @@ select option {
   border-radius: 12px;
   outline: none;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  text-transform: uppercase;
 }
 
 .regdesk-otp-box:hover {

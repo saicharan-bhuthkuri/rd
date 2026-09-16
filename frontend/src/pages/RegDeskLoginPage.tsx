@@ -37,15 +37,15 @@ export const RegDeskLoginPage: React.FC = () => {
     }
   }, []);
 
-  // Handle input in individual OTP box
+  // Handle input in individual OTP box (preserves both lowercase and uppercase characters)
   const handleBoxChange = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
     const rawVal = e.target.value;
     
-    // Take the last character entered
-    const char = rawVal.slice(-1).toUpperCase();
+    // Take the last character entered without forcing uppercase
+    const char = rawVal.slice(-1);
     
-    // Allow only alphanumeric characters
-    if (/^[A-Z0-9]$/.test(char)) {
+    // Allow alphanumeric characters (lowercase, uppercase, and digits)
+    if (/^[a-zA-Z0-9]$/.test(char)) {
       const newBoxes = [...boxes];
       newBoxes[index] = char;
       setBoxes(newBoxes);
@@ -84,10 +84,10 @@ export const RegDeskLoginPage: React.FC = () => {
     }
   };
 
-  // Handle paste across all 6 boxes
+  // Handle paste across all 6 boxes (preserves exact case)
   const handlePaste = (e: React.ClipboardEvent) => {
     e.preventDefault();
-    const pasted = e.clipboardData.getData('text').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const pasted = e.clipboardData.getData('text').trim().replace(/[^a-zA-Z0-9]/g, '');
     if (!pasted) return;
 
     const newBoxes = [...boxes];
@@ -373,6 +373,7 @@ export const RegDeskLoginPage: React.FC = () => {
                   onKeyDown={(e) => handleKeyDown(idx, e)}
                   autoComplete="off"
                   autoCorrect="off"
+                  autoCapitalize="none"
                   spellCheck="false"
                   aria-label={`Character ${idx + 1}`}
                 />
@@ -382,12 +383,12 @@ export const RegDeskLoginPage: React.FC = () => {
             <div style={{ 
               marginTop: '0.55rem', 
               display: 'flex', 
-              alignItems: 'center',
-              fontSize: '0.72rem',
-              color: '#64748b'
+              alignItems: 'center', 
+              fontSize: '0.72rem', 
+              color: '#64748b' 
             }}>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontWeight: 500 }}>
-                <Sparkles size={12} color="#059669" /> 6 alphanumeric characters (Valid 1 week)
+                <Sparkles size={12} color="#059669" /> 6 alphanumeric characters (Case-sensitive • Valid 1 week)
               </span>
             </div>
           </div>
