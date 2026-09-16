@@ -265,7 +265,7 @@ export const AdminMessagingPage: React.FC = () => {
 
   return (
     <AdminLayout>
-      <div className="admin-page-container" style={{ maxWidth: '1320px', margin: '0 auto', paddingBottom: '1.5rem' }}>
+      <div className="admin-page-container" style={{ maxWidth: '1320px', margin: '0 auto', paddingBottom: '3.5rem', width: '100%' }}>
         
         {/* TOP HEADER */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
@@ -385,6 +385,7 @@ export const AdminMessagingPage: React.FC = () => {
             color: #0f172a;
             padding: 0.85rem 1rem;
             resize: vertical;
+            overflow-y: auto;
           }
           .message-compose-textarea:focus {
             outline: none;
@@ -964,7 +965,7 @@ export const AdminMessagingPage: React.FC = () => {
                       onChange={(e) => setMidMessage(e.target.value)}
                       style={{
                         minHeight: '120px',
-                        maxHeight: '190px'
+                        maxHeight: '300px'
                       }}
                     />
                   </div>
