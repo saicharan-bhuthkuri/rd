@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useParams, useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '../config';
-import { formatDisplayPhone, getPhoneParts } from '../utils/phone';
+import { getPhoneParts } from '../utils/phone';
 import { ArrowLeft, ArrowRight, User, Mail, Phone, GraduationCap, Calendar, Sparkles, Check, CheckCircle2, Loader2, Code, Users, Server, ChevronDown, Plus, Trash2, AlertTriangle, Award, Briefcase, Building2, HeartHandshake, FolderUp, FileText, UploadCloud, ExternalLink, ShieldCheck, Copy, Lock, Hash } from 'lucide-react';
 
 type FormType = 'none' | 'join-club' | 'event' | 'hackathon' | 'recognition' | 'volunteer' | 'submission';
@@ -3056,9 +3056,22 @@ export const ApplyPage: React.FC = () => {
                                 <span className="meta-value">{verifiedTeam.eventName}</span>
                               </div>
                               <div className="team-meta-item full-width team-leader-item">
-                                <span className="meta-label">Team Leader</span>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                                  <span className="meta-label" style={{ margin: 0 }}>Team Leader</span>
+                                  {verifiedTeam.leaderRole && (
+                                    <span className="badge" style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)', color: '#2563eb', border: '1px solid rgba(59, 130, 246, 0.2)', fontSize: '0.75rem', fontWeight: 600 }}>
+                                      {verifiedTeam.leaderRole}
+                                    </span>
+                                  )}
+                                </div>
                                 <div className="leader-meta-content">
                                   <span className="leader-name-highlight">{verifiedTeam.leaderName}</span>
+                                  {(verifiedTeam.leaderYear || verifiedTeam.leaderBranch) && (
+                                    <div style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                      <GraduationCap size={14} style={{ opacity: 0.8, color: 'var(--primary)', flexShrink: 0 }} />
+                                      <span>{[verifiedTeam.leaderYear, verifiedTeam.leaderBranch].filter(Boolean).join(' • ')}</span>
+                                    </div>
+                                  )}
                                   <div className="leader-badges-wrap">
                                     {verifiedTeam.leaderPhone && (() => {
                                       const parts = getPhoneParts(verifiedTeam.leaderPhone);
@@ -3100,14 +3113,71 @@ export const ApplyPage: React.FC = () => {
                                 </div>
                               )}
                               {verifiedTeam.members && verifiedTeam.members.length > 0 && (
-                                <div className="team-meta-item full-width">
-                                  <span className="meta-label">Team Members ({verifiedTeam.members.length}):</span>
-                                  <div className="team-members-chips">
-                                    {verifiedTeam.members.map((m: any, idx: number) => (
-                                      <span key={idx} className="member-chip">
-                                        {m.fullName || m.name || `Member ${idx + 1}`} ({m.role || 'Member'}{m.phone ? ` • ${formatDisplayPhone(m.phone)}` : ''})
-                                      </span>
-                                    ))}
+                                <div className="team-meta-item full-width" style={{ marginTop: '0.5rem' }}>
+                                  <span className="meta-label" style={{ marginBottom: '0.35rem' }}>
+                                    Team Members ({verifiedTeam.members.length}):
+                                  </span>
+                                  <div className="verified-members-grid">
+                                    {verifiedTeam.members.map((m: any, idx: number) => {
+                                      const memberName = m.fullName || m.name || `Member ${idx + 1}`;
+                                      const phoneParts = m.phone ? getPhoneParts(m.phone) : null;
+                                      const academicParts = [m.year, m.branch].filter(Boolean).join(' • ');
+                                      const workParts = [m.jobTitle, m.company].filter(Boolean).join(' at ');
+                                      const memberInst = m.institution && m.institution.trim() !== verifiedTeam.institution?.trim() ? m.institution.trim() : null;
+
+                                      return (
+                                        <div key={idx} className="verified-member-card">
+                                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                              <span className="member-index-tag">#{idx + 1}</span>
+                                              <span className="member-name-text">{memberName}</span>
+                                            </div>
+                                            {m.role && (
+                                              <span className="member-role-badge">
+                                                {m.role}
+                                              </span>
+                                            )}
+                                          </div>
+
+                                          {academicParts && (
+                                            <div className="member-meta-line">
+                                              <GraduationCap size={13} className="member-meta-icon" />
+                                              <span>{academicParts}</span>
+                                            </div>
+                                          )}
+
+                                          {workParts && (
+                                            <div className="member-meta-line">
+                                              <Briefcase size={13} className="member-meta-icon" />
+                                              <span>{workParts}</span>
+                                            </div>
+                                          )}
+
+                                          {memberInst && (
+                                            <div className="member-meta-line" style={{ fontSize: '0.75rem' }}>
+                                              <Building2 size={13} className="member-meta-icon" />
+                                              <span>{memberInst}</span>
+                                            </div>
+                                          )}
+
+                                          <div className="member-contact-chips">
+                                            {m.phone && phoneParts && (
+                                              <a href={`tel:${m.phone}`} className="leader-contact-chip phone-chip" title={`Call ${memberName}`}>
+                                                <Phone size={12} className="chip-icon" />
+                                                <span className="phone-flag-prefix">{phoneParts.countryCode}</span>
+                                                <span className="phone-number-part">{phoneParts.localNumber}</span>
+                                              </a>
+                                            )}
+                                            {m.email && (
+                                              <a href={`mailto:${m.email}`} className="leader-contact-chip email-chip" title={`Email ${memberName}`}>
+                                                <Mail size={12} className="chip-icon" />
+                                                <span>{m.email}</span>
+                                              </a>
+                                            )}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
                                   </div>
                                 </div>
                               )}
