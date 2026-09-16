@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams, useParams, useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '../config';
 import { formatDisplayPhone, getPhoneParts } from '../utils/phone';
-import { ArrowLeft, ArrowRight, User, Mail, Phone, GraduationCap, Calendar, Sparkles, Check, CheckCircle2, Loader2, Code, Users, Server, ChevronDown, Plus, Trash2, AlertTriangle, Award, Briefcase, Building2, HeartHandshake, FolderUp, FileText, UploadCloud, ExternalLink, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, ArrowRight, User, Mail, Phone, GraduationCap, Calendar, Sparkles, Check, CheckCircle2, Loader2, Code, Users, Server, ChevronDown, Plus, Trash2, AlertTriangle, Award, Briefcase, Building2, HeartHandshake, FolderUp, FileText, UploadCloud, ExternalLink, ShieldCheck, Copy, Lock, Hash } from 'lucide-react';
 
 type FormType = 'none' | 'join-club' | 'event' | 'hackathon' | 'recognition' | 'volunteer' | 'submission';
 
@@ -710,6 +710,7 @@ export const ApplyPage: React.FC = () => {
   const [isSuccess, setIsSuccess] = useState(false);
   const [registrationSuccessData, setRegistrationSuccessData] = useState<{
     referenceId?: string;
+    teamId?: string;
     email?: string;
     name?: string;
     teamName?: string;
@@ -773,7 +774,10 @@ export const ApplyPage: React.FC = () => {
   // Project Submission specific fields state
   const [submissionEvent, setSubmissionEvent] = useState('');
   const [submissionEventsList, setSubmissionEventsList] = useState<string[]>([]);
+  const [submissionTeamId, setSubmissionTeamId] = useState(() => searchParams.get('teamId') || '');
   const [submissionTeamName, setSubmissionTeamName] = useState('');
+  const [submissionDetailsConfirmed, setSubmissionDetailsConfirmed] = useState(false);
+  const [copiedTeamId, setCopiedTeamId] = useState(false);
   const [isVerifyingTeam, setIsVerifyingTeam] = useState(false);
   const [verifiedTeam, setVerifiedTeam] = useState<any | null>(null);
   const [teamVerifyError, setTeamVerifyError] = useState('');
@@ -782,6 +786,7 @@ export const ApplyPage: React.FC = () => {
   const [submissionSuccessData, setSubmissionSuccessData] = useState<{
     referenceNumber: string;
     submissionId: number;
+    teamId?: string;
     teamName: string;
     eventName: string;
     driveFileUrl: string;
@@ -831,6 +836,11 @@ export const ApplyPage: React.FC = () => {
       } else {
         setFormType('none');
       }
+    }
+
+    const tid = searchParams.get('teamId');
+    if (tid) {
+      setSubmissionTeamId(tid);
     }
   }, [registrationType, searchParams]);
 
@@ -1020,14 +1030,30 @@ export const ApplyPage: React.FC = () => {
     setHackathonConfirmed(false);
 
     // Project submission reset
+    setSubmissionTeamId('');
     setSubmissionTeamName('');
+    setSubmissionDetailsConfirmed(false);
     setIsVerifyingTeam(false);
     setVerifiedTeam(null);
     setTeamVerifyError('');
+    setCopiedTeamId(false);
     setSubmissionFile(null);
     setSubmissionFileBase64('');
     setSubmissionSuccessData(null);
     setRegistrationSuccessData(null);
+  };
+
+  const handleProceedToSubmission = (teamIdPreFill?: string, eventNamePreFill?: string) => {
+    setIsSuccess(false);
+    resetFormFields();
+    if (teamIdPreFill) {
+      setSubmissionTeamId(teamIdPreFill);
+    }
+    if (eventNamePreFill) {
+      setSubmissionEvent(eventNamePreFill);
+    }
+    const query = teamIdPreFill ? `?teamId=${encodeURIComponent(teamIdPreFill)}` : '';
+    navigate(`/apply/ProjectSubmission${query}`);
   };
 
   const handleFormSelect = (type: FormType) => {
@@ -1091,30 +1117,34 @@ export const ApplyPage: React.FC = () => {
   };
 
   const handleVerifyTeam = async () => {
-    if (!submissionEvent) {
-      setTeamVerifyError('Please select an event first before verifying team.');
-      return;
-    }
-    if (!submissionTeamName.trim()) {
-      setTeamVerifyError('Please enter your registered Team Name.');
+    const key = (submissionTeamId || submissionTeamName).trim();
+    if (!key) {
+      setTeamVerifyError('Please enter your Unique Team ID (e.g. TCEK-HK26-0001).');
       return;
     }
 
     setIsVerifyingTeam(true);
     setTeamVerifyError('');
     setVerifiedTeam(null);
+    setSubmissionDetailsConfirmed(false);
 
     try {
       const queryParams = new URLSearchParams({
-        eventName: submissionEvent,
-        teamName: submissionTeamName.trim()
+        teamId: key,
+        eventName: submissionEvent || ''
       });
       const res = await fetch(`${API_BASE_URL}/api/project-submission/verify-team?${queryParams.toString()}`);
       const data = await res.json();
       if (res.ok && data.success && data.team) {
         setVerifiedTeam(data.team);
+        if (!submissionEvent && data.team.eventName) {
+          setSubmissionEvent(data.team.eventName);
+        }
+        if (data.team.teamId) {
+          setSubmissionTeamId(data.team.teamId);
+        }
       } else {
-        setTeamVerifyError(data.message || data.error || `No registered team found matching "${submissionTeamName.trim()}" for event "${submissionEvent}". Please ensure the team name matches your exact registration.`);
+        setTeamVerifyError(data.message || data.error || `No registered team found matching Team ID "${key}". Please ensure you enter the exact Team ID received upon registration.`);
       }
     } catch (err: any) {
       setTeamVerifyError('Network error while verifying team. Please check your connection and try again.');
@@ -1160,7 +1190,11 @@ export const ApplyPage: React.FC = () => {
       return;
     }
     if (!verifiedTeam) {
-      alert('Please enter and verify your registered Team Name first.');
+      alert('Please enter and verify your registered Team ID first.');
+      return;
+    }
+    if (!submissionDetailsConfirmed) {
+      alert('Please review and confirm that your registered team and project details are correct before submitting.');
       return;
     }
     if (!submissionFile || !submissionFileBase64) {
@@ -1173,6 +1207,7 @@ export const ApplyPage: React.FC = () => {
       const payload = {
         eventName: submissionEvent,
         teamName: verifiedTeam.teamName,
+        teamId: verifiedTeam.teamId || submissionTeamId,
         fileName: submissionFile.name,
         fileBase64: submissionFileBase64,
         mimeType: submissionFile.type || 'application/octet-stream',
@@ -1190,6 +1225,7 @@ export const ApplyPage: React.FC = () => {
         setSubmissionSuccessData({
           referenceNumber: data.referenceNumber,
           submissionId: data.submissionId,
+          teamId: data.teamId || verifiedTeam.teamId || submissionTeamId,
           teamName: data.teamName || verifiedTeam.teamName,
           eventName: data.eventName || submissionEvent,
           driveFileUrl: data.driveFileUrl,
@@ -1515,6 +1551,7 @@ export const ApplyPage: React.FC = () => {
       const resData = await response.json();
       setRegistrationSuccessData({
         referenceId: resData.referenceId || (resData.id ? `TCEK/REF/${resData.id}` : undefined),
+        teamId: resData.teamId || (resData.id ? `TCEK-HK26-${String(resData.id).padStart(4, '0')}` : undefined),
         email: email.trim(),
         name: fullName.trim(),
         teamName: teamName.trim(),
@@ -1729,15 +1766,78 @@ export const ApplyPage: React.FC = () => {
                       <CheckCircle2 size={16} /> Team Registered: {registrationSuccessData?.teamName || teamName}
                     </div>
 
+                    {/* Prominent Unique Team ID Card */}
+                    <div style={{
+                      backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                      border: '2px solid #10b981',
+                      borderRadius: '14px',
+                      padding: '1.25rem 1.5rem',
+                      maxWidth: '36rem',
+                      margin: '0 auto 1.25rem auto',
+                      boxShadow: '0 4px 12px rgba(16, 185, 129, 0.08)'
+                    }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#047857', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
+                        Your Assigned Unique Team ID
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', margin: '0.5rem 0 0.75rem 0', flexWrap: 'wrap' }}>
+                        <span style={{
+                          fontSize: '1.75rem',
+                          fontWeight: 800,
+                          fontFamily: 'monospace',
+                          color: '#065f46',
+                          backgroundColor: '#d1fae5',
+                          padding: '0.35rem 1.25rem',
+                          borderRadius: '8px',
+                          letterSpacing: '0.05em',
+                          border: '1px solid #a7f3d0'
+                        }}>
+                          {registrationSuccessData?.teamId || 'TCEK-HK26-0001'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const idToCopy = registrationSuccessData?.teamId || 'TCEK-HK26-0001';
+                            navigator.clipboard.writeText(idToCopy);
+                            setCopiedTeamId(true);
+                            setTimeout(() => setCopiedTeamId(false), 2500);
+                          }}
+                          className="btn btn-secondary btn-sm"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            padding: '0.45rem 0.85rem',
+                            fontSize: '0.8125rem',
+                            fontWeight: 600,
+                            borderColor: copiedTeamId ? '#10b981' : undefined,
+                            color: copiedTeamId ? '#047857' : undefined
+                          }}
+                        >
+                          {copiedTeamId ? (
+                            <>
+                              <Check size={14} style={{ color: '#10b981' }} /> Copied!
+                            </>
+                          ) : (
+                            <>
+                              <Copy size={14} /> Copy Team ID
+                            </>
+                          )}
+                        </button>
+                      </div>
+                      <p style={{ margin: 0, fontSize: '0.85rem', color: '#047857', lineHeight: 1.5 }}>
+                        <strong>Save this Team ID!</strong> You will be required to enter and verify this Team ID to upload your presentation in <strong>Project Submission</strong>. We have also sent this Team ID automatically to your registered email address.
+                      </p>
+                    </div>
+
                     <div style={{ backgroundColor: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.25)', borderRadius: '12px', padding: '1.25rem 1.5rem', maxWidth: '36rem', margin: '0 auto 1.25rem auto', textAlign: 'left', lineHeight: 1.65 }}>
                       <div style={{ fontWeight: 700, color: '#1d4ed8', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9375rem' }}>
                         <FileText size={18} /> Official Presentation Template Notice
                       </div>
                       <p style={{ margin: '0 0 0.75rem 0', color: 'var(--text-primary)', fontSize: '0.9375rem' }}>
-                        The official PPT/PPTX presentation format/template will be sent to your registered email address (<strong>{registrationSuccessData?.email || email}</strong>) shortly.
+                        The official PPT/PPTX presentation template has been sent to your registered email address (<strong>{registrationSuccessData?.email || email}</strong>).
                       </p>
                       <p style={{ margin: 0, color: 'var(--text-primary)', fontSize: '0.9375rem' }}>
-                        Please complete the presentation using the provided format and submit it through <strong>Project Submission</strong>.
+                        Complete the presentation using the template, convert it to <strong>PDF format (.pdf)</strong>, and submit it using your <strong>Team ID</strong> in <strong>Project Submission</strong>.
                       </p>
                     </div>
 
@@ -1749,7 +1849,7 @@ export const ApplyPage: React.FC = () => {
 
                     <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
                       <button
-                        onClick={() => handleFormSelect('submission')}
+                        onClick={() => handleProceedToSubmission(registrationSuccessData?.teamId, registrationSuccessData?.eventName)}
                         className="btn btn-primary"
                         style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.625rem 1.35rem' }}
                       >
@@ -1776,8 +1876,23 @@ export const ApplyPage: React.FC = () => {
                     </div>
 
                     <div style={{ backgroundColor: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)', borderRadius: '12px', padding: '1.25rem 1.5rem', maxWidth: '36rem', margin: '0 auto 1.25rem auto', textAlign: 'left', lineHeight: 1.65 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                        <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Verified Team ID:</span>
+                        <span style={{
+                          fontFamily: 'monospace',
+                          fontWeight: 700,
+                          fontSize: '0.9375rem',
+                          color: '#065f46',
+                          backgroundColor: '#d1fae5',
+                          padding: '0.2rem 0.65rem',
+                          borderRadius: '6px',
+                          border: '1px solid #a7f3d0'
+                        }}>
+                          {submissionSuccessData?.teamId || verifiedTeam?.teamId || submissionTeamId}
+                        </span>
+                      </div>
                       <p style={{ margin: '0 0 0.75rem 0', color: 'var(--text-primary)', fontSize: '0.9375rem' }}>
-                        Your completed project presentation (PDF) has been uploaded and stored directly in the event's <strong>Google Drive folder</strong> (not in the database).
+                        Your project presentation has been uploaded and stored directly in the Google Drive folder for Team <strong>{submissionSuccessData?.teamName || verifiedTeam?.teamName}</strong>.
                       </p>
                       <p style={{ margin: 0, color: 'var(--text-primary)', fontSize: '0.9375rem' }}>
                         An automatic confirmation email has been sent to your registered email address (<strong>{verifiedTeam?.leaderEmail || email}</strong>) with submission and presentation details.
@@ -2856,23 +2971,24 @@ export const ApplyPage: React.FC = () => {
                         />
                       </div>
 
-                      {/* 2. Enter Team Name */}
-                      <div className="form-section-title" style={{ marginTop: '1.5rem' }}>2. Enter Team Name</div>
+                      {/* 2. Enter Team ID */}
+                      <div className="form-section-title" style={{ marginTop: '1.5rem' }}>2. Enter Team ID</div>
                       <div className="form-group">
-                        <label htmlFor="submissionTeamName">Team Name (as registered) <span className="req">*</span></label>
+                        <label htmlFor="submissionTeamId">Unique Team ID <span className="req">*</span></label>
                         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
                           <div className="input-with-icon" style={{ flex: 1 }}>
-                            <Users size={16} />
+                            <Hash size={16} />
                             <input
                               type="text"
-                              id="submissionTeamName"
+                              id="submissionTeamId"
                               required
-                              placeholder="e.g. Code Pioneers"
-                              value={submissionTeamName}
+                              placeholder="e.g. TCEK-HK26-0001"
+                              value={submissionTeamId}
                               onChange={(e) => {
-                                setSubmissionTeamName(e.target.value);
+                                setSubmissionTeamId(e.target.value);
                                 if (verifiedTeam) {
                                   setVerifiedTeam(null);
+                                  setSubmissionDetailsConfirmed(false);
                                 }
                               }}
                               onKeyDown={(e) => {
@@ -2887,7 +3003,7 @@ export const ApplyPage: React.FC = () => {
                             type="button"
                             className="btn btn-primary"
                             onClick={handleVerifyTeam}
-                            disabled={isVerifyingTeam || !submissionTeamName.trim() || !submissionEvent}
+                            disabled={isVerifyingTeam || !submissionTeamId.trim()}
                             style={{ whiteSpace: 'nowrap', minHeight: '44px', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
                           >
                             {isVerifyingTeam ? (
@@ -2901,6 +3017,9 @@ export const ApplyPage: React.FC = () => {
                             )}
                           </button>
                         </div>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.35rem' }}>
+                          Enter the unique Team ID provided upon hackathon registration (e.g. <strong>TCEK-HK26-0001</strong>). You can also find it in your registration confirmation email.
+                        </div>
                         {teamVerifyError && (
                           <div className="field-hint-error" style={{ marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                             <AlertTriangle size={14} /> {teamVerifyError}
@@ -2910,143 +3029,202 @@ export const ApplyPage: React.FC = () => {
 
                       {/* Verified Team Details Card */}
                       {verifiedTeam && (
-                        <div className="submission-verified-card">
-                          <div className="submission-verified-header">
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#16a34a', fontWeight: 600, fontSize: '0.9375rem' }}>
-                              <CheckCircle2 size={18} />
-                              <span>Registered Team Verified</span>
+                        <>
+                          <div className="submission-verified-card">
+                            <div className="submission-verified-header">
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#16a34a', fontWeight: 600, fontSize: '0.9375rem' }}>
+                                <CheckCircle2 size={18} />
+                                <span>Registered Team Verified</span>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <span className="badge" style={{ backgroundColor: '#e0e7ff', color: '#4338ca', border: '1px solid #c7d2fe', fontFamily: 'monospace', fontWeight: 700, fontSize: '0.8125rem' }}>
+                                  {verifiedTeam.teamId}
+                                </span>
+                                <span className="badge" style={{ backgroundColor: 'rgba(22, 163, 74, 0.1)', color: '#16a34a', border: '1px solid rgba(22, 163, 74, 0.2)' }}>
+                                  Verified
+                                </span>
+                              </div>
                             </div>
-                            <span className="badge" style={{ backgroundColor: 'rgba(22, 163, 74, 0.1)', color: '#16a34a', border: '1px solid rgba(22, 163, 74, 0.2)' }}>
-                              Verified
-                            </span>
-                          </div>
-                          
-                          <div className="submission-team-grid">
-                            <div className="team-meta-item">
-                              <span className="meta-label">Team Name:</span>
-                              <span className="meta-value font-semibold">{verifiedTeam.teamName}</span>
-                            </div>
-                            <div className="team-meta-item">
-                              <span className="meta-label">Event:</span>
-                              <span className="meta-value">{verifiedTeam.eventName}</span>
-                            </div>
-                            <div className="team-meta-item full-width team-leader-item">
-                              <span className="meta-label">Team Leader</span>
-                              <div className="leader-meta-content">
-                                <span className="leader-name-highlight">{verifiedTeam.leaderName}</span>
-                                <div className="leader-badges-wrap">
-                                  {verifiedTeam.leaderPhone && (() => {
-                                    const parts = getPhoneParts(verifiedTeam.leaderPhone);
-                                    return (
-                                      <a href={`tel:${verifiedTeam.leaderPhone}`} className="leader-contact-chip phone-chip" title="Call Team Leader">
-                                        <Phone size={13} className="chip-icon" />
-                                        <span className="phone-flag-prefix">{parts.countryCode}</span>
-                                        <span className="phone-number-part">{parts.localNumber}</span>
+                            
+                            <div className="submission-team-grid">
+                              <div className="team-meta-item">
+                                <span className="meta-label">Team Name:</span>
+                                <span className="meta-value font-semibold">{verifiedTeam.teamName}</span>
+                              </div>
+                              <div className="team-meta-item">
+                                <span className="meta-label">Event:</span>
+                                <span className="meta-value">{verifiedTeam.eventName}</span>
+                              </div>
+                              <div className="team-meta-item full-width team-leader-item">
+                                <span className="meta-label">Team Leader</span>
+                                <div className="leader-meta-content">
+                                  <span className="leader-name-highlight">{verifiedTeam.leaderName}</span>
+                                  <div className="leader-badges-wrap">
+                                    {verifiedTeam.leaderPhone && (() => {
+                                      const parts = getPhoneParts(verifiedTeam.leaderPhone);
+                                      return (
+                                        <a href={`tel:${verifiedTeam.leaderPhone}`} className="leader-contact-chip phone-chip" title="Call Team Leader">
+                                          <Phone size={13} className="chip-icon" />
+                                          <span className="phone-flag-prefix">{parts.countryCode}</span>
+                                          <span className="phone-number-part">{parts.localNumber}</span>
+                                        </a>
+                                      );
+                                    })()}
+                                    {verifiedTeam.leaderEmail && (
+                                      <a href={`mailto:${verifiedTeam.leaderEmail}`} className="leader-contact-chip email-chip" title="Email Team Leader">
+                                        <Mail size={13} className="chip-icon" />
+                                        <span>{verifiedTeam.leaderEmail}</span>
                                       </a>
-                                    );
-                                  })()}
-                                  {verifiedTeam.leaderEmail && (
-                                    <a href={`mailto:${verifiedTeam.leaderEmail}`} className="leader-contact-chip email-chip" title="Email Team Leader">
-                                      <Mail size={13} className="chip-icon" />
-                                      <span>{verifiedTeam.leaderEmail}</span>
-                                    </a>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="team-meta-item full-width">
+                                <span className="meta-label">College / Institution:</span>
+                                <span className="meta-value">{verifiedTeam.institution}</span>
+                              </div>
+                              {verifiedTeam.projectTitle && (
+                                <div className="team-meta-item full-width">
+                                  <span className="meta-label">Registered Project Title:</span>
+                                  <span className="meta-value font-semibold" style={{ color: 'var(--primary)' }}>
+                                    {verifiedTeam.projectTitle}
+                                  </span>
+                                </div>
+                              )}
+                              {verifiedTeam.problemStatement && (
+                                <div className="team-meta-item full-width">
+                                  <span className="meta-label">Registered Problem Statement:</span>
+                                  <span className="meta-value" style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
+                                    {verifiedTeam.problemStatement}
+                                  </span>
+                                </div>
+                              )}
+                              {verifiedTeam.members && verifiedTeam.members.length > 0 && (
+                                <div className="team-meta-item full-width">
+                                  <span className="meta-label">Team Members ({verifiedTeam.members.length}):</span>
+                                  <div className="team-members-chips">
+                                    {verifiedTeam.members.map((m: any, idx: number) => (
+                                      <span key={idx} className="member-chip">
+                                        {m.fullName || m.name || `Member ${idx + 1}`} ({m.role || 'Member'}{m.phone ? ` • ${formatDisplayPhone(m.phone)}` : ''})
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* 3. Review & Confirm Registered Details */}
+                          <div className="form-section-title" style={{ marginTop: '1.75rem' }}>3. Review & Confirm Registered Details</div>
+                          <div style={{
+                            backgroundColor: submissionDetailsConfirmed ? 'rgba(22, 163, 74, 0.08)' : 'rgba(245, 158, 11, 0.08)',
+                            border: `1px solid ${submissionDetailsConfirmed ? 'rgba(22, 163, 74, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`,
+                            borderRadius: '10px',
+                            padding: '1rem 1.25rem',
+                            marginTop: '0.5rem',
+                            transition: 'all 0.2s ease'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+                              <input
+                                type="checkbox"
+                                id="confirmTeamDetails"
+                                checked={submissionDetailsConfirmed}
+                                onChange={(e) => setSubmissionDetailsConfirmed(e.target.checked)}
+                                style={{ width: '1.2rem', height: '1.2rem', marginTop: '0.15rem', cursor: 'pointer', accentColor: '#16a34a' }}
+                              />
+                              <label htmlFor="confirmTeamDetails" style={{ cursor: 'pointer', fontSize: '0.875rem', color: 'var(--text-main)', lineHeight: 1.5, margin: 0 }}>
+                                <strong style={{ color: submissionDetailsConfirmed ? '#15803d' : 'var(--text-main)' }}>
+                                  I confirm that the Team Name, Members, Project Title, and Problem Statement displayed above are correct.
+                                </strong>
+                                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                                  {submissionDetailsConfirmed ? (
+                                    <span style={{ color: '#15803d', fontWeight: 600 }}>✓ Details reviewed & confirmed. You can now upload your presentation below.</span>
+                                  ) : (
+                                    <span>Please check this box to confirm all registered details before uploading your presentation.</span>
                                   )}
                                 </div>
-                              </div>
+                              </label>
                             </div>
-                            <div className="team-meta-item full-width">
-                              <span className="meta-label">College / Institution:</span>
-                              <span className="meta-value">{verifiedTeam.institution}</span>
-                            </div>
-                            {verifiedTeam.projectTitle && (
-                              <div className="team-meta-item full-width">
-                                <span className="meta-label">Registered Project Title:</span>
-                                <span className="meta-value font-semibold" style={{ color: 'var(--primary)' }}>
-                                  {verifiedTeam.projectTitle}
-                                </span>
-                              </div>
-                            )}
-                            {verifiedTeam.problemStatement && (
-                              <div className="team-meta-item full-width">
-                                <span className="meta-label">Registered Problem Statement:</span>
-                                <span className="meta-value" style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
-                                  {verifiedTeam.problemStatement}
-                                </span>
-                              </div>
-                            )}
-                            {verifiedTeam.members && verifiedTeam.members.length > 0 && (
-                              <div className="team-meta-item full-width">
-                                <span className="meta-label">Team Members ({verifiedTeam.members.length}):</span>
-                                <div className="team-members-chips">
-                                  {verifiedTeam.members.map((m: any, idx: number) => (
-                                    <span key={idx} className="member-chip">
-                                      {m.fullName || m.name || `Member ${idx + 1}`} ({m.role || 'Member'}{m.phone ? ` • ${formatDisplayPhone(m.phone)}` : ''})
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
                           </div>
-                        </div>
+                        </>
                       )}
 
-                      {/* 3. Upload Presentation */}
-                      <div className="form-section-title" style={{ marginTop: '1.75rem' }}>3. Upload Presentation</div>
+                      {/* 4. Upload Presentation */}
+                      <div className="form-section-title" style={{ marginTop: '1.75rem' }}>4. Upload Presentation</div>
                       
-                      <div className="form-group">
-                        <label>Upload Presentation (PPT/PPTX converted to PDF format) <span className="req">*</span></label>
-                        <div style={{ backgroundColor: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.25)', borderRadius: '8px', padding: '0.75rem 1rem', marginBottom: '0.875rem', fontSize: '0.8125rem', color: 'var(--text-primary)', lineHeight: 1.5 }}>
-                          <strong>Important:</strong> Please convert your completed PPT/PPTX presentation to <strong>PDF format (.pdf)</strong> before uploading. All presentations are saved directly into the event's <strong>Google Drive folder</strong> and are <strong>not stored in the database</strong>.
+                      {!verifiedTeam || !submissionDetailsConfirmed ? (
+                        <div style={{
+                          backgroundColor: 'var(--bg-subtle, #f8fafc)',
+                          border: '1px dashed var(--border-color, #cbd5e1)',
+                          borderRadius: '10px',
+                          padding: '1.5rem',
+                          textAlign: 'center',
+                          color: 'var(--text-muted)'
+                        }}>
+                          <Lock size={26} style={{ margin: '0 auto 0.5rem auto', opacity: 0.6, display: 'block' }} />
+                          <div style={{ fontWeight: 600, fontSize: '0.9375rem', color: 'var(--text-main)' }}>Presentation Upload Locked</div>
+                          <div style={{ fontSize: '0.8125rem', marginTop: '0.25rem' }}>
+                            {!verifiedTeam 
+                              ? 'Please enter and verify your Unique Team ID above.'
+                              : 'Please check the confirmation box in Step 3 above to unlock presentation upload.'}
+                          </div>
                         </div>
+                      ) : (
+                        <div className="form-group">
+                          <label>Upload Presentation (PPT/PPTX converted to PDF format) <span className="req">*</span></label>
+                          <div style={{ backgroundColor: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.25)', borderRadius: '8px', padding: '0.75rem 1rem', marginBottom: '0.875rem', fontSize: '0.8125rem', color: 'var(--text-primary)', lineHeight: 1.5 }}>
+                            <strong>Important:</strong> Please convert your completed PPT/PPTX presentation to <strong>PDF format (.pdf)</strong> before uploading. All presentations are saved directly into the event's <strong>Google Drive folder</strong> and are <strong>not stored in the database</strong>.
+                          </div>
 
-                        {!submissionFile ? (
-                          <div className="file-upload-dropzone">
-                            <input
-                              type="file"
-                              id="submissionFileInput"
-                              accept=".pdf,.ppt,.pptx,application/pdf,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
-                              onChange={handleFileChange}
-                              style={{ display: 'none' }}
-                            />
-                            <label htmlFor="submissionFileInput" className="dropzone-label">
-                              <UploadCloud size={36} className="dropzone-icon" />
-                              <span className="dropzone-title">Click or Drag to Upload Presentation (PDF)</span>
-                              <span className="dropzone-subtitle">Preferred format: PDF (.pdf) • Converted from PPT/PPTX (Max 35MB)</span>
-                            </label>
-                          </div>
-                        ) : (
-                          <div className="selected-file-card">
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                              <div className="file-icon-badge">
-                                <FileText size={24} />
-                              </div>
-                              <div>
-                                <div className="file-name-text">{submissionFile.name}</div>
-                                <div className="file-size-text">{(submissionFile.size / (1024 * 1024)).toFixed(2)} MB • Ready for Google Drive upload</div>
-                              </div>
+                          {!submissionFile ? (
+                            <div className="file-upload-dropzone">
+                              <input
+                                type="file"
+                                id="submissionFileInput"
+                                accept=".pdf,.ppt,.pptx,application/pdf,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                                onChange={handleFileChange}
+                                style={{ display: 'none' }}
+                              />
+                              <label htmlFor="submissionFileInput" className="dropzone-label">
+                                <UploadCloud size={36} className="dropzone-icon" />
+                                <span className="dropzone-title">Click or Drag to Upload Presentation (PDF)</span>
+                                <span className="dropzone-subtitle">Preferred format: PDF (.pdf) • Converted from PPT/PPTX (Max 35MB)</span>
+                              </label>
                             </div>
-                            <button
-                              type="button"
-                              className="btn btn-secondary btn-sm"
-                              onClick={() => {
-                                setSubmissionFile(null);
-                                setSubmissionFileBase64('');
-                              }}
-                              title="Remove file and choose another"
-                              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-                            >
-                              <Trash2 size={14} /> Remove
-                            </button>
-                          </div>
-                        )}
-                      </div>
+                          ) : (
+                            <div className="selected-file-card">
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                <div className="file-icon-badge">
+                                  <FileText size={24} />
+                                </div>
+                                <div>
+                                  <div className="file-name-text">{submissionFile.name}</div>
+                                  <div className="file-size-text">{(submissionFile.size / (1024 * 1024)).toFixed(2)} MB • Ready for Google Drive upload</div>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => {
+                                  setSubmissionFile(null);
+                                  setSubmissionFileBase64('');
+                                }}
+                                title="Remove file and choose another"
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                              >
+                                <Trash2 size={14} /> Remove
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </>
                   )}
 
                   <div style={{ display: 'flex', justifyContent: 'center', width: '100%', marginTop: '2rem' }}>
                     <button
                       type="submit"
-                      disabled={isSubmitting || (formType === 'submission' && (!verifiedTeam || !submissionFile))}
+                      disabled={isSubmitting || (formType === 'submission' && (!verifiedTeam || !submissionDetailsConfirmed || !submissionFile))}
                       className="btn btn-primary form-submit-btn"
                       style={{ alignSelf: 'center', minWidth: '260px', padding: '0.75rem 2rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginTop: 0 }}
                     >

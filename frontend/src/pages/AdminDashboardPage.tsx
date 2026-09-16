@@ -10,6 +10,7 @@ import { AdminPagination } from '../components/AdminPagination';
 interface ProjectSubmission {
   id: number;
   hackathon_registration_id?: number;
+  team_id?: string;
   event_name: string;
   team_name: string;
   leader_name: string;
@@ -109,6 +110,7 @@ interface EventRegistration {
 
 interface HackathonRegistration {
   id: number;
+  team_id?: string;
   hackathon_name?: string;
   team_name: string;
   project_title: string;
@@ -938,6 +940,7 @@ export const AdminDashboardPage: React.FC = () => {
   const filteredHackathonRegs = hackathonRegs.filter(reg => {
     const matchesSearch = reg.leader_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           reg.team_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (reg.team_id || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                           (reg.project_title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                           reg.leader_email.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || reg.status === statusFilter;
@@ -981,6 +984,7 @@ export const AdminDashboardPage: React.FC = () => {
 
   const filteredProjectSubs = projectSubs.filter(sub => {
     const matchesSearch = sub.team_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (sub.team_id || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                           sub.project_title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           sub.leader_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           sub.leader_email.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -2279,6 +2283,15 @@ export const AdminDashboardPage: React.FC = () => {
                             <strong style={{ fontSize: '0.9375rem', color: 'var(--text-main)' }}>{sub.team_name}</strong>
                             <span style={{
                               fontSize: '0.6875rem',
+                              fontWeight: 700,
+                              color: '#065f46',
+                              backgroundColor: '#d1fae5',
+                              padding: '0.1rem 0.35rem',
+                              borderRadius: '4px',
+                              fontFamily: 'monospace'
+                            }}>{sub.team_id || `TCEK-HK26-${String(sub.hackathon_registration_id || sub.id).padStart(4, '0')}`}</span>
+                            <span style={{
+                              fontSize: '0.6875rem',
                               fontWeight: 600,
                               color: '#6366f1',
                               backgroundColor: '#eef2ff',
@@ -2440,7 +2453,20 @@ export const AdminDashboardPage: React.FC = () => {
                             display: 'inline-block',
                             marginBottom: '0.25rem'
                           }}>{reg.hackathon_name || 'R&D AlphaQuest Hackathon'}</span>
-                          <div><strong>{reg.team_name}</strong></div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                            <strong>{reg.team_name}</strong>
+                            <span style={{
+                              fontSize: '0.6875rem',
+                              fontWeight: 700,
+                              color: '#065f46',
+                              backgroundColor: '#d1fae5',
+                              padding: '0.1rem 0.35rem',
+                              borderRadius: '4px',
+                              fontFamily: 'monospace'
+                            }}>
+                              {reg.team_id || `TCEK-HK26-${String(reg.id).padStart(4, '0')}`}
+                            </span>
+                          </div>
                           <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
                             Leader: {reg.leader_name}
                           </div>
@@ -2974,8 +3000,11 @@ export const AdminDashboardPage: React.FC = () => {
                   }}>
                     {selectedHackathon.hackathon_name || 'R&D AlphaQuest Hackathon'}
                   </span>
-                  <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'var(--primary)' }}>
-                    Team Details: {selectedHackathon.team_name}
+                  <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <span>Team Details: {selectedHackathon.team_name}</span>
+                    <span style={{ fontSize: '0.8125rem', fontFamily: 'monospace', fontWeight: 700, backgroundColor: '#d1fae5', color: '#065f46', padding: '0.15rem 0.5rem', borderRadius: '6px', border: '1px solid #a7f3d0' }}>
+                      {selectedHackathon.team_id || `TCEK-HK26-${String(selectedHackathon.id).padStart(4, '0')}`}
+                    </span>
                   </h3>
                 </div>
                 <button 
@@ -3546,6 +3575,7 @@ export const AdminDashboardPage: React.FC = () => {
                     Team & Leadership Profile
                   </h4>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem', fontSize: '0.875rem' }}>
+                    <div><strong>Team ID:</strong> <span style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--primary)' }}>{selectedSubmission.team_id || `TCEK-HK26-${String(selectedSubmission.hackathon_registration_id || selectedSubmission.id).padStart(4, '0')}`}</span></div>
                     <div><strong>Team Name:</strong> {selectedSubmission.team_name}</div>
                     <div><strong>Team Leader:</strong> {selectedSubmission.leader_name}</div>
                     <div><strong>Leader Email:</strong> <a href={`mailto:${selectedSubmission.leader_email}`} style={{ color: 'var(--primary)', textDecoration: 'none' }}>{selectedSubmission.leader_email}</a></div>

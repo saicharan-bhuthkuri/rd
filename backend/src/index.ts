@@ -302,6 +302,7 @@ async function setupDatabase() {
     await db.execute(`
       CREATE TABLE IF NOT EXISTS hackathon_registrations (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        team_id TEXT,
         hackathon_name TEXT,
         team_name TEXT NOT NULL,
         project_title TEXT NOT NULL,
@@ -406,6 +407,7 @@ async function setupDatabase() {
       CREATE TABLE IF NOT EXISTS project_submissions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         hackathon_registration_id INTEGER,
+        team_id TEXT,
         event_name TEXT NOT NULL,
         team_name TEXT NOT NULL,
         leader_name TEXT NOT NULL,
@@ -580,6 +582,50 @@ async function setupDatabase() {
     try {
       await db.execute(`ALTER TABLE hackathon_registrations ADD COLUMN room_code TEXT;`);
     } catch (e) {}
+
+    // Team ID column alterations and backfill for hackathon_registrations
+    try {
+      await db.execute(`ALTER TABLE hackathon_registrations ADD COLUMN team_id TEXT;`);
+      console.log("Database verification: team_id column verified/added to hackathon_registrations.");
+    } catch (e) {}
+
+    try {
+      const missingTeamIds = await db.execute("SELECT id FROM hackathon_registrations WHERE team_id IS NULL OR team_id = ''");
+      for (const row of missingTeamIds.rows) {
+        const generatedTeamId = `TCEK-HK26-${String(row.id).padStart(4, '0')}`;
+        await db.execute({
+          sql: "UPDATE hackathon_registrations SET team_id = ? WHERE id = ?",
+          args: [generatedTeamId, row.id]
+        });
+      }
+      if (missingTeamIds.rows.length > 0) {
+        console.log(`Database migration: Backfilled ${missingTeamIds.rows.length} hackathon_registrations with unique team_ids.`);
+      }
+    } catch (e: any) {
+      console.error("Database migration notice for hackathon_registrations team_id:", e.message);
+    }
+
+    // Team ID column alterations and backfill for project_submissions
+    try {
+      await db.execute(`ALTER TABLE project_submissions ADD COLUMN team_id TEXT;`);
+      console.log("Database verification: team_id column verified/added to project_submissions.");
+    } catch (e) {}
+
+    try {
+      await db.execute(`
+        UPDATE project_submissions
+        SET team_id = (
+          SELECT COALESCE(hr.team_id, 'TCEK-HK26-' || substr('0000' || hr.id, -4))
+          FROM hackathon_registrations hr
+          WHERE hr.id = project_submissions.hackathon_registration_id
+             OR LOWER(TRIM(hr.team_name)) = LOWER(TRIM(project_submissions.team_name))
+          LIMIT 1
+        )
+        WHERE team_id IS NULL OR team_id = ''
+      `);
+    } catch (e: any) {
+      console.error("Database migration notice for project_submissions team_id:", e.message);
+    }
 
     // Columns for registration_desk_users: hackathon, temporary password, and 1-week expiration
     try {
@@ -1367,7 +1413,18 @@ app.post('/api/apply/hackathon', sensitiveLimiter, async (req, res) => {
     });
 
     const newId = Number(result.lastInsertRowid);
+    const teamId = `TCEK-HK26-${String(newId).padStart(4, '0')}`;
     const refId = `TCEK/RD/HACK/${String(newId).padStart(4, '0')}`;
+
+    // Update registration with unique Team ID
+    try {
+      await db.execute({
+        sql: `UPDATE hackathon_registrations SET team_id = ? WHERE id = ?`,
+        args: [teamId, newId]
+      });
+    } catch (updErr: any) {
+      console.warn("Notice updating team_id for registration:", updErr.message);
+    }
 
     // Format member count or summary
     let parsedMembers: any[] = [];
@@ -1380,14 +1437,15 @@ app.post('/api/apply/hackathon', sensitiveLimiter, async (req, res) => {
       ? parsedMembers.map((m: any, idx: number) => `Member ${idx + 2}: ${m.fullName || 'N/A'} (${m.email || 'N/A'})`).join(', ')
       : 'No additional members';
 
-    // Send automatic confirmation email to Team Leader
+    // Send automatic confirmation email to Team Leader with prominent Team ID
     sendApplicationConfirmationEmail({
       to: leaderEmail,
-      subject: `Registration Successful: ${hackathonName || 'R&D AlphaQuest Hackathon'} – Team ${teamName}`,
+      subject: `Registration Successful: ${hackathonName || 'R&D AlphaQuest Hackathon'} – Team ${teamName} [${teamId}]`,
       applicantName: leaderName,
       formTitle: 'Hackathon Team Registration',
       referenceId: refId,
       details: [
+        { label: 'Assigned Team ID', value: teamId },
         { label: 'Hackathon Event', value: hackathonName || 'R&D AlphaQuest Hackathon' },
         { label: 'Registered Team Name', value: String(teamName).trim() },
         { label: 'Project Title', value: String(projectTitle).trim() },
@@ -1398,9 +1456,9 @@ app.post('/api/apply/hackathon', sensitiveLimiter, async (req, res) => {
         { label: 'Institution / College', value: leaderInstitution || leaderCompany || 'Trinity College of Engineering & Technology' },
         { label: 'Registered Members', value: memberSummary }
       ],
-      noticeTitle: 'IMPORTANT PRESENTATION INSTRUCTIONS',
-      noticeText: 'The official PPT/PPTX presentation format/template will be sent to your registered email address shortly.\n\nPlease complete the presentation using the provided format and submit it through Project Submission (converted to PDF format).',
-      actionUrl: 'https://tcek-rd.web.app/apply?type=submission',
+      noticeTitle: 'IMPORTANT: SAVE YOUR UNIQUE TEAM ID FOR PROJECT SUBMISSION',
+      noticeText: `Your official Team ID is: ${teamId}\n\nPlease keep this Team ID safe! You will be required to enter this Team ID in the Project Submission portal to verify your team and submit your completed presentation.\n\nPlease prepare your presentation in PPT/PPTX format and convert it to PDF (.pdf) for final submission.`,
+      actionUrl: `https://tcek-rd.web.app/apply?type=submission&teamId=${teamId}`,
       actionText: 'Go to Project Submission'
     }).catch(err => console.warn('[Hackathon Email] Delivery failed:', err.message));
 
@@ -1409,6 +1467,7 @@ app.post('/api/apply/hackathon', sensitiveLimiter, async (req, res) => {
       success: true,
       message: "Hackathon team registration recorded successfully.",
       id: newId,
+      teamId: teamId,
       referenceId: refId
     });
   } catch (error: any) {
@@ -1628,41 +1687,50 @@ app.get('/api/project-submission/events', async (req, res) => {
   }
 });
 
-// Verify registered team by event & team name
+// Verify registered team by Team ID or Team Name
 app.get('/api/project-submission/verify-team', sensitiveLimiter, async (req, res) => {
-  const { eventName, teamName } = req.query;
+  const { eventName, teamName, teamId } = req.query;
 
-  if (!eventName || !teamName) {
-    return res.status(400).json({ error: "Both Event Name and Team Name are required." });
+  const lookupKey = String(teamId || teamName || '').trim();
+  if (!lookupKey) {
+    return res.status(400).json({ error: "Please enter your registered Team ID." });
   }
 
-  const trimmedEvent = String(eventName).trim().toLowerCase();
-  const trimmedTeam = String(teamName).trim().toLowerCase();
+  const trimmedEvent = eventName ? String(eventName).trim().toLowerCase() : '';
+  const trimmedKey = lookupKey.toLowerCase();
+  
+  // Normalize candidate: if user typed "0001" or "1", also build candidate "tcek-hk26-0001"
+  const normalizedCandidate = /^\d+$/.test(trimmedKey) 
+    ? `tcek-hk26-${trimmedKey.padStart(4, '0')}` 
+    : trimmedKey;
 
   try {
-    // 1. Exact match on both event and team name
+    // 1. Search by team_id or team_name (case-insensitive) or primary key
     let teamRes = await db.execute({
       sql: `SELECT * FROM hackathon_registrations 
-            WHERE LOWER(TRIM(COALESCE(hackathon_name, ''))) = ? 
-              AND LOWER(TRIM(team_name)) = ?
+            WHERE LOWER(TRIM(COALESCE(team_id, ''))) = ? 
+               OR LOWER(TRIM(COALESCE(team_id, ''))) = ?
+               OR LOWER(TRIM(team_name)) = ?
+               OR id = ?
             ORDER BY id DESC LIMIT 1`,
-      args: [trimmedEvent, trimmedTeam]
+      args: [trimmedKey, normalizedCandidate, trimmedKey, isNaN(Number(trimmedKey)) ? -1 : Number(trimmedKey)]
     });
 
-    // 2. Fallback: match by team name, then match event loosely
-    if (teamRes.rows.length === 0) {
-      const candidatesRes = await db.execute({
-        sql: `SELECT * FROM hackathon_registrations 
-              WHERE LOWER(TRIM(team_name)) = ?
-              ORDER BY id DESC`,
-        args: [trimmedTeam]
-      });
-
-      for (const row of candidatesRes.rows) {
-        const ev = String(row.hackathon_name || '').toLowerCase();
-        if (ev.includes(trimmedEvent) || trimmedEvent.includes(ev) || ev === '') {
-          teamRes = { rows: [row] } as any;
-          break;
+    // 2. If eventName provided, prioritize match for that event
+    if (trimmedEvent && teamRes.rows.length > 0) {
+      const regEvent = String(teamRes.rows[0].hackathon_name || '').toLowerCase();
+      if (!regEvent.includes(trimmedEvent) && !trimmedEvent.includes(regEvent) && regEvent !== '') {
+        const eventSpecificRes = await db.execute({
+          sql: `SELECT * FROM hackathon_registrations 
+                WHERE (LOWER(TRIM(COALESCE(team_id, ''))) = ? 
+                   OR LOWER(TRIM(COALESCE(team_id, ''))) = ?
+                   OR LOWER(TRIM(team_name)) = ?)
+                  AND LOWER(TRIM(COALESCE(hackathon_name, ''))) = ?
+                ORDER BY id DESC LIMIT 1`,
+          args: [trimmedKey, normalizedCandidate, trimmedKey, trimmedEvent]
+        });
+        if (eventSpecificRes.rows.length > 0) {
+          teamRes = eventSpecificRes;
         }
       }
     }
@@ -1671,11 +1739,12 @@ app.get('/api/project-submission/verify-team', sensitiveLimiter, async (req, res
       return res.status(404).json({
         success: false,
         verified: false,
-        message: `No registered team found matching "${teamName}" for event "${eventName}". Please ensure the team name matches your exact registration.`
+        message: `No registered team found matching "${lookupKey}". Please ensure you enter the exact Team ID provided after registration (e.g. TCEK-HK26-0001).`
       });
     }
 
     const reg = teamRes.rows[0];
+    const officialTeamId = (reg.team_id as string) || `TCEK-HK26-${String(reg.id).padStart(4, '0')}`;
     let parsedMembers: any[] = [];
     try {
       if (typeof reg.members === 'string') {
@@ -1692,6 +1761,7 @@ app.get('/api/project-submission/verify-team', sensitiveLimiter, async (req, res
       verified: true,
       team: {
         id: reg.id,
+        teamId: officialTeamId,
         teamName: reg.team_name,
         eventName: reg.hackathon_name || eventName,
         leaderName: reg.leader_name,
@@ -1719,6 +1789,7 @@ app.post('/api/project-submission/submit', sensitiveLimiter, async (req, res) =>
   const {
     eventName,
     teamName,
+    teamId: inputTeamId,
     projectTitle,
     projectInfo,
     problemStatement,
@@ -1729,8 +1800,8 @@ app.post('/api/project-submission/submit', sensitiveLimiter, async (req, res) =>
   } = req.body;
 
   // 1. Validation
-  if (!eventName || !teamName || !fileName || !fileBase64) {
-    return res.status(400).json({ error: "Event name, team name, and presentation file are required." });
+  if (!eventName || (!teamName && !inputTeamId) || !fileName || !fileBase64) {
+    return res.status(400).json({ error: "Event name, team identification, and presentation file are required." });
   }
 
   // File extension validation
@@ -1740,18 +1811,22 @@ app.post('/api/project-submission/submit', sensitiveLimiter, async (req, res) =>
   }
 
   try {
-    // 2. Lookup registered team
-    const trimmedTeam = String(teamName).trim().toLowerCase();
+    // 2. Lookup registered team by team_id or team_name
+    const trimmedTeam = teamName ? String(teamName).trim().toLowerCase() : '';
+    const trimmedTeamId = inputTeamId ? String(inputTeamId).trim().toLowerCase() : '';
 
     const regRes = await db.execute({
       sql: `SELECT * FROM hackathon_registrations 
-            WHERE LOWER(TRIM(team_name)) = ?
+            WHERE (LOWER(TRIM(COALESCE(team_id, ''))) = ? AND ? != '')
+               OR (LOWER(TRIM(team_name)) = ? AND ? != '')
             ORDER BY id DESC LIMIT 1`,
-      args: [trimmedTeam]
+      args: [trimmedTeamId, trimmedTeamId, trimmedTeam, trimmedTeam]
     });
 
     const reg = regRes.rows.length > 0 ? regRes.rows[0] : null;
-    const teamId = reg ? (reg.id as number) : 1;
+    const teamDbId = reg ? (reg.id as number) : 1;
+    const resolvedTeamName = reg ? (reg.team_name as string) : (teamName || 'Team');
+    const officialTeamId = (reg?.team_id as string) || (inputTeamId ? String(inputTeamId).trim() : `TCEK-HK26-${String(teamDbId).padStart(4, '0')}`);
     const teamLeaderName = reg ? (reg.leader_name as string) : 'Team Leader';
     const teamLeaderEmail = reg ? (reg.leader_email as string) : '';
     const teamLeaderPhone = reg ? (reg.leader_phone as string) : '';
@@ -1761,9 +1836,8 @@ app.post('/api/project-submission/submit', sensitiveLimiter, async (req, res) =>
     const registeredProblemStatement = (reg?.problem_statement as string) || (problemStatement ? String(problemStatement).trim() : '');
     const submissionProjectInfo = projectInfo ? String(projectInfo).trim() : '';
 
-    // Format team folder name: e.g. "Team 01 – Tech Twins"
-    const paddedNum = String(teamId).padStart(2, '0');
-    const teamFolderName = `Team ${paddedNum} – ${String(teamName).trim()}`;
+    // Format team folder name: e.g. "TCEK-HK26-0001 – Code Pioneers"
+    const teamFolderName = `${officialTeamId} – ${String(resolvedTeamName).trim()}`;
 
     // 3. Upload to Google Drive via Google Apps Script Proxy
     let driveFileId = '';
@@ -1828,16 +1902,17 @@ app.post('/api/project-submission/submit', sensitiveLimiter, async (req, res) =>
     // 4. Save metadata in database (NO file binary/base64 stored)
     const result = await db.execute({
       sql: `INSERT INTO project_submissions (
-              hackathon_registration_id, event_name, team_name,
+              hackathon_registration_id, team_id, event_name, team_name,
               leader_name, leader_email, leader_phone, institution, members,
               project_title, project_info, problem_statement,
               drive_file_id, drive_file_url, drive_folder_id, drive_folder_url,
               file_name, file_size, mime_type, status
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'submitted')`,
       args: [
-        teamId,
+        teamDbId,
+        officialTeamId,
         String(eventName).trim(),
-        String(teamName).trim(),
+        String(resolvedTeamName).trim(),
         teamLeaderName,
         teamLeaderEmail,
         teamLeaderPhone,
@@ -1863,13 +1938,14 @@ app.post('/api/project-submission/submit', sensitiveLimiter, async (req, res) =>
     if (teamLeaderEmail) {
       sendApplicationConfirmationEmail({
         to: teamLeaderEmail,
-        subject: `Project Submission Confirmed: Team ${teamName} – ${eventName}`,
+        subject: `Project Submission Confirmed: Team ${resolvedTeamName} [${officialTeamId}] – ${eventName}`,
         applicantName: teamLeaderName,
         formTitle: 'Project Submission',
         referenceId: refNumber,
         details: [
+          { label: 'Assigned Team ID', value: officialTeamId },
           { label: 'Event Name', value: String(eventName) },
-          { label: 'Registered Team Name', value: String(teamName) },
+          { label: 'Registered Team Name', value: String(resolvedTeamName) },
           { label: 'Team Leader', value: `${teamLeaderName} (${teamLeaderPhone || 'N/A'})` },
           { label: 'Institution / College', value: institution || 'Trinity College of Engineering & Technology' },
           { label: 'Project Title', value: registeredProjectTitle || 'N/A' },
@@ -1889,7 +1965,8 @@ app.post('/api/project-submission/submit', sensitiveLimiter, async (req, res) =>
       success: true,
       submissionId,
       referenceNumber: refNumber,
-      teamName,
+      teamId: officialTeamId,
+      teamName: resolvedTeamName,
       eventName,
       driveFileUrl,
       driveFolderUrl,
@@ -3360,7 +3437,7 @@ app.get(['/api/reg-desk/participants', '/api/reg-desk/attendees'], authenticateR
         rows = result.rows;
         if (rows.length === 0) {
           const hResult = await db.execute({
-            sql: `SELECT id, id as hackathon_registration_id, hackathon_name as event_name, team_name, 
+            sql: `SELECT id, id as hackathon_registration_id, team_id, hackathon_name as event_name, team_name, 
                          leader_name, leader_email, leader_phone, leader_institution as institution, 
                          members, project_title, project_description as project_info, problem_statement, 
                          'submitted' as status, created_at 
@@ -3375,7 +3452,7 @@ app.get(['/api/reg-desk/participants', '/api/reg-desk/attendees'], authenticateR
         const result = await db.execute("SELECT * FROM project_submissions ORDER BY id DESC");
         rows = result.rows;
         if (rows.length === 0) {
-          const hResult = await db.execute(`SELECT id, id as hackathon_registration_id, hackathon_name as event_name, team_name, leader_name, leader_email, leader_phone, leader_institution as institution, members, project_title, project_description as project_info, problem_statement, 'submitted' as status, created_at FROM hackathon_registrations WHERE project_title IS NOT NULL AND project_title != '' ORDER BY id DESC`);
+          const hResult = await db.execute(`SELECT id, id as hackathon_registration_id, team_id, hackathon_name as event_name, team_name, leader_name, leader_email, leader_phone, leader_institution as institution, members, project_title, project_description as project_info, problem_statement, 'submitted' as status, created_at FROM hackathon_registrations WHERE project_title IS NOT NULL AND project_title != '' ORDER BY id DESC`);
           rows = hResult.rows;
         }
       }

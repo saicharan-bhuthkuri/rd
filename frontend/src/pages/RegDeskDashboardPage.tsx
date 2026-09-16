@@ -63,6 +63,7 @@ interface EventDetails {
 
 interface ParticipantRecord {
   id: number;
+  team_id?: string;
   hackathon_name?: string;
   event_name?: string;
   team_name?: string;
@@ -98,6 +99,7 @@ interface ParticipantRecord {
 interface ProjectSubmissionRecord {
   id: number;
   hackathon_registration_id?: number;
+  team_id?: string;
   event_name: string;
   team_name: string;
   leader_name: string;
@@ -524,13 +526,14 @@ export const RegDeskDashboardPage: React.FC = () => {
       if (searchTerm.trim() !== '') {
         const q = searchTerm.toLowerCase().trim();
         const team = (r.team_name || '').toLowerCase();
+        const teamId = (r.team_id || '').toLowerCase();
         const leader = (r.leader_name || r.full_name || '').toLowerCase();
         const email = (r.leader_email || r.email || '').toLowerCase();
         const phone = (r.leader_phone || r.mobile || '').toLowerCase();
         const pin = (r.pin_number || '').toLowerCase();
         const proj = (r.project_title || '').toLowerCase();
         const prob = (r.problem_statement || '').toLowerCase();
-        return team.includes(q) || leader.includes(q) || email.includes(q) || phone.includes(q) || pin.includes(q) || proj.includes(q) || prob.includes(q);
+        return team.includes(q) || teamId.includes(q) || leader.includes(q) || email.includes(q) || phone.includes(q) || pin.includes(q) || proj.includes(q) || prob.includes(q);
       }
 
       return true;
@@ -560,13 +563,14 @@ export const RegDeskDashboardPage: React.FC = () => {
       if (searchTerm.trim() !== '') {
         const q = searchTerm.toLowerCase().trim();
         const team = (s.team_name || '').toLowerCase();
+        const teamId = (s.team_id || '').toLowerCase();
         const leader = (s.leader_name || '').toLowerCase();
         const email = (s.leader_email || '').toLowerCase();
         const phone = (s.leader_phone || '').toLowerCase();
         const proj = (s.project_title || '').toLowerCase();
         const prob = (s.problem_statement || '').toLowerCase();
         const file = (s.file_name || '').toLowerCase();
-        return team.includes(q) || leader.includes(q) || email.includes(q) || phone.includes(q) || proj.includes(q) || prob.includes(q) || file.includes(q);
+        return team.includes(q) || teamId.includes(q) || leader.includes(q) || email.includes(q) || phone.includes(q) || proj.includes(q) || prob.includes(q) || file.includes(q);
       }
 
       return true;
@@ -1181,7 +1185,20 @@ export const RegDeskDashboardPage: React.FC = () => {
                             }}>
                               {activeEvent?.title || reg.hackathon_name || 'Hackathon'}
                             </span>
-                            <div><strong>{reg.team_name}</strong></div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                              <strong>{reg.team_name}</strong>
+                              <span style={{
+                                fontSize: '0.6875rem',
+                                fontWeight: 700,
+                                color: '#065f46',
+                                backgroundColor: '#d1fae5',
+                                padding: '0.1rem 0.35rem',
+                                borderRadius: '4px',
+                                fontFamily: 'monospace'
+                              }}>
+                                {reg.team_id || `TCEK-HK26-${String(reg.id).padStart(4, '0')}`}
+                              </span>
+                            </div>
                             <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
                               Leader: {reg.leader_name}
                             </div>
@@ -1387,7 +1404,18 @@ export const RegDeskDashboardPage: React.FC = () => {
                             </div>
                           </td>
                           <td>
-                            <strong style={{ fontSize: '0.9rem', color: 'var(--text-main)' }}>{sub.team_name}</strong>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                              <strong style={{ fontSize: '0.9rem', color: 'var(--text-main)' }}>{sub.team_name}</strong>
+                              <span style={{
+                                fontSize: '0.6875rem',
+                                fontWeight: 700,
+                                color: '#065f46',
+                                backgroundColor: '#d1fae5',
+                                padding: '0.1rem 0.35rem',
+                                borderRadius: '4px',
+                                fontFamily: 'monospace'
+                              }}>{sub.team_id || `TCEK-HK26-${String(sub.hackathon_registration_id || sub.id).padStart(4, '0')}`}</span>
+                            </div>
                             <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
                               Leader: {sub.leader_name}
                             </div>
@@ -2074,8 +2102,11 @@ export const RegDeskDashboardPage: React.FC = () => {
                 }}>
                   {activeEvent?.title || selectedParticipant.hackathon_name || 'Event'}
                 </span>
-                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'var(--primary)' }}>
-                  Team Details: {selectedParticipant.team_name || selectedParticipant.full_name}
+                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <span>Team Details: {selectedParticipant.team_name || selectedParticipant.full_name}</span>
+                  <span style={{ fontSize: '0.8125rem', fontFamily: 'monospace', fontWeight: 700, backgroundColor: '#d1fae5', color: '#065f46', padding: '0.15rem 0.5rem', borderRadius: '6px', border: '1px solid #a7f3d0' }}>
+                    {selectedParticipant.team_id || `TCEK-HK26-${String(selectedParticipant.id).padStart(4, '0')}`}
+                  </span>
                 </h3>
               </div>
               <button
@@ -2426,6 +2457,7 @@ export const RegDeskDashboardPage: React.FC = () => {
                   Team Information
                 </h4>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', fontSize: '0.875rem' }}>
+                  <div><strong>Team ID:</strong> <span style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--primary)' }}>{selectedSubmission.team_id || `TCEK-HK26-${String(selectedSubmission.hackathon_registration_id || selectedSubmission.id).padStart(4, '0')}`}</span></div>
                   <div><strong>Team Name:</strong> {selectedSubmission.team_name}</div>
                   <div><strong>Leader Name:</strong> {selectedSubmission.leader_name}</div>
                   <div><strong>Leader Email:</strong> {selectedSubmission.leader_email}</div>
