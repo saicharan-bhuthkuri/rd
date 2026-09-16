@@ -47,6 +47,8 @@ interface RecipientPreview {
   role: string;
 }
 
+const DEFAULT_MID_TEXT = `Please review the event schedule, reporting guidelines, and instructions on our official portal. Ensure all necessary project assets, identity credentials, and requirements are prepared prior to the commencement of the session.\n\nIf you have any questions or require special accommodations, kindly reach out to the Registration Desk coordinators or reply to this communication.\n\nWe look forward to your active participation!`;
+
 export const AdminMessagingPage: React.FC = () => {
   const [events, setEvents] = useState<EventItem[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<string>('');
@@ -59,8 +61,8 @@ export const AdminMessagingPage: React.FC = () => {
     volunteers: true,
   });
 
-  const [subject, setSubject] = useState<string>('');
-  const [midMessage, setMidMessage] = useState<string>('');
+  const [subject, setSubject] = useState<string>('Important Update: SIH 2026 Internal Hackathon — Trinity R&D Cell');
+  const [midMessage, setMidMessage] = useState<string>(DEFAULT_MID_TEXT);
 
   // Counts & preview
   const [counts, setCounts] = useState<RecipientCounts>({
