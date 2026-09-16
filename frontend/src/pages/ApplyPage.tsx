@@ -756,6 +756,8 @@ export const ApplyPage: React.FC = () => {
 
   // Hackathon specific fields state
   const [teamName, setTeamName] = useState('');
+  const [hackathonProjectTitle, setHackathonProjectTitle] = useState('');
+  const [hackathonProblemStatement, setHackathonProblemStatement] = useState('');
   const [selectedHackathonName, setSelectedHackathonName] = useState('');
   const [hackathonsList, setHackathonsList] = useState<string[]>([]);
   const [hackathonConfirmed, setHackathonConfirmed] = useState(false);
@@ -775,9 +777,6 @@ export const ApplyPage: React.FC = () => {
   const [isVerifyingTeam, setIsVerifyingTeam] = useState(false);
   const [verifiedTeam, setVerifiedTeam] = useState<any | null>(null);
   const [teamVerifyError, setTeamVerifyError] = useState('');
-  const [submissionProjectTitle, setSubmissionProjectTitle] = useState('');
-  const [submissionProjectInfo, setSubmissionProjectInfo] = useState('');
-  const [submissionProblemStatement, setSubmissionProblemStatement] = useState('');
   const [submissionFile, setSubmissionFile] = useState<File | null>(null);
   const [submissionFileBase64, setSubmissionFileBase64] = useState('');
   const [submissionSuccessData, setSubmissionSuccessData] = useState<{
@@ -1008,6 +1007,8 @@ export const ApplyPage: React.FC = () => {
 
     // Hackathon reset
     setTeamName('');
+    setHackathonProjectTitle('');
+    setHackathonProblemStatement('');
     setSelectedHackathonName(hackathonsList.length > 0 ? hackathonsList[0] : '');
     setLeaderRole('Student');
     setLeaderYear('');
@@ -1023,9 +1024,6 @@ export const ApplyPage: React.FC = () => {
     setIsVerifyingTeam(false);
     setVerifiedTeam(null);
     setTeamVerifyError('');
-    setSubmissionProjectTitle('');
-    setSubmissionProjectInfo('');
-    setSubmissionProblemStatement('');
     setSubmissionFile(null);
     setSubmissionFileBase64('');
     setSubmissionSuccessData(null);
@@ -1115,12 +1113,6 @@ export const ApplyPage: React.FC = () => {
       const data = await res.json();
       if (res.ok && data.success && data.team) {
         setVerifiedTeam(data.team);
-        if (data.team.projectTitle && !submissionProjectTitle) {
-          setSubmissionProjectTitle(data.team.projectTitle);
-        }
-        if (data.team.problemStatement && !submissionProblemStatement) {
-          setSubmissionProblemStatement(data.team.problemStatement);
-        }
       } else {
         setTeamVerifyError(data.message || data.error || `No registered team found matching "${submissionTeamName.trim()}" for event "${submissionEvent}". Please ensure the team name matches your exact registration.`);
       }
@@ -1171,26 +1163,6 @@ export const ApplyPage: React.FC = () => {
       alert('Please enter and verify your registered Team Name first.');
       return;
     }
-    if (!submissionProjectTitle.trim()) {
-      alert('Please enter your Project Title.');
-      return;
-    }
-    if (!submissionProjectInfo.trim()) {
-      alert('Please provide your Project Info.');
-      return;
-    }
-    if (countWords(submissionProjectInfo) > 1500) {
-      alert(`Project Info cannot exceed 1,500 words (Current: ${countWords(submissionProjectInfo)} words).`);
-      return;
-    }
-    if (!submissionProblemStatement.trim()) {
-      alert('Please provide your Problem Statement.');
-      return;
-    }
-    if (countWords(submissionProblemStatement) > 1000) {
-      alert(`Problem Statement cannot exceed 1,000 words (Current: ${countWords(submissionProblemStatement)} words).`);
-      return;
-    }
     if (!submissionFile || !submissionFileBase64) {
       alert('Please upload your PPT/PPTX or PDF presentation file.');
       return;
@@ -1201,9 +1173,6 @@ export const ApplyPage: React.FC = () => {
       const payload = {
         eventName: submissionEvent,
         teamName: verifiedTeam.teamName,
-        projectTitle: submissionProjectTitle.trim(),
-        projectInfo: submissionProjectInfo.trim(),
-        problemStatement: submissionProblemStatement.trim(),
         fileName: submissionFile.name,
         fileBase64: submissionFileBase64,
         mimeType: submissionFile.type || 'application/octet-stream',
@@ -1327,6 +1296,18 @@ export const ApplyPage: React.FC = () => {
       }
       if (!teamName.trim()) {
         alert("Please enter a Team Name.");
+        return;
+      }
+      if (!hackathonProjectTitle.trim()) {
+        alert("Please enter your Project Title.");
+        return;
+      }
+      if (!hackathonProblemStatement.trim()) {
+        alert("Please provide your Problem Statement.");
+        return;
+      }
+      if (countWords(hackathonProblemStatement) > 1000) {
+        alert(`Problem Statement cannot exceed 1,000 words (Current: ${countWords(hackathonProblemStatement)} words).`);
         return;
       }
       if (!fullName.trim()) {
@@ -1498,6 +1479,8 @@ export const ApplyPage: React.FC = () => {
     } : {
       hackathonName: selectedHackathonName,
       teamName,
+      projectTitle: hackathonProjectTitle.trim(),
+      problemStatement: hackathonProblemStatement.trim(),
       leaderName: fullName,
       leaderEmail: email,
       leaderPhone: formattedFullMobile,
@@ -1665,7 +1648,7 @@ export const ApplyPage: React.FC = () => {
             </h1>
             <p className="apply-panel-desc">
               {formType === 'submission'
-                ? 'Submit your registered team\'s project presentation, detailed technical explanation, and problem statement directly to our Google Drive evaluation repository.'
+                ? 'Submit your registered team\'s project presentation directly to our Google Drive evaluation repository.'
                 : formType === 'recognition'
                 ? 'We express our deepest gratitude to industry leaders, eminent academicians, and technical experts whose fair evaluations guide and inspire our student innovators.'
                 : formType === 'volunteer'
@@ -1699,8 +1682,8 @@ export const ApplyPage: React.FC = () => {
                   {formType === 'submission' ? <FileText size={18} /> : <Sparkles size={18} />}
                 </div>
                 <div className="feature-item-text">
-                  <h4>{formType === 'submission' ? 'Evaluation Documentation' : formType === 'recognition' ? 'Verifiable Credential' : formType === 'volunteer' ? 'Volunteer Certification' : 'HPC Compute & Resources'}</h4>
-                  <p>{formType === 'submission' ? 'Structured project info up to 1,500 words and problem statement up to 1,000 words for judges.' : formType === 'recognition' ? 'Indexed with a permanent verification ID accessible to academic institutions and organizations globally.' : formType === 'volunteer' ? 'Receive an official, verifiable Certificate of Appreciation acknowledging your dedication and service.' : 'Get priority access to high-performance A100/H100 clusters and electronics testing labs.'}</p>
+                  <h4>{formType === 'submission' ? 'Automated Cloud Archival' : formType === 'recognition' ? 'Verifiable Credential' : formType === 'volunteer' ? 'Volunteer Certification' : 'HPC Compute & Resources'}</h4>
+                  <p>{formType === 'submission' ? 'Direct upload to Google Drive with automated synchronization of registered team details.' : formType === 'recognition' ? 'Indexed with a permanent verification ID accessible to academic institutions and organizations globally.' : formType === 'volunteer' ? 'Receive an official, verifiable Certificate of Appreciation acknowledging your dedication and service.' : 'Get priority access to high-performance A100/H100 clusters and electronics testing labs.'}</p>
                 </div>
               </div>
             </div>
@@ -2484,6 +2467,43 @@ export const ApplyPage: React.FC = () => {
                         </div>
                       </div>
 
+                      {/* Project Details */}
+                      <div className="form-section-title" style={{ marginTop: '1.5rem' }}>Project Details</div>
+
+                      <div className="form-group">
+                        <label htmlFor="hackathonProjectTitle">Project Title <span className="req">*</span></label>
+                        <div className="input-with-icon">
+                          <FileText size={16} />
+                          <input
+                            type="text"
+                            id="hackathonProjectTitle"
+                            required
+                            placeholder="e.g. AI-Powered Autonomous Crop Monitoring System"
+                            value={hackathonProjectTitle}
+                            onChange={(e) => setHackathonProjectTitle(e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="form-group">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.375rem' }}>
+                          <label htmlFor="hackathonProblemStatement" style={{ margin: 0 }}>
+                            Problem Statement <span className="req">*</span>
+                          </label>
+                          <span className={`word-counter-pill ${countWords(hackathonProblemStatement) > 1000 ? 'counter-danger' : countWords(hackathonProblemStatement) > 900 ? 'counter-warning' : 'counter-normal'}`}>
+                            {countWords(hackathonProblemStatement)} / 1,000 words
+                          </span>
+                        </div>
+                        <textarea
+                          id="hackathonProblemStatement"
+                          rows={5}
+                          required
+                          placeholder="Explain the real-world problem statement, societal/industrial relevance, current constraints, and proposed innovative solution (maximum 1,000 words)..."
+                          value={hackathonProblemStatement}
+                          onChange={(e) => setHackathonProblemStatement(e.target.value)}
+                        />
+                      </div>
+
                       {/* Team Leader Details */}
                       <div className="form-section-title" style={{ marginTop: '1.5rem' }}>Team Leader Details</div>
                       
@@ -2938,6 +2958,22 @@ export const ApplyPage: React.FC = () => {
                               <span className="meta-label">College / Institution:</span>
                               <span className="meta-value">{verifiedTeam.institution}</span>
                             </div>
+                            {verifiedTeam.projectTitle && (
+                              <div className="team-meta-item full-width">
+                                <span className="meta-label">Registered Project Title:</span>
+                                <span className="meta-value font-semibold" style={{ color: 'var(--primary)' }}>
+                                  {verifiedTeam.projectTitle}
+                                </span>
+                              </div>
+                            )}
+                            {verifiedTeam.problemStatement && (
+                              <div className="team-meta-item full-width">
+                                <span className="meta-label">Registered Problem Statement:</span>
+                                <span className="meta-value" style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
+                                  {verifiedTeam.problemStatement}
+                                </span>
+                              </div>
+                            )}
                             {verifiedTeam.members && verifiedTeam.members.length > 0 && (
                               <div className="team-meta-item full-width">
                                 <span className="meta-label">Team Members ({verifiedTeam.members.length}):</span>
@@ -2954,64 +2990,8 @@ export const ApplyPage: React.FC = () => {
                         </div>
                       )}
 
-                      {/* 3. Project Information */}
-                      <div className="form-section-title" style={{ marginTop: '1.75rem' }}>3. Project Information</div>
-
-                      <div className="form-group">
-                        <label htmlFor="submissionProjectTitle">Project Title <span className="req">*</span></label>
-                        <div className="input-with-icon">
-                          <FileText size={16} />
-                          <input
-                            type="text"
-                            id="submissionProjectTitle"
-                            required
-                            placeholder="e.g. AI-Powered Autonomous Crop Monitoring System"
-                            value={submissionProjectTitle}
-                            onChange={(e) => setSubmissionProjectTitle(e.target.value)}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="form-group">
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.375rem' }}>
-                          <label htmlFor="submissionProjectInfo" style={{ margin: 0 }}>
-                            Project Info <span className="req">*</span>
-                          </label>
-                          <span className={`word-counter-pill ${countWords(submissionProjectInfo) > 1500 ? 'counter-danger' : countWords(submissionProjectInfo) > 1350 ? 'counter-warning' : 'counter-normal'}`}>
-                            {countWords(submissionProjectInfo)} / 1,500 words
-                          </span>
-                        </div>
-                        <textarea
-                          id="submissionProjectInfo"
-                          rows={6}
-                          required
-                          placeholder="Provide detailed project explanation: system architecture, technology stack, operational workflow, core features, and experimental results (maximum 1,500 words)..."
-                          value={submissionProjectInfo}
-                          onChange={(e) => setSubmissionProjectInfo(e.target.value)}
-                        />
-                      </div>
-
-                      <div className="form-group">
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.375rem' }}>
-                          <label htmlFor="submissionProblemStatement" style={{ margin: 0 }}>
-                            Problem Statement <span className="req">*</span>
-                          </label>
-                          <span className={`word-counter-pill ${countWords(submissionProblemStatement) > 1000 ? 'counter-danger' : countWords(submissionProblemStatement) > 900 ? 'counter-warning' : 'counter-normal'}`}>
-                            {countWords(submissionProblemStatement)} / 1,000 words
-                          </span>
-                        </div>
-                        <textarea
-                          id="submissionProblemStatement"
-                          rows={5}
-                          required
-                          placeholder="Explain the real-world problem statement, societal/industrial relevance, current constraints, and proposed innovative solution (maximum 1,000 words)..."
-                          value={submissionProblemStatement}
-                          onChange={(e) => setSubmissionProblemStatement(e.target.value)}
-                        />
-                      </div>
-
-                      {/* 4. Upload Presentation */}
-                      <div className="form-section-title" style={{ marginTop: '1.75rem' }}>4. Upload Presentation</div>
+                      {/* 3. Upload Presentation */}
+                      <div className="form-section-title" style={{ marginTop: '1.75rem' }}>3. Upload Presentation</div>
                       
                       <div className="form-group">
                         <label>Upload Presentation (PPT/PPTX converted to PDF format) <span className="req">*</span></label>

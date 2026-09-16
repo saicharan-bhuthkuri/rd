@@ -2303,12 +2303,16 @@ export const AdminDashboardPage: React.FC = () => {
                             {sub.project_title}
                           </strong>
                           <div style={{ fontSize: '0.75rem', display: 'flex', gap: '0.5rem', marginBottom: '0.35rem' }}>
-                            <span style={{ color: '#059669', backgroundColor: '#ecfdf5', padding: '0.1rem 0.35rem', borderRadius: '4px', fontWeight: 600 }}>
-                              Info: {wordCountInfo}/1500w
-                            </span>
-                            <span style={{ color: '#0284c7', backgroundColor: '#e0f2fe', padding: '0.1rem 0.35rem', borderRadius: '4px', fontWeight: 600 }}>
-                              Problem: {wordCountProblem}/1000w
-                            </span>
+                            {wordCountInfo > 0 && (
+                              <span style={{ color: '#059669', backgroundColor: '#ecfdf5', padding: '0.1rem 0.35rem', borderRadius: '4px', fontWeight: 600 }}>
+                                Info: {wordCountInfo}/1500w
+                              </span>
+                            )}
+                            {wordCountProblem > 0 && (
+                              <span style={{ color: '#0284c7', backgroundColor: '#e0f2fe', padding: '0.1rem 0.35rem', borderRadius: '4px', fontWeight: 600 }}>
+                                Problem: {wordCountProblem}/1000w
+                              </span>
+                            )}
                           </div>
                           <div style={{ maxHeight: '48px', overflowY: 'auto', fontSize: '0.775rem', color: 'var(--text-secondary)' }}>
                             {sub.problem_statement}
@@ -3617,56 +3621,60 @@ export const AdminDashboardPage: React.FC = () => {
                 </div>
 
                 {/* Project Info Section */}
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.25rem' }}>
-                    <h4 style={{ fontSize: '0.875rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', margin: 0 }}>
-                      Project Information
-                    </h4>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#059669', backgroundColor: '#ecfdf5', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>
-                      {infoWords} / 1500 words
-                    </span>
+                {selectedSubmission.project_info && (
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.25rem' }}>
+                      <h4 style={{ fontSize: '0.875rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', margin: 0 }}>
+                        Project Information
+                      </h4>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#059669', backgroundColor: '#ecfdf5', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>
+                        {infoWords} / 1500 words
+                      </span>
+                    </div>
+                    <div style={{
+                      padding: '1rem',
+                      backgroundColor: 'var(--bg-main)',
+                      borderRadius: 'var(--radius-md)',
+                      whiteSpace: 'pre-wrap',
+                      color: 'var(--text-secondary)',
+                      lineHeight: 1.6,
+                      border: '1px solid var(--border)',
+                      fontSize: '0.875rem',
+                      maxHeight: '220px',
+                      overflowY: 'auto'
+                    }}>
+                      {selectedSubmission.project_info}
+                    </div>
                   </div>
-                  <div style={{
-                    padding: '1rem',
-                    backgroundColor: 'var(--bg-main)',
-                    borderRadius: 'var(--radius-md)',
-                    whiteSpace: 'pre-wrap',
-                    color: 'var(--text-secondary)',
-                    lineHeight: 1.6,
-                    border: '1px solid var(--border)',
-                    fontSize: '0.875rem',
-                    maxHeight: '220px',
-                    overflowY: 'auto'
-                  }}>
-                    {selectedSubmission.project_info}
-                  </div>
-                </div>
+                )}
 
                 {/* Problem Statement Section */}
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.25rem' }}>
-                    <h4 style={{ fontSize: '0.875rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', margin: 0 }}>
-                      Problem Statement
-                    </h4>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#0284c7', backgroundColor: '#e0f2fe', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>
-                      {problemWords} / 1000 words
-                    </span>
+                {selectedSubmission.problem_statement && (
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.25rem' }}>
+                      <h4 style={{ fontSize: '0.875rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', margin: 0 }}>
+                        Problem Statement
+                      </h4>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#0284c7', backgroundColor: '#e0f2fe', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>
+                        {problemWords} / 1000 words
+                      </span>
+                    </div>
+                    <div style={{
+                      padding: '1rem',
+                      backgroundColor: 'var(--bg-main)',
+                      borderRadius: 'var(--radius-md)',
+                      whiteSpace: 'pre-wrap',
+                      color: 'var(--text-secondary)',
+                      lineHeight: 1.6,
+                      border: '1px solid var(--border)',
+                      fontSize: '0.875rem',
+                      maxHeight: '200px',
+                      overflowY: 'auto'
+                    }}>
+                      {selectedSubmission.problem_statement}
+                    </div>
                   </div>
-                  <div style={{
-                    padding: '1rem',
-                    backgroundColor: 'var(--bg-main)',
-                    borderRadius: 'var(--radius-md)',
-                    whiteSpace: 'pre-wrap',
-                    color: 'var(--text-secondary)',
-                    lineHeight: 1.6,
-                    border: '1px solid var(--border)',
-                    fontSize: '0.875rem',
-                    maxHeight: '200px',
-                    overflowY: 'auto'
-                  }}>
-                    {selectedSubmission.problem_statement}
-                  </div>
-                </div>
+                )}
 
                 {/* Submission Metadata & Status Controls */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.5rem', borderTop: '1px solid var(--border)' }}>

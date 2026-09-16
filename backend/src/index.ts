@@ -444,6 +444,18 @@ async function setupDatabase() {
     }
 
     try {
+      await db.execute(`ALTER TABLE hackathon_registrations ADD COLUMN project_title TEXT;`);
+    } catch (e) {
+      // Column already exists, ignore
+    }
+
+    try {
+      await db.execute(`ALTER TABLE hackathon_registrations ADD COLUMN problem_statement TEXT;`);
+    } catch (e) {
+      // Column already exists, ignore
+    }
+
+    try {
       await db.execute(`ALTER TABLE event_registrations ADD COLUMN status TEXT DEFAULT 'Participation';`);
       console.log("Database verification: status column verified/added to event_registrations.");
     } catch (e) {
@@ -1307,10 +1319,24 @@ app.post('/api/apply/hackathon', sensitiveLimiter, async (req, res) => {
     members
   } = req.body;
 
-  // Simple validation
-  if (!teamName ||
+  // Validation
+  if (!teamName || !String(teamName).trim() ||
       !leaderName || !leaderEmail || !leaderPhone || !leaderRole || !members) {
     return res.status(400).json({ error: "Missing required fields." });
+  }
+
+  if (!projectTitle || !String(projectTitle).trim()) {
+    return res.status(400).json({ error: "Project Title is required." });
+  }
+
+  if (!problemStatement || !String(problemStatement).trim()) {
+    return res.status(400).json({ error: "Problem Statement is required." });
+  }
+
+  const countWords = (str: string) => (str || '').trim().split(/\s+/).filter(Boolean).length;
+  const problemStatementWords = countWords(String(problemStatement));
+  if (problemStatementWords > 1000) {
+    return res.status(400).json({ error: `Problem Statement exceeds the maximum limit of 1,000 words (Current: ${problemStatementWords} words).` });
   }
 
   try {
@@ -1323,13 +1349,13 @@ app.post('/api/apply/hackathon', sensitiveLimiter, async (req, res) => {
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
       args: [
         hackathonName || 'R&D AlphaQuest Hackathon',
-        teamName,
-        projectTitle || '',
-        projectDescription || '',
-        problemStatement || '',
-        leaderName,
-        leaderEmail,
-        leaderPhone,
+        String(teamName).trim(),
+        String(projectTitle).trim(),
+        projectDescription ? String(projectDescription).trim() : '',
+        String(problemStatement).trim(),
+        String(leaderName).trim(),
+        String(leaderEmail).trim(),
+        String(leaderPhone).trim(),
         leaderRole,
         leaderYear || null,
         leaderBranch || null,
@@ -1363,7 +1389,9 @@ app.post('/api/apply/hackathon', sensitiveLimiter, async (req, res) => {
       referenceId: refId,
       details: [
         { label: 'Hackathon Event', value: hackathonName || 'R&D AlphaQuest Hackathon' },
-        { label: 'Registered Team Name', value: teamName },
+        { label: 'Registered Team Name', value: String(teamName).trim() },
+        { label: 'Project Title', value: String(projectTitle).trim() },
+        { label: 'Problem Statement', value: String(problemStatement).trim() },
         { label: 'Team Leader', value: `${leaderName} (${leaderRole})` },
         { label: 'Leader Email', value: leaderEmail },
         { label: 'Leader Phone', value: leaderPhone },
@@ -1701,21 +1729,8 @@ app.post('/api/project-submission/submit', sensitiveLimiter, async (req, res) =>
   } = req.body;
 
   // 1. Validation
-  if (!eventName || !teamName || !projectTitle || !projectInfo || !problemStatement || !fileName || !fileBase64) {
-    return res.status(400).json({ error: "All fields and presentation file are required." });
-  }
-
-  // Word count helper
-  const countWords = (str: string) => (str || '').trim().split(/\s+/).filter(Boolean).length;
-  const projectInfoWords = countWords(projectInfo);
-  const problemStatementWords = countWords(problemStatement);
-
-  if (projectInfoWords > 1500) {
-    return res.status(400).json({ error: `Project Info exceeds the maximum limit of 1,500 words (Current: ${projectInfoWords} words).` });
-  }
-
-  if (problemStatementWords > 1000) {
-    return res.status(400).json({ error: `Problem Statement exceeds the maximum limit of 1,000 words (Current: ${problemStatementWords} words).` });
+  if (!eventName || !teamName || !fileName || !fileBase64) {
+    return res.status(400).json({ error: "Event name, team name, and presentation file are required." });
   }
 
   // File extension validation
@@ -1742,6 +1757,9 @@ app.post('/api/project-submission/submit', sensitiveLimiter, async (req, res) =>
     const teamLeaderPhone = reg ? (reg.leader_phone as string) : '';
     const institution = reg ? ((reg.leader_institution as string) || 'Trinity College of Engineering and Technology') : 'Trinity College of Engineering and Technology';
     const members = reg ? (typeof reg.members === 'string' ? reg.members : JSON.stringify(reg.members || [])) : '[]';
+    const registeredProjectTitle = (reg?.project_title as string) || (projectTitle ? String(projectTitle).trim() : '');
+    const registeredProblemStatement = (reg?.problem_statement as string) || (problemStatement ? String(problemStatement).trim() : '');
+    const submissionProjectInfo = projectInfo ? String(projectInfo).trim() : '';
 
     // Format team folder name: e.g. "Team 01 – Tech Twins"
     const paddedNum = String(teamId).padStart(2, '0');
@@ -1825,9 +1843,9 @@ app.post('/api/project-submission/submit', sensitiveLimiter, async (req, res) =>
         teamLeaderPhone,
         institution,
         members,
-        String(projectTitle).trim(),
-        String(projectInfo).trim(),
-        String(problemStatement).trim(),
+        registeredProjectTitle,
+        submissionProjectInfo,
+        registeredProblemStatement,
         driveFileId,
         driveFileUrl,
         driveFolderId,
@@ -1854,7 +1872,7 @@ app.post('/api/project-submission/submit', sensitiveLimiter, async (req, res) =>
           { label: 'Registered Team Name', value: String(teamName) },
           { label: 'Team Leader', value: `${teamLeaderName} (${teamLeaderPhone || 'N/A'})` },
           { label: 'Institution / College', value: institution || 'Trinity College of Engineering & Technology' },
-          { label: 'Project Title', value: String(projectTitle) },
+          { label: 'Project Title', value: registeredProjectTitle || 'N/A' },
           { label: 'Uploaded Presentation', value: `${fileName} (Saved to Google Drive)` },
           { label: 'Google Drive Repository', value: driveFileUrl }
         ],
