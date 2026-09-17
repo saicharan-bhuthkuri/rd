@@ -10,9 +10,15 @@
  * 2. Paste this code into Code.gs
  * 3. Deploy > New Deployment (or Manage Deployments > Edit > New Version)
  *    - Type: Web App
- *    - Execute as: Me (tcekrdcell@gmail.com)
+ *    - Execute as: Me
  *    - Who has access: Anyone
- * 4. Copy the Web App URL and set as GMAIL_HTTP_PROXY_URL in .env
+ * 4. Copy the Web App URL and set as GMAIL_HTTP_PROXY_URL in .env (comma-separated for multi-account pool)
+ * 
+ * Active Deployed Accounts:
+ * - team.tcekrdcell@gmail.com:
+ *   https://script.google.com/macros/s/AKfycbygAq0eTP3EPLzc4mRNJWleiQO7AIftKRQYaRTMZkYwlrym175XxDq6n2VgFBtEjjrBQQ/exec
+ * - trinityrd39@gmail.com:
+ *   https://script.google.com/macros/s/AKfycbyISD6l0jyrjADV_lO7IyrVL-F_eX5uCqNpVQMsJ-r4mAMLBgh05pMqE13DIXrdv_5uwA/exec
  */
 
 function doPost(e) {
@@ -104,6 +110,20 @@ function doPost(e) {
       );
     });
 
+    var remainingQuota = 100;
+    try {
+      remainingQuota = MailApp.getRemainingDailyQuota();
+    } catch (qErr) {}
+
+    if (remainingQuota <= 0) {
+      return ContentService.createTextOutput(JSON.stringify({
+        success: false,
+        quotaExceeded: true,
+        remainingQuota: 0,
+        error: 'Service invoked too many times for one day: email. Daily quota limit reached.'
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
     MailApp.sendEmail({
       to: data.to,
       subject: data.subject,
@@ -113,8 +133,15 @@ function doPost(e) {
       name: "Trinity College R&D Cell"
     });
 
-    return ContentService.createTextOutput(JSON.stringify({ success: true }))
-      .setMimeType(ContentService.MimeType.JSON);
+    var postQuota = -1;
+    try {
+      postQuota = MailApp.getRemainingDailyQuota();
+    } catch (pqErr) {}
+
+    return ContentService.createTextOutput(JSON.stringify({ 
+      success: true,
+      remainingQuota: postQuota 
+    })).setMimeType(ContentService.MimeType.JSON);
 
   } catch (err) {
     return ContentService.createTextOutput(JSON.stringify({ success: false, error: err.message }))
@@ -123,17 +150,25 @@ function doPost(e) {
 }
 
 function doGet(e) {
+  var remainingQuota = -1;
+  try {
+    remainingQuota = MailApp.getRemainingDailyQuota();
+  } catch (qErr) {}
+
   return ContentService.createTextOutput(JSON.stringify({
     status: 'online',
     service: 'TCEK R&D Cell Apps Script Proxy',
-    version: '2.0',
+    version: '2.1',
+    remainingQuota: remainingQuota,
     capabilities: ['email_dispatch', 'google_drive_upload']
   })).setMimeType(ContentService.MimeType.JSON);
 }
 
-// One-time authorization helper: select 'authorizeDrive' in the top toolbar dropdown and click 'Run'
-function authorizeDrive() {
+// One-time authorization helper: select 'authorizeAll' in the top toolbar dropdown and click 'Run'
+function authorizeAll() {
+  var quota = MailApp.getRemainingDailyQuota();
+  Logger.log("Mail quota remaining: " + quota);
   var test = DriveApp.createFolder("Permission_Check_Temp");
   test.setTrashed(true);
-  Logger.log("Drive write authorized successfully!");
+  Logger.log("Drive and Mail authorized successfully!");
 }

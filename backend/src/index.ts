@@ -14,6 +14,7 @@ import dns from 'dns';
 import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import crypto from 'crypto';
+import { TaskManager } from './taskManager';
 
 function generateSalt(): string {
   return crypto.randomBytes(16).toString('hex');
@@ -429,6 +430,9 @@ async function setupDatabase() {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
     `);
+
+    // 15. Background Tasks Table
+    await taskManager.initDatabase();
 
     // Alter table schemas to add status columns if missing
     try {
@@ -957,6 +961,68 @@ const notifySyncClients = (type: string) => {
   });
 };
 
+export const taskManager = new TaskManager(db, notifySyncClients);
+
+// -------------------------------------------------------------
+// Background Task Processing & Reconnection Endpoints
+// -------------------------------------------------------------
+
+// GET /api/admin/tasks/active - Return all currently active/processing tasks
+app.get('/api/admin/tasks/active', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const tasks = await taskManager.getActiveTasks();
+    res.json(tasks);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/admin/tasks - List recent background tasks history
+app.get('/api/admin/tasks', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const limit = parseInt(req.query.limit as string) || 30;
+    const tasks = await taskManager.getRecentTasks(limit);
+    res.json(tasks);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/admin/tasks/:taskId - Get status, logs, counts for a specific task
+app.get('/api/admin/tasks/:taskId', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const task = await taskManager.getTask(req.params.taskId);
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found.' });
+    }
+    res.json(task);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/admin/tasks/:taskId/stream - Reconnect to live SSE stream for a task
+app.get('/api/admin/tasks/:taskId/stream', (req, res) => {
+  const token = (req.query.token as string) || (req.headers['authorization']?.split(' ')[1]) || req.cookies?.admin_token;
+  if (!token) {
+    return res.status(401).json({ error: 'Unauthorized: missing token for task monitor stream.' });
+  }
+
+  try {
+    jwt.verify(token, JWT_SECRET);
+  } catch (e) {
+    return res.status(403).json({ error: 'Forbidden: invalid session token.' });
+  }
+
+  taskManager.attachSubscriber(req.params.taskId, res);
+});
+
+// POST /api/admin/tasks/:taskId/cancel - Request safe cancellation of a background task
+app.post('/api/admin/tasks/:taskId/cancel', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  taskManager.cancelTask(req.params.taskId);
+  res.json({ success: true, message: 'Cancellation request sent.' });
+});
+
 // GET /api/sync-stream (SSE sync endpoint)
 app.get('/api/sync-stream', (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
@@ -1040,8 +1106,11 @@ app.post('/api/verify-email-domain', async (req, res) => {
 // Email & Apps Script Notification Services
 const SENDER_EMAIL = process.env.SENDER_EMAIL || 'tcekrdcell@gmail.com';
 const SENDER_PASSWORD = process.env.SENDER_PASSWORD || 'qtptqrywkyctekzo';
-const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzo4grUGKumfJ1CJpWXaD3IOjUooel7msY-yAN7sVmeOtH_QJ9dnX4gwGiGwwB_KMFX/exec';
+const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbygAq0eTP3EPLzc4mRNJWleiQO7AIftKRQYaRTMZkYwlrym175XxDq6n2VgFBtEjjrBQQ/exec';
 const APPS_SCRIPT_URL = process.env.GMAIL_HTTP_PROXY_URL || DEFAULT_APPS_SCRIPT_URL;
+// Dedicated Google Drive / PPT Upload Proxy (tcekrdcell@gmail.com ONLY)
+const TCEK_DRIVE_PROXY_URL = 'https://script.google.com/macros/s/AKfycbzo4grUGKumfJ1CJpWXaD3IOjUooel7msY-yAN7sVmeOtH_QJ9dnX4gwGiGwwB_KMFX/exec';
+const DRIVE_UPLOAD_PROXY_URL = process.env.DRIVE_UPLOAD_PROXY_URL || TCEK_DRIVE_PROXY_URL;
 
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
@@ -1055,6 +1124,31 @@ const transporter = nodemailer.createTransport({
     pass: SENDER_PASSWORD.replace(/\s+/g, '')
   }
 } as any);
+
+interface EmailAttachment {
+  filename: string;
+  base64: string;
+  mimeType?: string;
+}
+
+interface SendEmailOptions {
+  to: string;
+  subject: string;
+  text?: string;
+  html?: string;
+  attachments?: EmailAttachment[];
+}
+
+// Track proxy URLs that have exhausted their daily quota (URL -> timestamp when quota resets or 24h)
+const quotaExhaustedProxies = new Map<string, number>();
+
+function getAllProxyUrls(): string[] {
+  const raw = process.env.GMAIL_HTTP_PROXY_URL || DEFAULT_APPS_SCRIPT_URL;
+  return raw
+    .split(/[\r\n,;]+/)
+    .map(u => u.trim())
+    .filter(u => u.length > 0 && u.startsWith('http'));
+}
 
 async function postToAppsScript(url: string, payload: any, maxRetries = 3): Promise<any> {
   let lastError: any = null;
@@ -1073,10 +1167,17 @@ async function postToAppsScript(url: string, payload: any, maxRetries = 3): Prom
         throw new Error(`HTTP error! status: ${res.status}`);
       }
 
-      const data = await res.json();
+      const data: any = await res.json();
+      // If quota exceeded, do not retry because it will fail again for the day
+      if (!data.success && data.error && (data.error.includes('Service invoked too many times') || data.quotaExceeded)) {
+        return data;
+      }
       return data;
     } catch (err: any) {
       lastError = err;
+      if (err.message && (err.message.includes('Service invoked too many times') || err.message.includes('quota'))) {
+        throw err;
+      }
       if (attempt < maxRetries) {
         const delayMs = attempt * 1500;
         console.warn(`[Apps Script Proxy] Attempt ${attempt} failed (${err.message}). Retrying in ${delayMs}ms...`);
@@ -1085,6 +1186,150 @@ async function postToAppsScript(url: string, payload: any, maxRetries = 3): Prom
     }
   }
   throw lastError;
+}
+
+async function sendEmailWithFailover(options: SendEmailOptions): Promise<{ success: boolean; provider: string; remainingQuota?: number }> {
+  const allUrls = getAllProxyUrls();
+  const now = Date.now();
+
+  // 1. Try all available Google Apps Script proxies
+  for (let i = 0; i < allUrls.length; i++) {
+    const url = allUrls[i];
+    const exhaustedUntil = quotaExhaustedProxies.get(url);
+    if (exhaustedUntil && now < exhaustedUntil) {
+      continue; // Skip proxy that exceeded quota in the last 24h
+    }
+
+    try {
+      const payload: any = {
+        to: options.to,
+        subject: options.subject,
+        text: options.text || "",
+        html: options.html,
+        attachments: options.attachments || []
+      };
+
+      await new Promise(r => setTimeout(r, 600));
+      const res = await postToAppsScript(url, payload);
+
+      if (res && res.success) {
+        return { 
+          success: true, 
+          provider: `Google Apps Script Proxy #${i + 1}`,
+          remainingQuota: res.remainingQuota 
+        };
+      }
+
+      const errMsg = (res && res.error) ? String(res.error) : 'Unknown Apps Script error';
+      if (errMsg.toLowerCase().includes('service invoked too many times') || errMsg.toLowerCase().includes('quota') || res?.quotaExceeded) {
+        console.warn(`[Email Dispatch] Proxy #${i + 1} daily quota exhausted: ${errMsg}`);
+        quotaExhaustedProxies.set(url, now + 24 * 60 * 60 * 1000);
+        continue; // Try next proxy in the list
+      }
+
+      throw new Error(`Google Apps Script Proxy #${i + 1} failed: ${errMsg}`);
+    } catch (err: any) {
+      if (err.message.toLowerCase().includes('service invoked too many times') || err.message.toLowerCase().includes('quota')) {
+        quotaExhaustedProxies.set(url, now + 24 * 60 * 60 * 1000);
+        continue; // Try next proxy
+      }
+      if (i < allUrls.length - 1) {
+        console.warn(`[Email Dispatch] Proxy #${i + 1} error: ${err.message}. Failing over to next proxy...`);
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  // 2. Try Brevo REST API fallback if BREVO_API_KEY is configured (300 emails/day free over HTTPS)
+  if (process.env.BREVO_API_KEY) {
+    try {
+      console.log("[Email Dispatch] Google proxies exhausted. Falling back to Brevo API...");
+      const brevoPayload = {
+        sender: { name: "Trinity College R&D Cell", email: SENDER_EMAIL },
+        to: [{ email: options.to }],
+        subject: options.subject,
+        textContent: options.text,
+        htmlContent: options.html,
+        attachment: (options.attachments || []).map(att => ({
+          name: att.filename,
+          content: att.base64
+        }))
+      };
+
+      const brevoRes = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'api-key': process.env.BREVO_API_KEY.trim()
+        },
+        body: JSON.stringify(brevoPayload)
+      });
+
+      if (brevoRes.ok) {
+        return { success: true, provider: 'Brevo REST API' };
+      }
+      const bErr = await brevoRes.json().catch(() => null);
+      console.warn("[Email Dispatch] Brevo API error:", bErr);
+    } catch (bErr: any) {
+      console.warn("[Email Dispatch] Brevo API exception:", bErr.message);
+    }
+  }
+
+  // 3. Try Resend REST API fallback if RESEND_API_KEY is configured (100 emails/day free over HTTPS)
+  if (process.env.RESEND_API_KEY) {
+    try {
+      console.log("[Email Dispatch] Falling back to Resend API...");
+      const resendRes = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.RESEND_API_KEY.trim()}`
+        },
+        body: JSON.stringify({
+          from: `Trinity College R&D Cell <${process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev'}>`,
+          to: [options.to],
+          subject: options.subject,
+          text: options.text,
+          html: options.html,
+          attachments: (options.attachments || []).map(a => ({
+            filename: a.filename,
+            content: a.base64
+          }))
+        })
+      });
+
+      if (resendRes.ok) {
+        return { success: true, provider: 'Resend REST API' };
+      }
+      const rErr = await resendRes.json().catch(() => null);
+      console.warn("[Email Dispatch] Resend API error:", rErr);
+    } catch (rErr: any) {
+      console.warn("[Email Dispatch] Resend API exception:", rErr.message);
+    }
+  }
+
+  // 4. Try direct SMTP if available
+  try {
+    const mailOptions: any = {
+      from: `"Trinity College R&D Cell" <${SENDER_EMAIL}>`,
+      to: options.to,
+      subject: options.subject,
+      text: options.text,
+      html: options.html,
+      attachments: (options.attachments || []).map(a => ({
+        filename: a.filename,
+        content: Buffer.from(a.base64, 'base64')
+      }))
+    };
+    await transporter.sendMail(mailOptions);
+    return { success: true, provider: 'Nodemailer Direct SMTP' };
+  } catch (smtpErr) {
+    // Both proxy and SMTP failed
+  }
+
+  const exhaustedCount = quotaExhaustedProxies.size;
+  throw new Error(`Service invoked too many times for one day: email. (Daily email quota reached across ${exhaustedCount} configured Google proxy account(s)).`);
 }
 
 interface ConfirmationEmailOptions {
@@ -1172,24 +1417,13 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`;
   `;
 
   try {
-    if (APPS_SCRIPT_URL) {
-      await postToAppsScript(APPS_SCRIPT_URL, {
-        to: to.trim(),
-        subject,
-        text: plainText,
-        html
-      }, 1);
-      return true;
-    } else {
-      await transporter.sendMail({
-        from: SENDER_EMAIL,
-        to: to.trim(),
-        subject,
-        text: plainText,
-        html
-      });
-      return true;
-    }
+    const res = await sendEmailWithFailover({
+      to: to.trim(),
+      subject,
+      text: plainText,
+      html
+    });
+    return res.success;
   } catch (err: any) {
     console.warn(`[Confirmation Email] Could not deliver to ${to}:`, err.message);
     return false;
@@ -1861,35 +2095,35 @@ app.post('/api/project-submission/submit', sensitiveLimiter, async (req, res) =>
       console.warn("[Project Submission] Local backup save notice:", saveErr.message);
     }
 
-    // 3. Upload to Google Drive via Google Apps Script Proxy
+    // 3. Upload to Google Drive via Google Apps Script Proxy (Exclusively to tcekrdcell@gmail.com Drive)
     let driveUploadError = '';
-    if (APPS_SCRIPT_URL) {
-      try {
-        const drivePayload = {
-          action: 'upload_presentation',
-          eventName: String(eventName).trim(),
-          teamFolderName: teamFolderName,
-          fileName: fileName,
-          fileBase64: cleanBase64,
-          mimeType: mimeType || (ext === '.pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.presentationml.presentation')
-        };
+    if (DRIVE_UPLOAD_PROXY_URL) {
+      const drivePayload = {
+        action: 'upload_presentation',
+        eventName: String(eventName).trim(),
+        teamFolderName: teamFolderName,
+        fileName: fileName,
+        fileBase64: cleanBase64,
+        mimeType: mimeType || (ext === '.pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.presentationml.presentation')
+      };
 
-        const driveRes = await postToAppsScript(APPS_SCRIPT_URL, drivePayload, 2);
+      try {
+        const driveRes = await postToAppsScript(DRIVE_UPLOAD_PROXY_URL, drivePayload, 3);
         if (driveRes && driveRes.success && driveRes.fileId) {
           driveFileId = driveRes.fileId;
           driveFileUrl = driveRes.fileUrl;
           driveFolderId = driveRes.folderId || '';
           driveFolderUrl = driveRes.folderUrl || '';
         } else {
-          driveUploadError = driveRes?.error || 'Google Apps Script did not confirm file creation.';
-          console.warn("[Project Submission] Drive upload returned notice:", driveUploadError);
+          driveUploadError = driveRes?.error || 'Google Apps Script did not confirm file creation in tcekrdcell Drive.';
+          console.warn('[Project Submission] Drive upload returned notice:', driveUploadError);
         }
       } catch (proxyErr: any) {
         driveUploadError = proxyErr.message;
-        console.error("[Project Submission] Drive upload proxy error:", proxyErr.message);
+        console.error('[Project Submission] Drive upload proxy error:', proxyErr.message);
       }
     } else {
-      driveUploadError = 'Apps Script proxy URL is not configured.';
+      driveUploadError = 'Google Drive upload proxy URL for tcekrdcell@gmail.com is not configured.';
     }
 
     // Require successful Google Drive upload
@@ -2126,13 +2360,10 @@ app.post('/api/admin/logout', (req, res) => {
 });
 
 async function sendSystemEmail(to: string, subject: string, text: string, html?: string) {
-  if (APPS_SCRIPT_URL) {
-    const payload = { to, subject, text, html };
-    const proxyRes = await postToAppsScript(APPS_SCRIPT_URL, payload);
-    if (!proxyRes.success) {
-      throw new Error(`Google Apps Script Proxy failed: ${proxyRes.error}`);
-    }
-  } else {
+  try {
+    await sendEmailWithFailover({ to, subject, text, html });
+  } catch (err: any) {
+    console.warn("[System Email] Proxy failover failed, attempting direct SMTP fallback:", err.message);
     await transporter.sendMail({
       from: SENDER_EMAIL,
       to,
@@ -4623,7 +4854,8 @@ async function convertPptxToPdfBatch(inputPptxPaths: string[], outputDir: string
 async function runWithConcurrency<T, R>(
   items: T[],
   limit: number,
-  fn: (item: T, index: number) => Promise<R>
+  fn: (item: T, index: number) => Promise<R>,
+  shouldAbort?: () => boolean
 ): Promise<R[]> {
   const results: R[] = [];
   const promises: Promise<void>[] = [];
@@ -4631,6 +4863,9 @@ async function runWithConcurrency<T, R>(
 
   async function worker() {
     while (index < items.length) {
+      if (shouldAbort && shouldAbort()) {
+        break;
+      }
       const currentIndex = index++;
       const item = items[currentIndex];
       try {
@@ -4698,21 +4933,18 @@ Trinity College of Engineering & Technology, Peddapalli`;
     </div>
   `;
 
-  if (APPS_SCRIPT_URL) {
-    try {
-      const payload = {
-        to: toEmail,
-        subject,
-        text,
-        html
-      };
-      const res = await postToAppsScript(APPS_SCRIPT_URL, payload);
-      if (res && res.success) {
-        return true;
-      }
-    } catch (e: any) {
-      console.warn("[Email Verification] Apps Script Proxy failed, falling back to direct SMTP:", e.message);
+  try {
+    const res = await sendEmailWithFailover({
+      to: toEmail,
+      subject,
+      text,
+      html
+    });
+    if (res && res.success) {
+      return true;
     }
+  } catch (e: any) {
+    console.warn("[Email Verification] Proxy failover failed, falling back to direct SMTP:", e.message);
   }
 
   // Fallback to direct SMTP via Nodemailer
@@ -4829,158 +5061,141 @@ app.post('/api/verify-email-code', sensitiveLimiter, async (req, res) => {
 
 // 14. Bulk Send Offer Letters to Approved Coordinators
 app.post('/api/admin/bulk-send/offers', authenticateToken, async (req: AuthenticatedRequest, res) => {
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.flushHeaders();
+  const task = await taskManager.createTask({
+    task_type: 'bulk_offers',
+    title: 'Bulk Dispatch: Student Coordinator Offer Letters',
+    created_by: req.user?.username || 'admin'
+  });
 
-  const sendLog = (message: string, progress: number, isDone = false) => {
-    res.write(`data: ${JSON.stringify({ message, progress, isDone })}\n\n`);
-  };
+  taskManager.attachSubscriber(task.id, res);
 
-  try {
-    sendLog("Initializing email service...", 5);
+  (async () => {
+    try {
+      taskManager.sendLog(task.id, "Initializing email service...", 5);
 
-    // 1. Fetch template from DB
-    const templateRes = await db.execute({
-      sql: "SELECT data_base64 FROM templates WHERE name = ?",
-      args: ["offer_letter"]
-    });
+      // 1. Fetch template from DB
+      const templateRes = await db.execute({
+        sql: "SELECT data_base64 FROM templates WHERE name = ?",
+        args: ["offer_letter"]
+      });
 
-    if (templateRes.rows.length === 0) {
-      res.write(`data: ${JSON.stringify({ error: "Offer letter template not found in database." })}\n\n`);
-      res.end();
-      return;
-    }
+      if (templateRes.rows.length === 0) {
+        await taskManager.failTask(task.id, "Offer letter template not found in database.");
+        return;
+      }
 
-    const templateBase64 = templateRes.rows[0].data_base64 as string;
-    const templateBuffer = Buffer.from(templateBase64, 'base64');
+      const templateBase64 = templateRes.rows[0].data_base64 as string;
+      const templateBuffer = Buffer.from(templateBase64, 'base64');
 
-    sendLog("Fetching recipient details...", 10);
+      taskManager.sendLog(task.id, "Fetching recipient details...", 10);
 
-    // 2. Fetch approved, unsent applications
-    const appsRes = await db.execute("SELECT * FROM club_applications WHERE status = 'approved' AND (offer_sent = 0 OR offer_sent IS NULL)");
-    const approvedApps = appsRes.rows;
+      // 2. Fetch approved, unsent applications
+      const appsRes = await db.execute("SELECT * FROM club_applications WHERE status = 'approved' AND (offer_sent = 0 OR offer_sent IS NULL)");
+      const approvedApps = appsRes.rows;
 
-    if (approvedApps.length === 0) {
-      sendLog("No pending approved student coordinator records found.", 100, true);
-      res.end();
-      return;
-    }
+      if (approvedApps.length === 0) {
+        await taskManager.completeTask(task.id, "No pending approved student coordinator records found.");
+        return;
+      }
 
-    sendLog(`Found ${approvedApps.length} approved coordinators pending offer letters. Starting bulk dispatch...`, 15);
+      taskManager.sendLog(task.id, `Found ${approvedApps.length} approved coordinators pending offer letters. Generating documents...`, 15);
 
-    let successCount = 0;
-    const today = new Date();
-    const dd = String(today.getDate()).padStart(2, '0');
-    const mm = String(today.getMonth() + 1).padStart(2, '0');
-    const yyyy = today.getFullYear();
-    const TODAY_DATE = `${dd}-${mm}-${yyyy}`;
+      // 3. Prepare task items
+      const tasks = approvedApps.map((app: any) => {
+        const studentName = app.full_name as string;
+        const recipientEmail = app.email as string;
+        const deptName = app.interests as string;
+        const yearBranch = `${app.year_of_study || ''} - ${app.branch || ''}`;
+        const safeName = studentName.replace(/[^a-zA-Z0-9_\s]/g, '').trim();
+        const tempPptx = path.join(process.cwd(), `Temp_Offer_${safeName}_${app.id}.pptx`);
+        const pdfFilename = path.join(process.cwd(), `Offer_Letter_${safeName}_${app.id}.pdf`);
 
-    // 3. Generate customized PPTX templates in-memory/disk
-    sendLog("Generating custom PowerPoint templates...", 20);
-    const tasks = approvedApps.map((app: any) => {
-      const studentName = app.full_name as string;
-      const recipientEmail = app.email as string;
-      const id = app.id as number;
-      const branch = app.branch as string;
-      const year = app.year_of_study as string;
+        const replacements = {
+          '{{STUDENT NAME}}': studentName,
+          '{{NAME}}': studentName,
+          '{{DEPARTMENT}}': deptName || yearBranch,
+          '{{ROLE}}': 'Student Coordinator',
+          '{{YEAR_BRANCH}}': yearBranch,
+          '[[STUDENT NAME]]': studentName,
+          '[[NAME]]': studentName,
+          '[[DEPARTMENT]]': deptName || yearBranch,
+          '[[ROLE]]': 'Student Coordinator',
+          '[[YEAR_BRANCH]]': yearBranch
+        };
 
-      const refNo = `R&D/COORD/OFFER/2026-2027/${String(id).padStart(3, '0')}`;
-      const yearBranch = `${year} & ${branch}`;
-      const deptName = branch;
+        replacePlaceholdersInPptx(templateBuffer, tempPptx, replacements);
 
-      const safeName = studentName.replace(/[^a-zA-Z0-9_\s]/g, '').trim();
+        return {
+          id: app.id,
+          studentName,
+          recipientEmail,
+          deptName,
+          yearBranch,
+          safeName,
+          tempPptx,
+          pdfFilename
+        };
+      });
 
-      // Name PPTX matching expected PDF name so LibreOffice writes directly to correct PDF filename
-      const tempPptx = path.join(process.cwd(), `Offer_Letter_${safeName}_${id}.pptx`);
-      const pdfFilename = path.join(process.cwd(), `Offer_Letter_${safeName}_${id}.pdf`);
+      taskManager.updateCounts(task.id, { totalItems: tasks.length });
 
-      const replacements = {
-        '{{R&D/COORD/OFFER/2026-2027/001}}': refNo,
-        '{{Year & Branch}}': yearBranch,
-        '{{Department Name}}': deptName,
-        '{{Student Name}}': studentName,
-        '{{Data}}': TODAY_DATE,
-        '{{Date}}': TODAY_DATE,
-        'R&D/COORD/OFFER/2026-2027/001': refNo,
-        '[Year & Branch]': yearBranch,
-        '[Department Name]': deptName,
-        '[Student Name]': studentName
-      };
+      // 4. Batch convert PPTX to PDF
+      taskManager.sendLog(task.id, "Converting all templates to PDF in a single batch...", 30);
+      const pptxPaths = tasks.map(t => t.tempPptx);
+      await convertPptxToPdfBatch(pptxPaths, process.cwd());
 
-      replacePlaceholdersInPptx(templateBuffer, tempPptx, replacements);
+      // 5. Send emails
+      taskManager.sendLog(task.id, "Dispatching emails...", 50);
+      let completedTasks = 0;
+      let successCount = 0;
 
-      return {
-        app,
-        id,
-        studentName,
-        recipientEmail,
-        deptName,
-        yearBranch,
-        safeName,
-        tempPptx,
-        pdfFilename
-      };
-    });
+      const emailConcurrency = APPS_SCRIPT_URL ? 1 : 5;
+      let quotaExceededAborted = false;
+      await runWithConcurrency(tasks, emailConcurrency, async (t) => {
+        const { id, studentName, recipientEmail, deptName, yearBranch, safeName, tempPptx, pdfFilename } = t;
+        const progressValBefore = Math.floor(50 + (completedTasks / tasks.length) * 45);
+        taskManager.sendLog(task.id, `Sending email to: ${studentName} (${recipientEmail})...`, progressValBefore);
 
-    // 4. Batch convert all PPTX to PDF (extremely fast, initializes LibreOffice once)
-    sendLog("Converting all templates to PDF in a single batch...", 30);
-    const pptxPaths = tasks.map(t => t.tempPptx);
-    await convertPptxToPdfBatch(pptxPaths, process.cwd());
-
-    // 5. Send emails concurrently (up to 10 concurrently since it is lightweight HTTP network calls)
-    sendLog("Dispatching emails...", 50);
-    let completedTasks = 0;
-
-    const emailConcurrency = APPS_SCRIPT_URL ? 1 : 5;
-    await runWithConcurrency(tasks, emailConcurrency, async (task) => {
-      const { id, studentName, recipientEmail, deptName, yearBranch, safeName, tempPptx, pdfFilename } = task;
-      const progressValBefore = Math.floor(50 + (completedTasks / tasks.length) * 45);
-      sendLog(`Sending email to: ${studentName} (${recipientEmail})...`, progressValBefore);
-
-      const mailOptions = {
-        from: SENDER_EMAIL,
-        to: recipientEmail,
-        subject: `Offer of Appointment – Student Coordinator (R&D Cell) | ${studentName}`,
-        text: `Dear ${studentName},
+        const mailOptions = {
+          from: SENDER_EMAIL,
+          to: recipientEmail,
+          subject: `Offer of Appointment – Student Coordinator (R&D Cell) | ${studentName}`,
+          text: `Dear ${studentName},
 
 Congratulations!
 
 The Research & Development (R&D) Cell of Trinity College of Engineering & Technology (Autonomous), Peddapalli, is pleased to offer you the role of Student Coordinator – ${deptName || yearBranch} for the academic year 2026–2027.
 
-Please find attached your official offer letter (Offer_Letter_${safeName}.pdf).
+Please find attached your official Offer Letter (Offer_Letter_${safeName}.pdf) detailing the terms of your appointment and responsibilities.
 
-We look forward to your active participation in building a vibrant research culture in our institution.
+We look forward to your leadership, creativity, and commitment toward fostering a vibrant culture of research and innovation on campus.
 
 Best regards,
 
-Dr. Mani Ganesh / Dr. Vootla Ashok Kumar
 R&D Cell
 Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
-        attachments: [
-          {
-            filename: `Offer_Letter_${safeName}.pdf`,
-            path: pdfFilename
+          attachments: [
+            {
+              filename: `Offer_Letter_${safeName}.pdf`,
+              path: pdfFilename
+            }
+          ]
+        };
+
+        try {
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (!recipientEmail || !emailRegex.test(recipientEmail)) {
+            throw new Error(`Invalid email address format: "${recipientEmail}"`);
           }
-        ]
-      };
 
-      try {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!recipientEmail || !emailRegex.test(recipientEmail)) {
-          throw new Error(`Invalid email address format: "${recipientEmail}"`);
-        }
+          if (!fs.existsSync(pdfFilename)) {
+            throw new Error("PDF generation failed during batch process.");
+          }
 
-        if (!fs.existsSync(pdfFilename)) {
-          throw new Error("PDF generation failed during batch process.");
-        }
-
-        // Send via Proxy or Nodemailer SMTP
-        if (APPS_SCRIPT_URL) {
+          // Send via multi-proxy failover or fallback
           const attachmentContent = fs.readFileSync(pdfFilename);
           const attachmentBase64 = attachmentContent.toString('base64');
-          const payload = {
+          await sendEmailWithFailover({
             to: recipientEmail,
             subject: mailOptions.subject,
             text: mailOptions.text,
@@ -4991,218 +5206,225 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
                 mimeType: 'application/pdf'
               }
             ]
-          };
-          await new Promise(r => setTimeout(r, 600));
-          const proxyRes = await postToAppsScript(APPS_SCRIPT_URL, payload);
-          if (!proxyRes.success) {
-            throw new Error(`Google Apps Script Proxy failed: ${proxyRes.error}`);
+          });
+
+          // Update DB
+          await db.execute({
+            sql: "UPDATE club_applications SET offer_sent = 1 WHERE id = ?",
+            args: [id]
+          });
+
+          // Log Activity
+          await db.execute({
+            sql: "INSERT INTO activity_logs (username, action, details) VALUES (?, ?, ?)",
+            args: [
+              req.user?.username || 'unknown',
+              "Send Offer Letter",
+              `Emailed Club Offer Letter to: ${studentName} (${recipientEmail})`
+            ]
+          });
+
+          successCount++;
+          taskManager.updateCounts(task.id, {
+            processedItems: completedTasks + 1,
+            successCount,
+            progress: Math.floor(50 + ((completedTasks + 1) / tasks.length) * 45)
+          });
+        } catch (err: any) {
+          console.error(`Failed to process offer for ${studentName}:`, err.message);
+          taskManager.sendLog(task.id, `Failed for ${studentName}: ${err.message}`, Math.floor(50 + ((completedTasks + 1) / tasks.length) * 45), false, true);
+          taskManager.updateCounts(task.id, {
+            processedItems: completedTasks + 1,
+            failureCount: (task.failure_count || 0) + 1
+          });
+          if (err.message.includes('Service invoked too many times') || err.message.includes('Daily email quota reached')) {
+            quotaExceededAborted = true;
+            taskManager.sendLog(task.id, `[QUOTA LIMIT EXCEEDED] Daily email dispatch limit reached across all proxies. Dispatch paused cleanly. ${successCount} sent so far.`, Math.floor(50 + ((completedTasks + 1) / tasks.length) * 45), false, true);
           }
-        } else {
-          await transporter.sendMail(mailOptions);
+        } finally {
+          completedTasks++;
+          const progressValAfter = Math.floor(50 + (completedTasks / tasks.length) * 45);
+          taskManager.sendLog(task.id, `Completed: ${studentName}`, progressValAfter);
+
+          // Cleanup temp files
+          if (fs.existsSync(tempPptx)) fs.unlinkSync(tempPptx);
+          if (fs.existsSync(pdfFilename)) fs.unlinkSync(pdfFilename);
         }
+      }, () => quotaExceededAborted || taskManager.isAbortRequested(task.id));
 
-        // Update DB
-        await db.execute({
-          sql: "UPDATE club_applications SET offer_sent = 1 WHERE id = ?",
-          args: [id]
-        });
-
-        // Log Activity
-        await db.execute({
-          sql: "INSERT INTO activity_logs (username, action, details) VALUES (?, ?, ?)",
-          args: [
-            req.user?.username || 'unknown',
-            "Send Offer Letter",
-            `Emailed Club Offer Letter to: ${studentName} (${recipientEmail})`
-          ]
-        });
-
-        successCount++;
-      } catch (err: any) {
-        console.error(`Failed to process offer for ${studentName}:`, err.message);
-        sendLog(`Failed for ${studentName}: ${err.message}`, Math.floor(50 + ((completedTasks + 1) / tasks.length) * 45));
-      } finally {
-        completedTasks++;
-        const progressValAfter = Math.floor(50 + (completedTasks / tasks.length) * 45);
-        sendLog(`Completed: ${studentName}`, progressValAfter);
-
-        // Cleanup temp files
-        if (fs.existsSync(tempPptx)) fs.unlinkSync(tempPptx);
-        if (fs.existsSync(pdfFilename)) fs.unlinkSync(pdfFilename);
+      notifySyncClients("REFRESH_APPLICATIONS");
+      if (quotaExceededAborted) {
+        await taskManager.failTask(task.id, `Daily email quota reached across all proxies. Batch paused cleanly with ${successCount} sent.`);
+      } else {
+        await taskManager.completeTask(task.id, `Successfully sent ${successCount} offer letters.`);
       }
-    });
-
-    notifySyncClients("REFRESH_APPLICATIONS");
-    sendLog(`Successfully sent ${successCount} offer letters.`, 95);
-    sendLog("Process completed successfully.", 100, true);
-    res.end();
-  } catch (err: any) {
-    console.error("Bulk offers error:", err);
-    res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
-    res.end();
-  }
+    } catch (err: any) {
+      console.error("Bulk offers error:", err);
+      await taskManager.failTask(task.id, err.message);
+    }
+  })().catch(err => {
+    taskManager.failTask(task.id, err.message);
+  });
 });
 
-// 15. Bulk Send Certificates to Approved Event Registrants
 // 15. Bulk Send Certificates to Approved Event Registrants
 app.post('/api/admin/bulk-send/certificates', authenticateToken, async (req: AuthenticatedRequest, res) => {
   const { eventTitle, certificateTypeText } = req.body;
 
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.flushHeaders();
-
-  const sendLog = (message: string, progress: number, isDone = false) => {
-    res.write(`data: ${JSON.stringify({ message, progress, isDone })}\n\n`);
-  };
-
   if (!eventTitle) {
-    res.write(`data: ${JSON.stringify({ error: "Event title is required for generating certificates." })}\n\n`);
-    res.end();
+    res.status(400).json({ error: "Event title is required for generating certificates." });
     return;
   }
 
-  try {
-    sendLog("Initializing email service...", 5);
+  const task = await taskManager.createTask({
+    task_type: 'bulk_certificates',
+    title: `Bulk Dispatch Certificates: ${eventTitle}`,
+    created_by: req.user?.username || 'admin',
+    params: { eventTitle, certificateTypeText }
+  });
 
-    // 1. Fetch templates from DB
-    let partTemplateRes = await db.execute({
-      sql: "SELECT data_base64 FROM templates WHERE name = ?",
-      args: ["certificate_participation"]
-    });
-    if (partTemplateRes.rows.length === 0) {
-      partTemplateRes = await db.execute({
+  taskManager.attachSubscriber(task.id, res);
+
+  (async () => {
+    try {
+      taskManager.sendLog(task.id, "Initializing email service...", 5);
+
+      // 1. Fetch templates from DB
+      let partTemplateRes = await db.execute({
         sql: "SELECT data_base64 FROM templates WHERE name = ?",
-        args: ["certificate"]
+        args: ["certificate_participation"]
       });
-    }
+      if (partTemplateRes.rows.length === 0) {
+        partTemplateRes = await db.execute({
+          sql: "SELECT data_base64 FROM templates WHERE name = ?",
+          args: ["certificate"]
+        });
+      }
 
-    const appTemplateRes = await db.execute({
-      sql: "SELECT data_base64 FROM templates WHERE name = ?",
-      args: ["certificate_appreciation"]
-    });
+      const appTemplateRes = await db.execute({
+        sql: "SELECT data_base64 FROM templates WHERE name = ?",
+        args: ["certificate_appreciation"]
+      });
 
-    if (partTemplateRes.rows.length === 0) {
-      res.write(`data: ${JSON.stringify({ error: "Default certificate template not found in database." })}\n\n`);
-      res.end();
-      return;
-    }
+      if (partTemplateRes.rows.length === 0) {
+        await taskManager.failTask(task.id, "Default certificate template not found in database.");
+        return;
+      }
 
-    const partTemplateBuffer = Buffer.from(partTemplateRes.rows[0].data_base64 as string, 'base64');
-    const appTemplateBuffer = appTemplateRes.rows.length > 0
-      ? Buffer.from(appTemplateRes.rows[0].data_base64 as string, 'base64')
-      : partTemplateBuffer; // Fallback to participation template if appreciation template is missing
+      const partTemplateBuffer = Buffer.from(partTemplateRes.rows[0].data_base64 as string, 'base64');
+      const appTemplateBuffer = appTemplateRes.rows.length > 0
+        ? Buffer.from(appTemplateRes.rows[0].data_base64 as string, 'base64')
+        : partTemplateBuffer;
 
-    // 2. Fetch event details from DB
-    const eventRes = await db.execute({
-      sql: "SELECT date FROM events WHERE title = ?",
-      args: [eventTitle]
-    });
+      // 2. Fetch event details from DB
+      const eventRes = await db.execute({
+        sql: "SELECT date FROM events WHERE title = ?",
+        args: [eventTitle]
+      });
 
-    const eventDate = eventRes.rows.length > 0 ? eventRes.rows[0].date as string : '03 August 2026';
+      const eventDate = eventRes.rows.length > 0 ? eventRes.rows[0].date as string : '03 August 2026';
 
-    sendLog("Fetching recipient details...", 10);
+      taskManager.sendLog(task.id, "Fetching recipient details...", 10);
 
-    // 3. Fetch unsent registrations
-    const regsRes = await db.execute({
-      sql: "SELECT * FROM event_registrations WHERE event_name = ? AND (certificate_sent = 0 OR certificate_sent IS NULL)",
-      args: [eventTitle]
-    });
-    const allPendingAttendees = regsRes.rows;
-    const registrations = allPendingAttendees.filter((reg: any) => (reg.attendance || '').toLowerCase() === 'present');
-    const absentCount = allPendingAttendees.length - registrations.length;
+      // 3. Fetch unsent registrations
+      const regsRes = await db.execute({
+        sql: "SELECT * FROM event_registrations WHERE event_name = ? AND (certificate_sent = 0 OR certificate_sent IS NULL)",
+        args: [eventTitle]
+      });
+      const allPendingAttendees = regsRes.rows;
+      const registrations = allPendingAttendees.filter((reg: any) => (reg.attendance || '').toLowerCase() === 'present');
+      const absentCount = allPendingAttendees.length - registrations.length;
 
-    if (allPendingAttendees.length === 0) {
-      sendLog(`No registrations pending certificates found for: ${eventTitle}.`, 100, true);
-      res.end();
-      return;
-    }
+      if (allPendingAttendees.length === 0) {
+        await taskManager.completeTask(task.id, `No registrations pending certificates found for: ${eventTitle}.`);
+        return;
+      }
 
-    if (registrations.length === 0) {
-      sendLog(`All ${allPendingAttendees.length} pending attendees are marked Absent or pending. Only attendees marked 'Present' by the Registration Desk are eligible for certificates.`, 100, true);
-      res.end();
-      return;
-    }
+      if (registrations.length === 0) {
+        await taskManager.completeTask(task.id, `All ${allPendingAttendees.length} pending attendees are marked Absent or pending. Only attendees marked 'Present' by the Registration Desk are eligible for certificates.`);
+        return;
+      }
 
-    if (absentCount > 0) {
-      sendLog(`Attendance Filter: Automatically excluded ${absentCount} absent/unmarked attendee(s).`, 12);
-    }
+      if (absentCount > 0) {
+        taskManager.sendLog(task.id, `Attendance Filter: Automatically excluded ${absentCount} absent/unmarked attendee(s).`, 12);
+      }
 
-    sendLog(`Found ${registrations.length} eligible attendees (marked Present) pending certificates. Starting bulk dispatch...`, 15);
+      taskManager.sendLog(task.id, `Found ${registrations.length} eligible attendees (marked Present) pending certificates. Starting bulk dispatch...`, 15);
 
-    let successCount = 0;
+      let successCount = 0;
 
-    // 4. Generate customized PPTX templates on disk
-    sendLog("Generating custom PowerPoint templates...", 20);
-    const tasks = registrations.map((reg: any) => {
-      const studentName = reg.full_name as string;
-      const recipientEmail = reg.email as string;
-      const id = reg.id as number;
-      const actionText = reg.status || 'Participation';
-      const isAppreciation = actionText !== 'Participation' && actionText !== 'participated' && actionText !== 'participation';
+      // 4. Generate customized PPTX templates on disk
+      taskManager.sendLog(task.id, "Generating custom PowerPoint templates...", 20);
+      const tasks = registrations.map((reg: any) => {
+        const studentName = reg.full_name as string;
+        const recipientEmail = reg.email as string;
+        const id = reg.id as number;
+        const actionText = reg.status || 'Participation';
+        const isAppreciation = actionText !== 'Participation' && actionText !== 'participated' && actionText !== 'participation';
 
-      const safeName = studentName.replace(/[^a-zA-Z0-9_\s]/g, '').trim();
-      // Name PPTX matching expected PDF name so LibreOffice writes directly to correct PDF filename
-      const tempPptx = path.join(process.cwd(), `Certificate_${safeName}_${id}.pptx`);
-      const pdfFilename = path.join(process.cwd(), `Certificate_${safeName}_${id}.pdf`);
+        const safeName = studentName.replace(/[^a-zA-Z0-9_\s]/g, '').trim();
+        const tempPptx = path.join(process.cwd(), `Certificate_${safeName}_${id}.pptx`);
+        const pdfFilename = path.join(process.cwd(), `Certificate_${safeName}_${id}.pdf`);
 
-      const uniqueSuffix = crypto.randomBytes(4).toString('hex').toUpperCase();
-      const certId = `TCEK/RD/2026-${uniqueSuffix}`;
+        const uniqueSuffix = crypto.randomBytes(4).toString('hex').toUpperCase();
+        const certId = `TCEK/RD/2026-${uniqueSuffix}`;
 
-      const replacements = {
-        '{{PARTICIPANT NAME}}': studentName,
-        '{{EVENT NAME}}': eventTitle,
-        '{{DATE}}': eventDate,
-        '{{CERTIFICATE TYPE}}': actionText,
-        '{{CERTIFICATE ID}}': certId,
-        '[[PARTICIPANT NAME]]': studentName,
-        '[[EVENT NAME]]': eventTitle,
-        '[[DATE]]': eventDate,
-        '[[CERTIFICATE TYPE]]': actionText,
-        '[[CERTIFICATE ID]]': certId,
-        'TCEK/RD/2026/0001': certId
-      };
+        const replacements = {
+          '{{PARTICIPANT NAME}}': studentName,
+          '{{EVENT NAME}}': eventTitle,
+          '{{DATE}}': eventDate,
+          '{{CERTIFICATE TYPE}}': actionText,
+          '{{CERTIFICATE ID}}': certId,
+          '[[PARTICIPANT NAME]]': studentName,
+          '[[EVENT NAME]]': eventTitle,
+          '[[DATE]]': eventDate,
+          '[[CERTIFICATE TYPE]]': actionText,
+          '[[CERTIFICATE ID]]': certId,
+          'TCEK/RD/2026/0001': certId
+        };
 
-      const selectedBuffer = isAppreciation ? appTemplateBuffer : partTemplateBuffer;
-      replacePlaceholdersInPptx(selectedBuffer, tempPptx, replacements);
+        const selectedBuffer = isAppreciation ? appTemplateBuffer : partTemplateBuffer;
+        replacePlaceholdersInPptx(selectedBuffer, tempPptx, replacements);
 
-      return {
-        reg,
-        id,
-        certId,
-        studentName,
-        recipientEmail,
-        safeName,
-        tempPptx,
-        pdfFilename,
-        isAppreciation
-      };
-    });
+        return {
+          reg,
+          id,
+          certId,
+          studentName,
+          recipientEmail,
+          safeName,
+          tempPptx,
+          pdfFilename,
+          isAppreciation
+        };
+      });
 
-    // 5. Batch convert all PPTX to PDF using LibreOffice (runs once)
-    sendLog("Converting all templates to PDF in a single batch...", 30);
-    const pptxPaths = tasks.map(t => t.tempPptx);
-    await convertPptxToPdfBatch(pptxPaths, process.cwd());
+      taskManager.updateCounts(task.id, { totalItems: tasks.length });
 
-    // 6. Send emails concurrently (up to 10 concurrently since it is lightweight HTTP network calls)
-    sendLog("Dispatching emails...", 50);
-    let completedTasks = 0;
+      // 5. Batch convert all PPTX to PDF using LibreOffice
+      taskManager.sendLog(task.id, "Converting all templates to PDF in a single batch...", 30);
+      const pptxPaths = tasks.map(t => t.tempPptx);
+      await convertPptxToPdfBatch(pptxPaths, process.cwd());
 
-    const emailConcurrency = APPS_SCRIPT_URL ? 1 : 5;
-    await runWithConcurrency(tasks, emailConcurrency, async (task) => {
-      const { id, certId, studentName, recipientEmail, safeName, tempPptx, pdfFilename, isAppreciation } = task;
-      const progressValBefore = Math.floor(50 + (completedTasks / tasks.length) * 45);
-      sendLog("Sending email...", progressValBefore);
+      // 6. Send emails concurrently
+      taskManager.sendLog(task.id, "Dispatching emails...", 50);
+      let completedTasks = 0;
 
-      const mailOptions = {
-        from: SENDER_EMAIL,
-        to: recipientEmail,
-        subject: isAppreciation 
-          ? 'Certificate of Appreciation | Trinity College of Engineering & Technology'
-          : 'Certificate of Participation | Trinity College of Engineering & Technology',
-        text: isAppreciation
-          ? `Dear ${studentName},
+      const emailConcurrency = APPS_SCRIPT_URL ? 1 : 5;
+      let quotaExceededAborted = false;
+      await runWithConcurrency(tasks, emailConcurrency, async (taskItem) => {
+        const { id, certId, studentName, recipientEmail, safeName, tempPptx, pdfFilename, isAppreciation } = taskItem;
+        const progressValBefore = Math.floor(50 + (completedTasks / tasks.length) * 45);
+        taskManager.sendLog(task.id, `Sending email to: ${studentName} (${recipientEmail})...`, progressValBefore);
+
+        const mailOptions = {
+          from: SENDER_EMAIL,
+          to: recipientEmail,
+          subject: isAppreciation 
+            ? 'Certificate of Appreciation | Trinity College of Engineering & Technology'
+            : 'Certificate of Participation | Trinity College of Engineering & Technology',
+          text: isAppreciation
+            ? `Dear ${studentName},
 
 We are pleased to present you with the Certificate of Appreciation for your contribution/involvement in the ${eventTitle} held on ${eventDate} organized by Trinity College of Engineering and Technology, Peddapalli.
 
@@ -5214,7 +5436,7 @@ Best regards,
 
 R&D Cell
 Trinity College of Engineering & Technology (Autonomous), Peddapalli`
-          : `Dear ${studentName},
+            : `Dear ${studentName},
 
 Thank you for your enthusiastic participation in the ${eventTitle} held on ${eventDate} organized by Trinity College of Engineering and Technology, Peddapalli.
 
@@ -5226,29 +5448,28 @@ Best regards,
 
 R&D Cell
 Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
-        attachments: [
-          {
-            filename: `Certificate_${safeName}.pdf`,
-            path: pdfFilename
+          attachments: [
+            {
+              filename: `Certificate_${safeName}.pdf`,
+              path: pdfFilename
+            }
+          ]
+        };
+
+        try {
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (!recipientEmail || !emailRegex.test(recipientEmail)) {
+            throw new Error(`Invalid email address format: "${recipientEmail}"`);
           }
-        ]
-      };
 
-      try {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!recipientEmail || !emailRegex.test(recipientEmail)) {
-          throw new Error(`Invalid email address format: "${recipientEmail}"`);
-        }
+          if (!fs.existsSync(pdfFilename)) {
+            throw new Error("PDF generation failed during batch process.");
+          }
 
-        if (!fs.existsSync(pdfFilename)) {
-          throw new Error("PDF generation failed during batch process.");
-        }
-
-        // Send via Proxy or Nodemailer SMTP
-        if (APPS_SCRIPT_URL) {
+          // Send via multi-proxy failover or fallback
           const attachmentContent = fs.readFileSync(pdfFilename);
           const attachmentBase64 = attachmentContent.toString('base64');
-          const payload = {
+          await sendEmailWithFailover({
             to: recipientEmail,
             subject: mailOptions.subject,
             text: mailOptions.text,
@@ -5259,285 +5480,292 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
                 mimeType: 'application/pdf'
               }
             ]
-          };
-          await new Promise(r => setTimeout(r, 600));
-          const proxyRes = await postToAppsScript(APPS_SCRIPT_URL, payload);
-          if (!proxyRes.success) {
-            throw new Error(`Google Apps Script Proxy failed: ${proxyRes.error}`);
+          });
+
+          // Update DB
+          await db.execute({
+            sql: "UPDATE event_registrations SET certificate_sent = 1, certificate_id = ? WHERE id = ?",
+            args: [certId, id]
+          });
+
+          // Log Activity
+          await db.execute({
+            sql: "INSERT INTO activity_logs (username, action, details) VALUES (?, ?, ?)",
+            args: [
+              req.user?.username || 'unknown',
+              "Send Certificate",
+              `Emailed Event Certificate for "${eventTitle}" to: ${studentName} (${recipientEmail})`
+            ]
+          });
+
+          successCount++;
+          taskManager.updateCounts(task.id, {
+            processedItems: completedTasks + 1,
+            successCount,
+            progress: Math.floor(50 + ((completedTasks + 1) / tasks.length) * 45)
+          });
+        } catch (err: any) {
+          console.error(`Failed to process certificate for ${studentName}:`, err.message);
+          taskManager.sendLog(task.id, `Failed for ${studentName}: ${err.message}`, Math.floor(50 + ((completedTasks + 1) / tasks.length) * 45), false, true);
+          taskManager.updateCounts(task.id, {
+            processedItems: completedTasks + 1,
+            failureCount: (task.failure_count || 0) + 1
+          });
+          if (err.message.includes('Service invoked too many times') || err.message.includes('Daily email quota reached')) {
+            quotaExceededAborted = true;
+            taskManager.sendLog(task.id, `[QUOTA LIMIT EXCEEDED] Daily email dispatch limit reached across all proxies. Dispatch paused cleanly. ${successCount} sent so far.`, Math.floor(50 + ((completedTasks + 1) / tasks.length) * 45), false, true);
           }
-        } else {
-          await transporter.sendMail(mailOptions);
+        } finally {
+          completedTasks++;
+          const progressValAfter = Math.floor(50 + (completedTasks / tasks.length) * 45);
+          taskManager.sendLog(task.id, `Completed: ${studentName}`, progressValAfter);
+
+          // Cleanup temp files
+          if (fs.existsSync(tempPptx)) fs.unlinkSync(tempPptx);
+          if (fs.existsSync(pdfFilename)) fs.unlinkSync(pdfFilename);
         }
+      }, () => quotaExceededAborted || taskManager.isAbortRequested(task.id));
 
-        // Update DB
-        await db.execute({
-          sql: "UPDATE event_registrations SET certificate_sent = 1, certificate_id = ? WHERE id = ?",
-          args: [certId, id]
-        });
-
-        // Log Activity
-        await db.execute({
-          sql: "INSERT INTO activity_logs (username, action, details) VALUES (?, ?, ?)",
-          args: [
-            req.user?.username || 'unknown',
-            "Send Certificate",
-            `Emailed Event Certificate for "${eventTitle}" to: ${studentName} (${recipientEmail})`
-          ]
-        });
-
-        successCount++;
-      } catch (err: any) {
-        console.error(`Failed to process certificate for ${studentName}:`, err.message);
-        sendLog(`Failed for ${studentName}: ${err.message}`, Math.floor(50 + ((completedTasks + 1) / tasks.length) * 45));
-      } finally {
-        completedTasks++;
-        const progressValAfter = Math.floor(50 + (completedTasks / tasks.length) * 45);
-        sendLog(`Completed: ${studentName}`, progressValAfter);
-
-        // Cleanup temp files
-        if (fs.existsSync(tempPptx)) fs.unlinkSync(tempPptx);
-        if (fs.existsSync(pdfFilename)) fs.unlinkSync(pdfFilename);
+      notifySyncClients("REFRESH_APPLICATIONS");
+      if (quotaExceededAborted) {
+        await taskManager.failTask(task.id, `Daily email quota reached across all proxies. Batch paused cleanly with ${successCount} sent.`);
+      } else {
+        await taskManager.completeTask(task.id, `Successfully sent ${successCount} certificates.`);
       }
-    });
-
-    notifySyncClients("REFRESH_APPLICATIONS");
-    sendLog(`Successfully sent ${successCount} certificates.`, 95);
-    sendLog("Process completed successfully.", 100, true);
-    res.end();
-  } catch (err: any) {
-    console.error("Bulk certificates error:", err);
-    res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
-    res.end();
-  }
+    } catch (err: any) {
+      console.error("Bulk certificates error:", err);
+      await taskManager.failTask(task.id, err.message);
+    }
+  })().catch(err => {
+    taskManager.failTask(task.id, err.message);
+  });
 });
 
 // 15.5. Bulk Send Certificates to Approved Hackathon Registrants
 app.post('/api/admin/bulk-send/hackathon-certificates', authenticateToken, async (req: AuthenticatedRequest, res) => {
   const { hackathonName, certificateTypeText } = req.body;
 
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.flushHeaders();
-
-  const sendLog = (message: string, progress: number, isDone = false) => {
-    res.write(`data: ${JSON.stringify({ message, progress, isDone })}\n\n`);
-  };
-
   if (!hackathonName) {
-    res.write(`data: ${JSON.stringify({ error: "Hackathon name is required for generating certificates." })}\n\n`);
-    res.end();
+    res.status(400).json({ error: "Hackathon name is required for generating certificates." });
     return;
   }
 
-  try {
-    sendLog("Initializing email service...", 5);
+  const task = await taskManager.createTask({
+    task_type: 'bulk_hackathon_certificates',
+    title: `Bulk Dispatch Hackathon Certificates: ${hackathonName}`,
+    created_by: req.user?.username || 'admin',
+    params: { hackathonName, certificateTypeText }
+  });
 
-    // 1. Fetch template from DB
-    let templateRes = await db.execute({
-      sql: "SELECT data_base64 FROM templates WHERE name = ?",
-      args: ["certificate_hackathon"]
-    });
-    if (templateRes.rows.length === 0) {
-      templateRes = await db.execute({
+  taskManager.attachSubscriber(task.id, res);
+
+  (async () => {
+    try {
+      taskManager.sendLog(task.id, "Initializing email service...", 5);
+
+      // 1. Fetch template from DB
+      let templateRes = await db.execute({
         sql: "SELECT data_base64 FROM templates WHERE name = ?",
-        args: ["certificate_participation"]
+        args: ["certificate_hackathon"]
       });
-    }
-    if (templateRes.rows.length === 0) {
-      templateRes = await db.execute({
-        sql: "SELECT data_base64 FROM templates WHERE name = ?",
-        args: ["certificate"]
-      });
-    }
-
-    if (templateRes.rows.length === 0) {
-      res.write(`data: ${JSON.stringify({ error: "No certificate template found in database." })}\n\n`);
-      res.end();
-      return;
-    }
-
-    const templateBuffer = Buffer.from(templateRes.rows[0].data_base64 as string, 'base64');
-
-    // 2. Fetch hackathon details from DB for date
-    const eventRes = await db.execute({
-      sql: "SELECT date FROM events WHERE title = ?",
-      args: [hackathonName]
-    });
-    const hackathonDate = eventRes.rows.length > 0 ? eventRes.rows[0].date as string : 'September 11-13, 2026';
-
-    sendLog("Fetching approved unsent team registrations...", 10);
-
-    // 3. Fetch approved teams where certificate_sent = 0
-    const teamsRes = await db.execute({
-      sql: "SELECT * FROM hackathon_registrations WHERE hackathon_name = ? AND status = 'approved' AND (certificate_sent = 0 OR certificate_sent IS NULL)",
-      args: [hackathonName]
-    });
-    const allPendingTeams = teamsRes.rows;
-    const approvedTeams = allPendingTeams.filter((t: any) => (t.attendance || '').toLowerCase() === 'present');
-    const absentCount = allPendingTeams.length - approvedTeams.length;
-
-    if (allPendingTeams.length === 0) {
-      sendLog(`No approved team registrations pending certificates found for: ${hackathonName}.`, 100, true);
-      res.end();
-      return;
-    }
-
-    if (approvedTeams.length === 0) {
-      sendLog(`All ${allPendingTeams.length} pending teams are marked Absent or pending. Only teams marked 'Present' by the Registration Desk are eligible for certificates.`, 100, true);
-      res.end();
-      return;
-    }
-
-    if (absentCount > 0) {
-      sendLog(`Attendance Filter: Automatically excluded ${absentCount} absent/unmarked team(s).`, 12);
-    }
-
-    sendLog(`Found ${approvedTeams.length} eligible teams (marked Present) pending certificates. Generating recipient tasks...`, 15);
-
-    // 4. Build individual recipient tasks for leader + members
-    const tasks: any[] = [];
-    const teamSentCounts: { [key: number]: { total: number; sent: number } } = {};
-
-    approvedTeams.forEach((team: any) => {
-      const teamId = team.id as number;
-      const teamName = team.team_name as string;
-      const projectTitle = team.project_title as string;
-      let validMembersCount = 0;
-      let parsedMembers: any[] = [];
-
-      try {
-        parsedMembers = typeof team.members === 'string' 
-          ? JSON.parse(team.members || '[]')
-          : team.members || [];
-      } catch (e) {
-        console.error(`Failed to parse members for team ID ${teamId}:`, e);
+      if (templateRes.rows.length === 0) {
+        templateRes = await db.execute({
+          sql: "SELECT data_base64 FROM templates WHERE name = ?",
+          args: ["certificate_participation"]
+        });
+      }
+      if (templateRes.rows.length === 0) {
+        templateRes = await db.execute({
+          sql: "SELECT data_base64 FROM templates WHERE name = ?",
+          args: ["certificate"]
+        });
       }
 
-      // Filter members to ensure they have valid names and emails
-      const filteredMembers = parsedMembers.filter((m: any) => m && m.fullName && m.fullName.trim() && m.email && m.email.trim());
-      validMembersCount = filteredMembers.length;
+      if (templateRes.rows.length === 0) {
+        await taskManager.failTask(task.id, "No certificate template found in database.");
+        return;
+      }
 
-      teamSentCounts[teamId] = {
-        total: 1 + validMembersCount, // leader + valid members
-        sent: 0
-      };
+      const templateBuffer = Buffer.from(templateRes.rows[0].data_base64 as string, 'base64');
 
-      // Add team leader task
-      tasks.push({
-        teamId,
-        teamName,
-        projectTitle,
-        participantName: team.leader_name as string,
-        recipientEmail: team.leader_email as string,
-        roleIndex: 1, // leader is 1st member
-        isLeader: true,
-        certificateType: team.certificate_type || 'Participation',
-        participantPhone: team.leader_phone as string,
-        role: team.leader_role as string,
-        year: team.leader_year || null,
-        branch: team.leader_branch || null,
-        institution: team.leader_institution || null
+      // 2. Fetch hackathon details from DB for date
+      const eventRes = await db.execute({
+        sql: "SELECT date FROM events WHERE title = ?",
+        args: [hackathonName]
       });
+      const hackathonDate = eventRes.rows.length > 0 ? eventRes.rows[0].date as string : 'September 11-13, 2026';
 
-      // Add other team members tasks
-      filteredMembers.forEach((m: any, idx: number) => {
+      taskManager.sendLog(task.id, "Fetching approved unsent team registrations...", 10);
+
+      // 3. Fetch approved teams where certificate_sent = 0
+      const teamsRes = await db.execute({
+        sql: "SELECT * FROM hackathon_registrations WHERE hackathon_name = ? AND status = 'approved' AND (certificate_sent = 0 OR certificate_sent IS NULL)",
+        args: [hackathonName]
+      });
+      const allPendingTeams = teamsRes.rows;
+      const approvedTeams = allPendingTeams.filter((t: any) => (t.attendance || '').toLowerCase() === 'present');
+      const absentCount = allPendingTeams.length - approvedTeams.length;
+
+      if (allPendingTeams.length === 0) {
+        await taskManager.completeTask(task.id, `No approved team registrations pending certificates found for: ${hackathonName}.`);
+        return;
+      }
+
+      if (approvedTeams.length === 0) {
+        await taskManager.completeTask(task.id, `All ${allPendingTeams.length} pending teams are marked Absent or pending. Only teams marked 'Present' by the Registration Desk are eligible for certificates.`);
+        return;
+      }
+
+      if (absentCount > 0) {
+        taskManager.sendLog(task.id, `Attendance Filter: Automatically excluded ${absentCount} absent/unmarked team(s).`, 12);
+      }
+
+      taskManager.sendLog(task.id, `Found ${approvedTeams.length} eligible teams (marked Present) pending certificates. Generating recipient tasks...`, 15);
+
+      // 4. Build individual recipient tasks for leader + members
+      const tasks: any[] = [];
+      const teamSentCounts: { [key: number]: { total: number; sent: number } } = {};
+
+      approvedTeams.forEach((team: any) => {
+        const teamId = team.id as number;
+        const teamName = team.team_name as string;
+        const projectTitle = team.project_title as string;
+        let validMembersCount = 0;
+        let parsedMembers: any[] = [];
+
+        try {
+          parsedMembers = typeof team.members === 'string' 
+            ? JSON.parse(team.members || '[]')
+            : team.members || [];
+        } catch (e) {
+          console.error(`Failed to parse members for team ID ${teamId}:`, e);
+        }
+
+        // Filter members to ensure they have valid names and emails
+        const filteredMembers = parsedMembers.filter((m: any) => m && m.fullName && m.fullName.trim() && m.email && m.email.trim());
+        validMembersCount = filteredMembers.length;
+
+        teamSentCounts[teamId] = {
+          total: 1 + validMembersCount, // leader + valid members
+          sent: 0
+        };
+
+        // Add team leader task
         tasks.push({
           teamId,
           teamName,
           projectTitle,
-          participantName: m.fullName.trim(),
-          recipientEmail: m.email.trim(),
-          roleIndex: idx + 2,
-          isLeader: false,
+          participantName: team.leader_name as string,
+          recipientEmail: team.leader_email as string,
+          roleIndex: 1, // leader is 1st member
+          isLeader: true,
           certificateType: team.certificate_type || 'Participation',
-          participantPhone: m.phone || null,
-          role: m.role || 'Student',
-          year: m.year || null,
-          branch: m.branch || null,
-          institution: m.institution || null
+          participantPhone: team.leader_phone as string,
+          role: team.leader_role as string,
+          year: team.leader_year || null,
+          branch: team.leader_branch || null,
+          institution: team.leader_institution || null
+        });
+
+        // Add other team members tasks
+        filteredMembers.forEach((m: any, idx: number) => {
+          tasks.push({
+            teamId,
+            teamName,
+            projectTitle,
+            participantName: m.fullName.trim(),
+            recipientEmail: m.email.trim(),
+            roleIndex: idx + 2,
+            isLeader: false,
+            certificateType: team.certificate_type || 'Participation',
+            participantPhone: m.phone || null,
+            role: m.role || 'Student',
+            year: m.year || null,
+            branch: m.branch || null,
+            institution: m.institution || null
+          });
         });
       });
-    });
 
-    if (tasks.length === 0) {
-      sendLog("No valid recipient records found.", 100, true);
-      res.end();
-      return;
-    }
+      if (tasks.length === 0) {
+        await taskManager.completeTask(task.id, "No valid recipient records found.");
+        return;
+      }
 
-    sendLog(`Created ${tasks.length} certificate tasks for all team members. Starting generation...`, 20);
+      taskManager.sendLog(task.id, `Created ${tasks.length} certificate tasks for all team members. Starting generation...`, 20);
 
-    let successCount = 0;
-
-    const processedTasks = tasks.map((task) => {
-      const { teamId, teamName, projectTitle, participantName, recipientEmail, roleIndex, isLeader } = task;
-      
-      const safeName = participantName.replace(/[^a-zA-Z0-9_\s]/g, '').trim();
-      const tempPptx = path.join(process.cwd(), `Hack_Cert_${safeName}_${teamId}_${roleIndex}.pptx`);
-      const pdfFilename = path.join(process.cwd(), `Hack_Cert_${safeName}_${teamId}_${roleIndex}.pdf`);
-
-      const uniqueSuffix = crypto.randomBytes(4).toString('hex').toUpperCase();
-      const certId = `TCEK/RD/HACK/2026-${uniqueSuffix}`;
-      const actionText = task.certificateType || certificateTypeText || 'Participation';
-      const roleText = isLeader ? 'Team Leader' : 'Team Member';
-
-      const replacements = {
-        '{{PARTICIPANT NAME}}': participantName,
-        '{{EVENT NAME}}': hackathonName,
-        '{{HACKATHON NAME}}': hackathonName,
-        '{{DATE}}': hackathonDate,
-        '{{CERTIFICATE TYPE}}': actionText,
-        '{{CERTIFICATE ID}}': certId,
-        '{{ROLE}}': roleText,
-        '{{TEAM NAME}}': teamName,
-        '{{PROJECT TITLE}}': projectTitle,
-        '[[PARTICIPANT NAME]]': participantName,
-        '[[EVENT NAME]]': hackathonName,
-        '[[HACKATHON NAME]]': hackathonName,
-        '[[DATE]]': hackathonDate,
-        '[[CERTIFICATE TYPE]]': actionText,
-        '[[CERTIFICATE ID]]': certId,
-        '[[ROLE]]': roleText,
-        '[[TEAM NAME]]': teamName,
-        '[[PROJECT TITLE]]': projectTitle,
-        'TCEK/RD/2026/0001': certId,
-        'TCEK/RD/2026/H0001': certId
-      };
-
-      replacePlaceholdersInPptx(templateBuffer, tempPptx, replacements);
-
-      return {
-        ...task,
-        certId,
-        safeName,
-        tempPptx,
-        pdfFilename,
-        actionText
-      };
-    });
-
-    // 6. Convert all PPTX to PDF in a single batch
-    sendLog("Converting all certificates to PDF in a single batch...", 35);
-    const pptxPaths = processedTasks.map(t => t.tempPptx);
-    await convertPptxToPdfBatch(pptxPaths, process.cwd());
-
-    // 7. Dispatch emails concurrently
-    sendLog("Dispatching emails to all team members...", 50);
-    let completedTasks = 0;
-
-    const emailConcurrency = APPS_SCRIPT_URL ? 1 : 5;
-    await runWithConcurrency(processedTasks, emailConcurrency, async (task) => {
-      const { teamId, teamName, projectTitle, participantName, recipientEmail, certId, safeName, tempPptx, pdfFilename, actionText } = task;
-      const progressValBefore = Math.floor(50 + (completedTasks / processedTasks.length) * 45);
-      sendLog(`Sending to ${participantName} (${recipientEmail})...`, progressValBefore);
-
-      const mailOptions = {
-        from: SENDER_EMAIL,
-        to: recipientEmail,
-        subject: `Certificate of Participation | ${hackathonName} | ${participantName}`,
-        text: `Dear ${participantName},
+      const processedTasks = tasks.map((t) => {
+        const { teamId, teamName, projectTitle, participantName, recipientEmail, roleIndex, isLeader } = t;
         
+        const safeName = participantName.replace(/[^a-zA-Z0-9_\s]/g, '').trim();
+        const tempPptx = path.join(process.cwd(), `Hack_Cert_${safeName}_${teamId}_${roleIndex}.pptx`);
+        const pdfFilename = path.join(process.cwd(), `Hack_Cert_${safeName}_${teamId}_${roleIndex}.pdf`);
+
+        const uniqueSuffix = crypto.randomBytes(4).toString('hex').toUpperCase();
+        const certId = `TCEK/RD/HACK/2026-${uniqueSuffix}`;
+        const actionText = t.certificateType || certificateTypeText || 'Participation';
+        const roleText = isLeader ? 'Team Leader' : 'Team Member';
+
+        const replacements = {
+          '{{PARTICIPANT NAME}}': participantName,
+          '{{EVENT NAME}}': hackathonName,
+          '{{HACKATHON NAME}}': hackathonName,
+          '{{DATE}}': hackathonDate,
+          '{{CERTIFICATE TYPE}}': actionText,
+          '{{CERTIFICATE ID}}': certId,
+          '{{ROLE}}': roleText,
+          '{{TEAM NAME}}': teamName,
+          '{{PROJECT TITLE}}': projectTitle,
+          '[[PARTICIPANT NAME]]': participantName,
+          '[[EVENT NAME]]': hackathonName,
+          '[[HACKATHON NAME]]': hackathonName,
+          '[[DATE]]': hackathonDate,
+          '[[CERTIFICATE TYPE]]': actionText,
+          '[[CERTIFICATE ID]]': certId,
+          '[[ROLE]]': roleText,
+          '[[TEAM NAME]]': teamName,
+          '[[PROJECT TITLE]]': projectTitle,
+          'TCEK/RD/2026/0001': certId,
+          'TCEK/RD/2026/H0001': certId
+        };
+
+        replacePlaceholdersInPptx(templateBuffer, tempPptx, replacements);
+
+        return {
+          ...t,
+          certId,
+          safeName,
+          tempPptx,
+          pdfFilename,
+          actionText
+        };
+      });
+
+      taskManager.updateCounts(task.id, { totalItems: processedTasks.length });
+
+      // 6. Convert all PPTX to PDF in a single batch
+      taskManager.sendLog(task.id, "Converting all certificates to PDF in a single batch...", 35);
+      const pptxPaths = processedTasks.map(t => t.tempPptx);
+      await convertPptxToPdfBatch(pptxPaths, process.cwd());
+
+      // 7. Dispatch emails concurrently
+      taskManager.sendLog(task.id, "Dispatching emails to all team members...", 50);
+      let completedTasks = 0;
+      let successCount = 0;
+
+      const emailConcurrency = APPS_SCRIPT_URL ? 1 : 5;
+      let quotaExceededAborted = false;
+      await runWithConcurrency(processedTasks, emailConcurrency, async (taskItem) => {
+        const { teamId, teamName, projectTitle, participantName, recipientEmail, certId, safeName, tempPptx, pdfFilename, actionText } = taskItem;
+        const progressValBefore = Math.floor(50 + (completedTasks / processedTasks.length) * 45);
+        taskManager.sendLog(task.id, `Sending to ${participantName} (${recipientEmail})...`, progressValBefore);
+
+        const mailOptions = {
+          from: SENDER_EMAIL,
+          to: recipientEmail,
+          subject: `Certificate of Participation | ${hackathonName} | ${participantName}`,
+          text: `Dear ${participantName},
+          
 Thank you for your enthusiastic participation in the ${hackathonName} held on ${hackathonDate} organized by the Research & Development (R&D) Cell of Trinity College of Engineering and Technology, Peddapalli.
 
 Please find attached your official Certificate of Participation (Certificate_${safeName}.pdf). We appreciate your innovative ideas, outstanding team efforts, and technical presentation in Team "${teamName}"${projectTitle ? ` for the project "${projectTitle}"` : ''}.
@@ -5548,29 +5776,28 @@ Best regards,
 
 R&D Cell
 Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
-        attachments: [
-          {
-            filename: `Certificate_${safeName}.pdf`,
-            path: pdfFilename
+          attachments: [
+            {
+              filename: `Certificate_${safeName}.pdf`,
+              path: pdfFilename
+            }
+          ]
+        };
+
+        try {
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (!recipientEmail || !emailRegex.test(recipientEmail)) {
+            throw new Error(`Invalid email address format: "${recipientEmail}"`);
           }
-        ]
-      };
 
-      try {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!recipientEmail || !emailRegex.test(recipientEmail)) {
-          throw new Error(`Invalid email address format: "${recipientEmail}"`);
-        }
+          if (!fs.existsSync(pdfFilename)) {
+            throw new Error("PDF generation failed during batch process.");
+          }
 
-        if (!fs.existsSync(pdfFilename)) {
-          throw new Error("PDF generation failed during batch process.");
-        }
-
-        // Send via Proxy or Nodemailer SMTP
-        if (APPS_SCRIPT_URL) {
+          // Send via multi-proxy failover or fallback
           const attachmentContent = fs.readFileSync(pdfFilename);
           const attachmentBase64 = attachmentContent.toString('base64');
-          const payload = {
+          await sendEmailWithFailover({
             to: recipientEmail,
             subject: mailOptions.subject,
             text: mailOptions.text,
@@ -5581,218 +5808,229 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`,
                 mimeType: 'application/pdf'
               }
             ]
-          };
-          await new Promise(r => setTimeout(r, 600));
-          const proxyRes = await postToAppsScript(APPS_SCRIPT_URL, payload);
-          if (!proxyRes.success) {
-            throw new Error(`Google Apps Script Proxy failed: ${proxyRes.error}`);
-          }
-        } else {
-          await transporter.sendMail(mailOptions);
-        }
-
-        // Save certificate to DB
-        await db.execute({
-          sql: `INSERT OR REPLACE INTO hackathon_certificates (
-                  certificate_id, registration_id, participant_name, participant_email, participant_phone,
-                  role, year, branch, institution, team_name, project_title, hackathon_name, certificate_type
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          args: [
-            certId,
-            teamId,
-            participantName,
-            recipientEmail,
-            task.participantPhone || null,
-            task.role || 'Student',
-            task.year || null,
-            task.branch || null,
-            task.institution || null,
-            teamName,
-            projectTitle,
-            hackathonName,
-            actionText
-          ]
-        });
-
-        // Update sent count for this team
-        teamSentCounts[teamId].sent++;
-        
-        // If all members of this team have been sent their certificates, mark team as complete
-        if (teamSentCounts[teamId].sent === teamSentCounts[teamId].total) {
-          await db.execute({
-            sql: "UPDATE hackathon_registrations SET certificate_sent = 1 WHERE id = ?",
-            args: [teamId]
           });
+
+          // Save certificate to DB
+          await db.execute({
+            sql: `INSERT OR REPLACE INTO hackathon_certificates (
+                    certificate_id, registration_id, participant_name, participant_email, participant_phone,
+                    role, year, branch, institution, team_name, project_title, hackathon_name, certificate_type
+                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            args: [
+              certId,
+              teamId,
+              participantName,
+              recipientEmail,
+              taskItem.participantPhone || null,
+              taskItem.role || 'Student',
+              taskItem.year || null,
+              taskItem.branch || null,
+              taskItem.institution || null,
+              teamName,
+              projectTitle,
+              hackathonName,
+              actionText
+            ]
+          });
+
+          // Update sent count for this team
+          teamSentCounts[teamId].sent++;
+          
+          // If all members of this team have been sent their certificates, mark team as complete
+          if (teamSentCounts[teamId].sent === teamSentCounts[teamId].total) {
+            await db.execute({
+              sql: "UPDATE hackathon_registrations SET certificate_sent = 1 WHERE id = ?",
+              args: [teamId]
+            });
+          }
+
+          // Log Activity for each member
+          await db.execute({
+            sql: "INSERT INTO activity_logs (username, action, details) VALUES (?, ?, ?)",
+            args: [
+              req.user?.username || 'unknown',
+              "Send Hackathon Certificate",
+              `Emailed Certificate for "${hackathonName}" to ${participantName} (${recipientEmail}) of team "${teamName}"`
+            ]
+          });
+
+          successCount++;
+          taskManager.updateCounts(task.id, {
+            processedItems: completedTasks + 1,
+            successCount,
+            progress: Math.floor(50 + ((completedTasks + 1) / processedTasks.length) * 45)
+          });
+        } catch (err: any) {
+          console.error(`Failed to process hackathon certificate for ${participantName}:`, err.message);
+          taskManager.sendLog(task.id, `Failed for ${participantName}: ${err.message}`, Math.floor(50 + ((completedTasks + 1) / processedTasks.length) * 45), false, true);
+          taskManager.updateCounts(task.id, {
+            processedItems: completedTasks + 1,
+            failureCount: (task.failure_count || 0) + 1
+          });
+          if (err.message.includes('Service invoked too many times') || err.message.includes('Daily email quota reached')) {
+            quotaExceededAborted = true;
+            taskManager.sendLog(task.id, `[QUOTA LIMIT EXCEEDED] Daily email dispatch limit reached across all proxies. Dispatch paused cleanly. ${successCount} certificate(s) sent so far.`, Math.floor(50 + ((completedTasks + 1) / processedTasks.length) * 45), false, true);
+          }
+        } finally {
+          completedTasks++;
+          const progressValAfter = Math.floor(50 + (completedTasks / processedTasks.length) * 45);
+          taskManager.sendLog(task.id, `Completed: ${participantName}`, progressValAfter);
+
+          // Cleanup temp files
+          if (fs.existsSync(tempPptx)) fs.unlinkSync(tempPptx);
+          if (fs.existsSync(pdfFilename)) fs.unlinkSync(pdfFilename);
         }
+      }, () => quotaExceededAborted || taskManager.isAbortRequested(task.id));
 
-        // Log Activity for each member
-        await db.execute({
-          sql: "INSERT INTO activity_logs (username, action, details) VALUES (?, ?, ?)",
-          args: [
-            req.user?.username || 'unknown',
-            "Send Hackathon Certificate",
-            `Emailed Certificate for "${hackathonName}" to ${participantName} (${recipientEmail}) of team "${teamName}"`
-          ]
-        });
-
-        successCount++;
-      } catch (err: any) {
-        console.error(`Failed to process hackathon certificate for ${participantName}:`, err.message);
-        sendLog(`Failed for ${participantName}: ${err.message}`, Math.floor(50 + ((completedTasks + 1) / processedTasks.length) * 45));
-      } finally {
-        completedTasks++;
-        const progressValAfter = Math.floor(50 + (completedTasks / processedTasks.length) * 45);
-        sendLog(`Completed: ${participantName}`, progressValAfter);
-
-        // Cleanup temp files
-        if (fs.existsSync(tempPptx)) fs.unlinkSync(tempPptx);
-        if (fs.existsSync(pdfFilename)) fs.unlinkSync(pdfFilename);
+      notifySyncClients("REFRESH_APPLICATIONS");
+      if (quotaExceededAborted) {
+        await taskManager.failTask(task.id, `Daily email quota reached across all proxies. Batch paused cleanly with ${successCount} sent.`);
+      } else {
+        await taskManager.completeTask(task.id, `Successfully sent ${successCount} hackathon certificates.`);
       }
-    });
-
-    notifySyncClients("REFRESH_APPLICATIONS");
-    sendLog(`Successfully sent ${successCount} hackathon certificates.`, 95);
-    sendLog("Process completed successfully.", 100, true);
-    res.end();
-  } catch (err: any) {
-    console.error("Bulk hackathon certificates error:", err);
-    res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
-    res.end();
-  }
+    } catch (err: any) {
+      console.error("Bulk hackathon certificates error:", err);
+      await taskManager.failTask(task.id, err.message);
+    }
+  })().catch(err => {
+    taskManager.failTask(task.id, err.message);
+  });
 });
 
 // 17. Bulk Send Certificates to Approved Judges / Dignitaries
 app.post('/api/admin/bulk-send/recognition-certificates', authenticateToken, async (req: AuthenticatedRequest, res) => {
   const { eventTitle } = req.body;
 
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.flushHeaders();
+  const task = await taskManager.createTask({
+    task_type: 'bulk_recognition_certificates',
+    title: eventTitle && eventTitle !== 'all' ? `Bulk Dispatch Recognition: ${eventTitle}` : 'Bulk Dispatch: Recognition Certificates',
+    created_by: req.user?.username || 'admin',
+    params: { eventTitle }
+  });
 
-  const sendLog = (message: string, progress: number, isDone = false) => {
-    res.write(`data: ${JSON.stringify({ message, progress, isDone })}\n\n`);
-  };
+  taskManager.attachSubscriber(task.id, res);
 
-  try {
-    sendLog("Initializing email and template services...", 5);
+  (async () => {
+    try {
+      taskManager.sendLog(task.id, "Initializing email and template services...", 5);
 
-    // 1. Fetch template from DB
-    const templateRes = await db.execute({
-      sql: "SELECT data_base64 FROM templates WHERE name = ?",
-      args: ["certificate_recognition"]
-    });
+      // 1. Fetch template from DB
+      const templateRes = await db.execute({
+        sql: "SELECT data_base64 FROM templates WHERE name = ?",
+        args: ["certificate_recognition"]
+      });
 
-    if (templateRes.rows.length === 0) {
-      res.write(`data: ${JSON.stringify({ error: "Certificate of Recognition template not found in database." })}\n\n`);
-      res.end();
-      return;
-    }
+      if (templateRes.rows.length === 0) {
+        await taskManager.failTask(task.id, "Certificate of Recognition template not found in database.");
+        return;
+      }
 
-    const templateBase64 = templateRes.rows[0].data_base64 as string;
-    const templateBuffer = Buffer.from(templateBase64, 'base64');
+      const templateBase64 = templateRes.rows[0].data_base64 as string;
+      const templateBuffer = Buffer.from(templateBase64, 'base64');
 
-    sendLog("Fetching approved judge & dignitary records...", 10);
+      taskManager.sendLog(task.id, "Fetching approved judge & dignitary records...", 10);
 
-    // 2. Fetch approved applications where certificate_sent = 0
-    let querySql = "SELECT * FROM recognition_applications WHERE status = 'approved' AND (certificate_sent = 0 OR certificate_sent IS NULL)";
-    const queryArgs: any[] = [];
-    if (eventTitle && eventTitle !== 'all') {
-      querySql += " AND event_name = ?";
-      queryArgs.push(eventTitle);
-    }
-    querySql += " ORDER BY id ASC";
+      // 2. Fetch approved applications where certificate_sent = 0
+      let querySql = "SELECT * FROM recognition_applications WHERE status = 'approved' AND (certificate_sent = 0 OR certificate_sent IS NULL)";
+      const queryArgs: any[] = [];
+      if (eventTitle && eventTitle !== 'all') {
+        querySql += " AND event_name = ?";
+        queryArgs.push(eventTitle);
+      }
+      querySql += " ORDER BY id ASC";
 
-    const appsRes = await db.execute({
-      sql: querySql,
-      args: queryArgs
-    });
+      const appsRes = await db.execute({
+        sql: querySql,
+        args: queryArgs
+      });
 
-    const applications = appsRes.rows;
+      const applications = appsRes.rows;
 
-    if (applications.length === 0) {
-      sendLog(eventTitle && eventTitle !== 'all'
-        ? `No approved judges pending certificates found for: ${eventTitle}.`
-        : "No approved judges pending certificates found.", 100, true);
-      res.end();
-      return;
-    }
+      if (applications.length === 0) {
+        await taskManager.completeTask(task.id, eventTitle && eventTitle !== 'all'
+          ? `No approved judges pending certificates found for: ${eventTitle}.`
+          : "No approved judges pending certificates found.");
+        return;
+      }
 
-    sendLog(`Found ${applications.length} approved judges/evaluators pending certificates. Starting dispatch...`, 15);
+      taskManager.sendLog(task.id, `Found ${applications.length} approved judges/evaluators pending certificates. Starting dispatch...`, 15);
 
-    let successCount = 0;
+      let successCount = 0;
 
-    // 3. Generate customized PPTX files on disk
-    sendLog("Generating customized PowerPoint templates...", 20);
-    const tasks = applications.map((app: any) => {
-      const id = app.id as number;
-      const judgeName = app.full_name as string;
-      const recipientEmail = app.email as string;
-      const eventName = app.event_name as string;
-      const eventDate = app.event_date || 'September 14, 2026';
-      const designation = app.designation as string;
-      const organization = app.organization as string;
+      // 3. Generate customized PPTX files on disk
+      taskManager.sendLog(task.id, "Generating customized PowerPoint templates...", 20);
+      const tasks = applications.map((app: any) => {
+        const id = app.id as number;
+        const judgeName = app.full_name as string;
+        const recipientEmail = app.email as string;
+        const eventName = app.event_name as string;
+        const eventDate = app.event_date || 'September 14, 2026';
+        const designation = app.designation as string;
+        const organization = app.organization as string;
 
-      const safeName = judgeName.replace(/[^a-zA-Z0-9_\s]/g, '').trim();
-      const tempPptx = path.join(process.cwd(), `Recognition_Cert_${safeName}_${id}.pptx`);
-      const pdfFilename = path.join(process.cwd(), `Recognition_Cert_${safeName}_${id}.pdf`);
+        const safeName = judgeName.replace(/[^a-zA-Z0-9_\s]/g, '').trim();
+        const tempPptx = path.join(process.cwd(), `Recognition_Cert_${safeName}_${id}.pptx`);
+        const pdfFilename = path.join(process.cwd(), `Recognition_Cert_${safeName}_${id}.pdf`);
 
-      const uniqueSuffix = crypto.randomBytes(4).toString('hex').toUpperCase();
-      const certId = `TCEK/RD/2026/REC-${uniqueSuffix}`;
+        const uniqueSuffix = crypto.randomBytes(4).toString('hex').toUpperCase();
+        const certId = `TCEK/RD/2026/REC-${uniqueSuffix}`;
 
-      const replacements: Record<string, string> = {
-        "{{ Judge's Full Name }}": judgeName,
-        "{{Judge's Full Name}}": judgeName,
-        "Judge's Full Name": judgeName,
-        "{{PARTICIPANT NAME}}": judgeName,
-        "{{EVENT NAME}}": eventName,
-        "{{DATE}}": eventDate,
-        "{{CERTIFICATE ID}}": certId,
-        "TCEK/RD/2026/H0001": certId,
-        "[[ Judge's Full Name ]]": judgeName,
-        "[[Judge's Full Name]]": judgeName,
-        "[[EVENT NAME]]": eventName,
-        "[[DATE]]": eventDate,
-        "[[CERTIFICATE ID]]": certId
-      };
+        const replacements: Record<string, string> = {
+          "{{ Judge's Full Name }}": judgeName,
+          "{{Judge's Full Name}}": judgeName,
+          "Judge's Full Name": judgeName,
+          "{{PARTICIPANT NAME}}": judgeName,
+          "{{EVENT NAME}}": eventName,
+          "{{DATE}}": eventDate,
+          "{{CERTIFICATE ID}}": certId,
+          "TCEK/RD/2026/H0001": certId,
+          "[[ Judge's Full Name ]]": judgeName,
+          "[[Judge's Full Name]]": judgeName,
+          "[[EVENT NAME]]": eventName,
+          "[[DATE]]": eventDate,
+          "[[CERTIFICATE ID]]": certId
+        };
 
-      replacePlaceholdersInPptx(templateBuffer, tempPptx, replacements);
+        replacePlaceholdersInPptx(templateBuffer, tempPptx, replacements);
 
-      return {
-        id,
-        judgeName,
-        recipientEmail,
-        eventName,
-        eventDate,
-        designation,
-        organization,
-        safeName,
-        tempPptx,
-        pdfFilename,
-        certId
-      };
-    });
+        return {
+          id,
+          judgeName,
+          recipientEmail,
+          eventName,
+          eventDate,
+          designation,
+          organization,
+          safeName,
+          tempPptx,
+          pdfFilename,
+          certId
+        };
+      });
 
-    // 4. Batch convert PPTX to PDF using LibreOffice
-    sendLog("Converting templates to PDF in batch...", 30);
-    const pptxPaths = tasks.map(t => t.tempPptx);
-    await convertPptxToPdfBatch(pptxPaths, process.cwd());
+      taskManager.updateCounts(task.id, { totalItems: tasks.length });
 
-    // 5. Dispatch emails concurrently
-    sendLog("Dispatching emails to official judges...", 50);
-    let completedTasks = 0;
+      // 4. Batch convert PPTX to PDF using LibreOffice
+      taskManager.sendLog(task.id, "Converting templates to PDF in batch...", 30);
+      const pptxPaths = tasks.map(t => t.tempPptx);
+      await convertPptxToPdfBatch(pptxPaths, process.cwd());
 
-    const emailConcurrency = APPS_SCRIPT_URL ? 1 : 5;
-    await runWithConcurrency(tasks, emailConcurrency, async (task) => {
-      const { id, judgeName, recipientEmail, eventName, eventDate, designation, organization, safeName, tempPptx, pdfFilename, certId } = task;
-      const progressValBefore = Math.floor(50 + (completedTasks / tasks.length) * 45);
-      sendLog(`Sending certificate to ${judgeName}...`, progressValBefore);
+      // 5. Dispatch emails concurrently
+      taskManager.sendLog(task.id, "Dispatching emails to official judges...", 50);
+      let completedTasks = 0;
 
-      const mailOptions = {
-        from: SENDER_EMAIL,
-        to: recipientEmail,
-        subject: `Certificate of Recognition | Official Judge - ${eventName}`,
-        text: `Dear ${judgeName},
+      const emailConcurrency = APPS_SCRIPT_URL ? 1 : 5;
+      let quotaExceededAborted = false;
+      await runWithConcurrency(tasks, emailConcurrency, async (taskItem) => {
+        const { id, judgeName, recipientEmail, eventName, eventDate, designation, organization, safeName, tempPptx, pdfFilename, certId } = taskItem;
+        const progressValBefore = Math.floor(50 + (completedTasks / tasks.length) * 45);
+        taskManager.sendLog(task.id, `Sending certificate to ${judgeName}...`, progressValBefore);
+
+        const mailOptions = {
+          from: SENDER_EMAIL,
+          to: recipientEmail,
+          subject: `Certificate of Recognition | Official Judge - ${eventName}`,
+          text: `Dear ${judgeName},
 
 We sincerely appreciate your outstanding dedication, expertise, impartiality, and fair judgment demonstrated while serving as an official Judge for ${eventName}, organized by Trinity College of Engineering and Technology, Peddapalli, and held on ${eventDate}.
 
@@ -5805,17 +6043,17 @@ With sincere appreciation and gratitude,
 
 R&D Cell
 Trinity College of Engineering & Technology (Autonomous), Peddapalli`
-      };
+        };
 
-      try {
-        if (!fs.existsSync(pdfFilename)) {
-          throw new Error("PDF file generation failed.");
-        }
+        try {
+          if (!fs.existsSync(pdfFilename)) {
+            throw new Error("PDF file generation failed.");
+          }
 
-        if (APPS_SCRIPT_URL) {
+          // Send via multi-proxy failover or fallback
           const attachmentContent = fs.readFileSync(pdfFilename);
           const attachmentBase64 = attachmentContent.toString('base64');
-          const payload = {
+          await sendEmailWithFailover({
             to: recipientEmail,
             subject: mailOptions.subject,
             text: mailOptions.text,
@@ -5826,201 +6064,204 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`
                 mimeType: 'application/pdf'
               }
             ]
-          };
-          await new Promise(r => setTimeout(r, 600));
-          const proxyRes = await postToAppsScript(APPS_SCRIPT_URL, payload);
-          if (!proxyRes.success) {
-            throw new Error(`Google Apps Script Proxy failed: ${proxyRes.error}`);
-          }
-        } else {
-          await transporter.sendMail({
-            ...mailOptions,
-            attachments: [
-              {
-                filename: `Certificate_${safeName}.pdf`,
-                path: pdfFilename
-              }
+          });
+
+          // Update database
+          await db.execute({
+            sql: "UPDATE recognition_applications SET certificate_sent = 1, certificate_id = ? WHERE id = ?",
+            args: [certId, id]
+          });
+
+          // Log Activity
+          await db.execute({
+            sql: "INSERT INTO activity_logs (username, action, details) VALUES (?, ?, ?)",
+            args: [
+              req.user?.username || 'unknown',
+              "Send Recognition Certificate",
+              `Dispatched Recognition Certificate for "${eventName}" to Judge ${judgeName} (${recipientEmail}) [Cert ID: ${certId}]`
             ]
           });
+
+          successCount++;
+          taskManager.updateCounts(task.id, {
+            processedItems: completedTasks + 1,
+            successCount,
+            progress: Math.floor(50 + ((completedTasks + 1) / tasks.length) * 45)
+          });
+        } catch (err: any) {
+          console.error(`Failed to process recognition certificate for ${judgeName}:`, err.message);
+          taskManager.sendLog(task.id, `Failed for ${judgeName}: ${err.message}`, Math.floor(50 + ((completedTasks + 1) / tasks.length) * 45), false, true);
+          taskManager.updateCounts(task.id, {
+            processedItems: completedTasks + 1,
+            failureCount: (task.failure_count || 0) + 1
+          });
+          if (err.message.includes('Service invoked too many times') || err.message.includes('Daily email quota reached')) {
+            quotaExceededAborted = true;
+            taskManager.sendLog(task.id, `[QUOTA LIMIT EXCEEDED] Daily email dispatch limit reached across all proxies. Dispatch paused cleanly. ${successCount} sent so far.`, Math.floor(50 + ((completedTasks + 1) / tasks.length) * 45), false, true);
+          }
+        } finally {
+          completedTasks++;
+          const progressValAfter = Math.floor(50 + (completedTasks / tasks.length) * 45);
+          taskManager.sendLog(task.id, `Completed: ${judgeName}`, progressValAfter);
+
+          // Cleanup temp files
+          if (fs.existsSync(tempPptx)) fs.unlinkSync(tempPptx);
+          if (fs.existsSync(pdfFilename)) fs.unlinkSync(pdfFilename);
         }
+      }, () => quotaExceededAborted || taskManager.isAbortRequested(task.id));
 
-        // Update database
-        await db.execute({
-          sql: "UPDATE recognition_applications SET certificate_sent = 1, certificate_id = ? WHERE id = ?",
-          args: [certId, id]
-        });
-
-        // Log Activity
-        await db.execute({
-          sql: "INSERT INTO activity_logs (username, action, details) VALUES (?, ?, ?)",
-          args: [
-            req.user?.username || 'unknown',
-            "Send Recognition Certificate",
-            `Dispatched Recognition Certificate for "${eventName}" to Judge ${judgeName} (${recipientEmail}) [Cert ID: ${certId}]`
-          ]
-        });
-
-        successCount++;
-      } catch (err: any) {
-        console.error(`Failed to process recognition certificate for ${judgeName}:`, err.message);
-        sendLog(`Failed for ${judgeName}: ${err.message}`, Math.floor(50 + ((completedTasks + 1) / tasks.length) * 45));
-      } finally {
-        completedTasks++;
-        const progressValAfter = Math.floor(50 + (completedTasks / tasks.length) * 45);
-        sendLog(`Completed: ${judgeName}`, progressValAfter);
-
-        // Cleanup temp files
-        if (fs.existsSync(tempPptx)) fs.unlinkSync(tempPptx);
-        if (fs.existsSync(pdfFilename)) fs.unlinkSync(pdfFilename);
+      notifySyncClients("REFRESH_APPLICATIONS");
+      if (quotaExceededAborted) {
+        await taskManager.failTask(task.id, `Daily email quota reached across all proxies. Batch paused cleanly with ${successCount} sent.`);
+      } else {
+        await taskManager.completeTask(task.id, `Successfully sent ${successCount} recognition certificates.`);
       }
-    });
-
-    notifySyncClients("REFRESH_APPLICATIONS");
-    sendLog(`Successfully sent ${successCount} recognition certificates.`, 95);
-    sendLog("Process completed successfully.", 100, true);
-    res.end();
-  } catch (err: any) {
-    console.error("Bulk recognition certificates error:", err);
-    res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
-    res.end();
-  }
+    } catch (err: any) {
+      console.error("Bulk recognition certificates error:", err);
+      await taskManager.failTask(task.id, err.message);
+    }
+  })().catch(err => {
+    taskManager.failTask(task.id, err.message);
+  });
 });
 
 // 18. Bulk Send Certificates to Approved Volunteers
 app.post('/api/admin/bulk-send/volunteer-certificates', authenticateToken, async (req: AuthenticatedRequest, res) => {
   const { eventTitle, volunteerRole } = req.body;
 
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.flushHeaders();
+  const task = await taskManager.createTask({
+    task_type: 'bulk_volunteer_certificates',
+    title: eventTitle && eventTitle !== 'all' ? `Bulk Dispatch Volunteer Certificates: ${eventTitle}` : 'Bulk Dispatch: Volunteer Certificates',
+    created_by: req.user?.username || 'admin',
+    params: { eventTitle, volunteerRole }
+  });
 
-  const sendLog = (message: string, progress: number, isDone = false) => {
-    res.write(`data: ${JSON.stringify({ message, progress, isDone })}\n\n`);
-  };
+  taskManager.attachSubscriber(task.id, res);
 
-  try {
-    sendLog("Initializing email and template services...", 5);
+  (async () => {
+    try {
+      taskManager.sendLog(task.id, "Initializing email and template services...", 5);
 
-    // 1. Fetch template from DB
-    const templateRes = await db.execute({
-      sql: "SELECT data_base64 FROM templates WHERE name = ?",
-      args: ["certificate_volunteer"]
-    });
+      // 1. Fetch template from DB
+      const templateRes = await db.execute({
+        sql: "SELECT data_base64 FROM templates WHERE name = ?",
+        args: ["certificate_volunteer"]
+      });
 
-    if (templateRes.rows.length === 0) {
-      res.write(`data: ${JSON.stringify({ error: "Certificate of Volunteering template not found in database." })}\n\n`);
-      res.end();
-      return;
-    }
+      if (templateRes.rows.length === 0) {
+        await taskManager.failTask(task.id, "Certificate of Volunteering template not found in database.");
+        return;
+      }
 
-    const templateBase64 = templateRes.rows[0].data_base64 as string;
-    const templateBuffer = Buffer.from(templateBase64, 'base64');
+      const templateBase64 = templateRes.rows[0].data_base64 as string;
+      const templateBuffer = Buffer.from(templateBase64, 'base64');
 
-    sendLog("Fetching approved volunteer records...", 10);
+      taskManager.sendLog(task.id, "Fetching approved volunteer records...", 10);
 
-    // 2. Fetch approved applications where certificate_sent = 0
-    let querySql = "SELECT * FROM volunteer_applications WHERE status = 'approved' AND (certificate_sent = 0 OR certificate_sent IS NULL)";
-    const queryArgs: any[] = [];
-    if (eventTitle && eventTitle !== 'all') {
-      querySql += " AND event_name = ?";
-      queryArgs.push(eventTitle);
-    }
-    if (volunteerRole && volunteerRole !== 'all') {
-      querySql += " AND volunteer_role = ?";
-      queryArgs.push(volunteerRole);
-    }
-    querySql += " ORDER BY id ASC";
+      // 2. Fetch approved applications where certificate_sent = 0
+      let querySql = "SELECT * FROM volunteer_applications WHERE status = 'approved' AND (certificate_sent = 0 OR certificate_sent IS NULL)";
+      const queryArgs: any[] = [];
+      if (eventTitle && eventTitle !== 'all') {
+        querySql += " AND event_name = ?";
+        queryArgs.push(eventTitle);
+      }
+      if (volunteerRole && volunteerRole !== 'all') {
+        querySql += " AND volunteer_role = ?";
+        queryArgs.push(volunteerRole);
+      }
+      querySql += " ORDER BY id ASC";
 
-    const appsRes = await db.execute({
-      sql: querySql,
-      args: queryArgs
-    });
+      const appsRes = await db.execute({
+        sql: querySql,
+        args: queryArgs
+      });
 
-    const applications = appsRes.rows;
+      const applications = appsRes.rows;
 
-    if (applications.length === 0) {
-      sendLog(eventTitle && eventTitle !== 'all'
-        ? `No approved volunteers pending certificates found for: ${eventTitle}.`
-        : "No approved volunteers pending certificates found.", 100, true);
-      res.end();
-      return;
-    }
+      if (applications.length === 0) {
+        await taskManager.completeTask(task.id, eventTitle && eventTitle !== 'all'
+          ? `No approved volunteers pending certificates found for: ${eventTitle}.`
+          : "No approved volunteers pending certificates found.");
+        return;
+      }
 
-    sendLog(`Found ${applications.length} approved volunteers pending certificates. Starting dispatch...`, 15);
+      taskManager.sendLog(task.id, `Found ${applications.length} approved volunteers pending certificates. Starting dispatch...`, 15);
 
-    let successCount = 0;
+      let successCount = 0;
 
-    // 3. Generate customized PPTX files on disk
-    sendLog("Generating customized PowerPoint templates...", 20);
-    const tasks = applications.map((app: any) => {
-      const id = app.id as number;
-      const volunteerName = app.full_name as string;
-      const recipientEmail = app.email as string;
-      const eventName = app.event_name || 'R&D Technical Symposium';
-      const eventDate = 'September 14, 2026';
-      const volunteerRole = app.volunteer_role as string;
+      // 3. Generate customized PPTX files on disk
+      taskManager.sendLog(task.id, "Generating customized PowerPoint templates...", 20);
+      const tasks = applications.map((app: any) => {
+        const id = app.id as number;
+        const volunteerName = app.full_name as string;
+        const recipientEmail = app.email as string;
+        const eventName = app.event_name || 'R&D Technical Symposium';
+        const eventDate = 'September 14, 2026';
+        const volunteerRole = app.volunteer_role as string;
 
-      const safeName = volunteerName.replace(/[^a-zA-Z0-9_\s]/g, '').trim();
-      const tempPptx = path.join(process.cwd(), `Volunteer_Cert_${safeName}_${id}.pptx`);
-      const pdfFilename = path.join(process.cwd(), `Volunteer_Cert_${safeName}_${id}.pdf`);
+        const safeName = volunteerName.replace(/[^a-zA-Z0-9_\s]/g, '').trim();
+        const tempPptx = path.join(process.cwd(), `Volunteer_Cert_${safeName}_${id}.pptx`);
+        const pdfFilename = path.join(process.cwd(), `Volunteer_Cert_${safeName}_${id}.pdf`);
 
-      const uniqueSuffix = crypto.randomBytes(4).toString('hex').toUpperCase();
-      const certId = `TCEK/RD/2026/VOL-${uniqueSuffix}`;
+        const uniqueSuffix = crypto.randomBytes(4).toString('hex').toUpperCase();
+        const certId = `TCEK/RD/2026/VOL-${uniqueSuffix}`;
 
-      const replacements: Record<string, string> = {
-        "{{ Volunteer's Full Name }}": volunteerName,
-        "{{Volunteer's Full Name}}": volunteerName,
-        "Volunteer's Full Name": volunteerName,
-        "{{PARTICIPANT NAME}}": volunteerName,
-        "{{EVENT NAME}}": eventName,
-        "{{DATE}}": eventDate,
-        "{{CERTIFICATE ID}}": certId,
-        "Certificate ID : TCEK/RD/2026/H0001": `Certificate ID : ${certId}`,
-        "TCEK/RD/2026/H0001": certId,
-        "[[ Volunteer's Full Name ]]": volunteerName,
-        "[[Volunteer's Full Name]]": volunteerName,
-        "[[EVENT NAME]]": eventName,
-        "[[DATE]]": eventDate,
-        "[[CERTIFICATE ID]]": certId
-      };
+        const replacements: Record<string, string> = {
+          "{{ Volunteer's Full Name }}": volunteerName,
+          "{{Volunteer's Full Name}}": volunteerName,
+          "Volunteer's Full Name": volunteerName,
+          "{{PARTICIPANT NAME}}": volunteerName,
+          "{{EVENT NAME}}": eventName,
+          "{{DATE}}": eventDate,
+          "{{CERTIFICATE ID}}": certId,
+          "Certificate ID : TCEK/RD/2026/H0001": `Certificate ID : ${certId}`,
+          "TCEK/RD/2026/H0001": certId,
+          "[[ Volunteer's Full Name ]]": volunteerName,
+          "[[Volunteer's Full Name]]": volunteerName,
+          "[[EVENT NAME]]": eventName,
+          "[[DATE]]": eventDate,
+          "[[CERTIFICATE ID]]": certId
+        };
 
-      replacePlaceholdersInPptx(templateBuffer, tempPptx, replacements);
+        replacePlaceholdersInPptx(templateBuffer, tempPptx, replacements);
 
-      return {
-        id,
-        volunteerName,
-        recipientEmail,
-        eventName,
-        eventDate,
-        volunteerRole,
-        safeName,
-        tempPptx,
-        pdfFilename,
-        certId
-      };
-    });
+        return {
+          id,
+          volunteerName,
+          recipientEmail,
+          eventName,
+          eventDate,
+          volunteerRole,
+          safeName,
+          tempPptx,
+          pdfFilename,
+          certId
+        };
+      });
 
-    // 4. Batch convert PPTX to PDF using LibreOffice
-    sendLog("Converting templates to PDF in batch...", 30);
-    const pptxPaths = tasks.map(t => t.tempPptx);
-    await convertPptxToPdfBatch(pptxPaths, process.cwd());
+      taskManager.updateCounts(task.id, { totalItems: tasks.length });
 
-    // 5. Dispatch emails concurrently
-    sendLog("Dispatching emails to student volunteers...", 50);
-    let completedTasks = 0;
+      // 4. Batch convert PPTX to PDF using LibreOffice
+      taskManager.sendLog(task.id, "Converting templates to PDF in batch...", 30);
+      const pptxPaths = tasks.map(t => t.tempPptx);
+      await convertPptxToPdfBatch(pptxPaths, process.cwd());
 
-    const emailConcurrency = APPS_SCRIPT_URL ? 1 : 5;
-    await runWithConcurrency(tasks, emailConcurrency, async (task) => {
-      const { id, volunteerName, recipientEmail, eventName, eventDate, volunteerRole, safeName, tempPptx, pdfFilename, certId } = task;
-      const progressValBefore = Math.floor(50 + (completedTasks / tasks.length) * 45);
-      sendLog(`Sending certificate to ${volunteerName}...`, progressValBefore);
+      // 5. Dispatch emails concurrently
+      taskManager.sendLog(task.id, "Dispatching emails to student volunteers...", 50);
+      let completedTasks = 0;
 
-      const mailOptions = {
-        from: SENDER_EMAIL,
-        to: recipientEmail,
-        subject: `Certificate of Appreciation | Volunteer - ${eventName}`,
-        text: `Dear ${volunteerName},
+      const emailConcurrency = APPS_SCRIPT_URL ? 1 : 5;
+      let quotaExceededAborted = false;
+      await runWithConcurrency(tasks, emailConcurrency, async (taskItem) => {
+        const { id, volunteerName, recipientEmail, eventName, eventDate, volunteerRole, safeName, tempPptx, pdfFilename, certId } = taskItem;
+        const progressValBefore = Math.floor(50 + (completedTasks / tasks.length) * 45);
+        taskManager.sendLog(task.id, `Sending certificate to ${volunteerName}...`, progressValBefore);
+
+        const mailOptions = {
+          from: SENDER_EMAIL,
+          to: recipientEmail,
+          subject: `Certificate of Appreciation | Volunteer - ${eventName}`,
+          text: `Dear ${volunteerName},
 
 We sincerely appreciate your dedicated service, active participation, and valuable contribution as an official Volunteer for ${eventName}, organized by Trinity College of Engineering and Technology, Peddapalli, and held on ${eventDate}.
 
@@ -6033,17 +6274,17 @@ With sincere appreciation and best wishes,
 
 R&D Cell
 Trinity College of Engineering & Technology (Autonomous), Peddapalli`
-      };
+        };
 
-      try {
-        if (!fs.existsSync(pdfFilename)) {
-          throw new Error("PDF file generation failed.");
-        }
+        try {
+          if (!fs.existsSync(pdfFilename)) {
+            throw new Error("PDF file generation failed.");
+          }
 
-        if (APPS_SCRIPT_URL) {
+          // Send via multi-proxy failover or fallback
           const attachmentContent = fs.readFileSync(pdfFilename);
           const attachmentBase64 = attachmentContent.toString('base64');
-          const payload = {
+          await sendEmailWithFailover({
             to: recipientEmail,
             subject: mailOptions.subject,
             text: mailOptions.text,
@@ -6054,64 +6295,65 @@ Trinity College of Engineering & Technology (Autonomous), Peddapalli`
                 mimeType: 'application/pdf'
               }
             ]
-          };
-          await new Promise(r => setTimeout(r, 600));
-          const proxyRes = await postToAppsScript(APPS_SCRIPT_URL, payload);
-          if (!proxyRes.success) {
-            throw new Error(`Google Apps Script Proxy failed: ${proxyRes.error}`);
-          }
-        } else {
-          await transporter.sendMail({
-            ...mailOptions,
-            attachments: [
-              {
-                filename: `Certificate_${safeName}.pdf`,
-                path: pdfFilename
-              }
+          });
+
+          // Update database
+          await db.execute({
+            sql: "UPDATE volunteer_applications SET certificate_sent = 1, certificate_id = ? WHERE id = ?",
+            args: [certId, id]
+          });
+
+          // Log Activity
+          await db.execute({
+            sql: "INSERT INTO activity_logs (username, action, details) VALUES (?, ?, ?)",
+            args: [
+              req.user?.username || 'unknown',
+              "Send Volunteer Certificate",
+              `Dispatched Volunteer Certificate for "${eventName}" to Volunteer ${volunteerName} (${recipientEmail}) [Cert ID: ${certId}]`
             ]
           });
+
+          successCount++;
+          taskManager.updateCounts(task.id, {
+            processedItems: completedTasks + 1,
+            successCount,
+            progress: Math.floor(50 + ((completedTasks + 1) / tasks.length) * 45)
+          });
+        } catch (err: any) {
+          console.error(`Failed to process volunteer certificate for ${volunteerName}:`, err.message);
+          taskManager.sendLog(task.id, `Failed for ${volunteerName}: ${err.message}`, Math.floor(50 + ((completedTasks + 1) / tasks.length) * 45), false, true);
+          taskManager.updateCounts(task.id, {
+            processedItems: completedTasks + 1,
+            failureCount: (task.failure_count || 0) + 1
+          });
+          if (err.message.includes('Service invoked too many times') || err.message.includes('Daily email quota reached')) {
+            quotaExceededAborted = true;
+            taskManager.sendLog(task.id, `[QUOTA LIMIT EXCEEDED] Daily email dispatch limit reached across all proxies. Dispatch paused cleanly. ${successCount} sent so far.`, Math.floor(50 + ((completedTasks + 1) / tasks.length) * 45), false, true);
+          }
+        } finally {
+          completedTasks++;
+          const progressValAfter = Math.floor(50 + (completedTasks / tasks.length) * 45);
+          taskManager.sendLog(task.id, `Completed: ${volunteerName}`, progressValAfter);
+
+          // Cleanup temp files
+          if (fs.existsSync(tempPptx)) fs.unlinkSync(tempPptx);
+          if (fs.existsSync(pdfFilename)) fs.unlinkSync(pdfFilename);
         }
+      }, () => quotaExceededAborted || taskManager.isAbortRequested(task.id));
 
-        // Update database
-        await db.execute({
-          sql: "UPDATE volunteer_applications SET certificate_sent = 1, certificate_id = ? WHERE id = ?",
-          args: [certId, id]
-        });
-
-        // Log Activity
-        await db.execute({
-          sql: "INSERT INTO activity_logs (username, action, details) VALUES (?, ?, ?)",
-          args: [
-            req.user?.username || 'unknown',
-            "Send Volunteer Certificate",
-            `Dispatched Volunteer Certificate for "${eventName}" to Volunteer ${volunteerName} (${recipientEmail}) [Cert ID: ${certId}]`
-          ]
-        });
-
-        successCount++;
-      } catch (err: any) {
-        console.error(`Failed to process volunteer certificate for ${volunteerName}:`, err.message);
-        sendLog(`Failed for ${volunteerName}: ${err.message}`, Math.floor(50 + ((completedTasks + 1) / tasks.length) * 45));
-      } finally {
-        completedTasks++;
-        const progressValAfter = Math.floor(50 + (completedTasks / tasks.length) * 45);
-        sendLog(`Completed: ${volunteerName}`, progressValAfter);
-
-        // Cleanup temp files
-        if (fs.existsSync(tempPptx)) fs.unlinkSync(tempPptx);
-        if (fs.existsSync(pdfFilename)) fs.unlinkSync(pdfFilename);
+      notifySyncClients("REFRESH_APPLICATIONS");
+      if (quotaExceededAborted) {
+        await taskManager.failTask(task.id, `Daily email quota reached across all proxies. Batch paused cleanly with ${successCount} sent.`);
+      } else {
+        await taskManager.completeTask(task.id, `Successfully sent ${successCount} volunteer certificates.`);
       }
-    });
-
-    notifySyncClients("REFRESH_APPLICATIONS");
-    sendLog(`Successfully sent ${successCount} volunteer certificates.`, 95);
-    sendLog("Process completed successfully.", 100, true);
-    res.end();
-  } catch (err: any) {
-    console.error("Bulk volunteer certificates error:", err);
-    res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
-    res.end();
-  }
+    } catch (err: any) {
+      console.error("Bulk volunteer certificates error:", err);
+      await taskManager.failTask(task.id, err.message);
+    }
+  })().catch(err => {
+    taskManager.failTask(task.id, err.message);
+  });
 });
 
 // Debug route to list installed fonts

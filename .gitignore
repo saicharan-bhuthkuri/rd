@@ -24,3 +24,12 @@ dist-ssr
 *.sw?
 ~$*
 .env
+.firebase/
+*.db
+backend/uploads/
+uploads/
+*.xlsx
+backend/backup_*.json
+backend/dispatched_recipients.json
+backend/sih_all_320_*
+backend/local.db

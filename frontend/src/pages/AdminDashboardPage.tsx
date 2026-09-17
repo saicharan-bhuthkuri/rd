@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { API_BASE_URL } from '../config';
 import { AdminLayout } from '../components/AdminLayout';
 import { formatDisplayPhone } from '../utils/phone';
-import { Download, Check, X, Layers, Calendar, Mail, Loader2, Eye, Award, HeartHandshake, FolderUp, ExternalLink, FileText, Trash2, AlertCircle } from 'lucide-react';
+import { Download, Check, X, Layers, Calendar, Mail, Loader2, Eye, Award, HeartHandshake, FolderUp, ExternalLink, FileText, Trash2, AlertCircle, History, Terminal, RotateCcw, Minimize2, Zap } from 'lucide-react';
 import { AdminFilterDropdown } from '../components/AdminFilterDropdown';
 import { AdminPagination } from '../components/AdminPagination';
 
@@ -242,9 +242,59 @@ export const AdminDashboardPage: React.FC = () => {
     }
   };
 
+  // Active Background Task state
+  const [activeTask, setActiveTask] = useState<any | null>(null);
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [taskHistory, setTaskHistory] = useState<any[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const streamReaderRef = React.useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null);
+  const streamAbortControllerRef = React.useRef<AbortController | null>(null);
+
+  const fetchActiveTask = async () => {
+    try {
+      const token = localStorage.getItem('admin_token');
+      if (!token) return;
+      const response = await fetch(`${API_BASE_URL}/api/admin/tasks/active`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (Array.isArray(data) && data.length > 0) {
+          setActiveTask(data[0]);
+          setActiveTaskId(data[0].id);
+        } else {
+          setActiveTask(null);
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to check active background tasks:", e);
+    }
+  };
+
+  const fetchTasksHistory = async () => {
+    setIsLoadingHistory(true);
+    try {
+      const token = localStorage.getItem('admin_token');
+      if (!token) return;
+      const response = await fetch(`${API_BASE_URL}/api/admin/tasks`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setTaskHistory(data || []);
+      }
+    } catch (e) {
+      console.warn("Failed to load task history:", e);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
   useEffect(() => {
     fetchApplications();
     fetchManagedBranches();
+    fetchActiveTask();
 
     const handleSync = (e: Event) => {
       const eventType = (e as CustomEvent).detail;
@@ -252,10 +302,22 @@ export const AdminDashboardPage: React.FC = () => {
         fetchApplications();
         fetchManagedBranches();
       }
+      if (eventType === 'TASK_UPDATE') {
+        fetchActiveTask();
+      }
     };
 
     window.addEventListener('app-sync', handleSync);
-    return () => window.removeEventListener('app-sync', handleSync);
+
+    // Periodic heartbeat to poll for active background tasks if any are running
+    const interval = setInterval(() => {
+      fetchActiveTask();
+    }, 8000);
+
+    return () => {
+      window.removeEventListener('app-sync', handleSync);
+      clearInterval(interval);
+    };
   }, []);
 
   const [isSendingBulk, setIsSendingBulk] = useState(false);
@@ -322,8 +384,149 @@ export const AdminDashboardPage: React.FC = () => {
     }
   }, [consoleLogs, isConsoleOpen]);
 
+  // Connect to an existing background task's live stream
+  const connectToTaskStream = async (taskId: string, initialTitle?: string) => {
+    if (streamAbortControllerRef.current) {
+      streamAbortControllerRef.current.abort();
+    }
+    const abortController = new AbortController();
+    streamAbortControllerRef.current = abortController;
+
+    setActiveTaskId(taskId);
+    setConsoleStatus('running');
+    if (initialTitle) setConsoleTitle(initialTitle);
+    setIsConsoleOpen(true);
+    setIsSendingBulk(true);
+
+    const token = localStorage.getItem('admin_token');
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/admin/tasks/${taskId}/stream?token=${encodeURIComponent(token || '')}`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+        signal: abortController.signal
+      });
+
+      await handleStreamResponse(response, initialTitle || 'Background Task Monitor');
+    } catch (err: any) {
+      if (err.name !== 'AbortError') {
+        setConsoleLogs(prev => [...prev, `[STREAM ERROR] ${err.message}`]);
+        setConsoleStatus('failed');
+      }
+    } finally {
+      setIsSendingBulk(false);
+    }
+  };
+
+  // View historical task logs in terminal console
+  const viewHistoricalTaskLogs = (task: any) => {
+    setActiveTaskId(task.id);
+    setConsoleTitle(`${task.title} (Archived Record)`);
+    const logs = Array.isArray(task.logs) 
+      ? task.logs.map((l: any) => typeof l === 'string' ? l : l.message)
+      : [];
+    setConsoleLogs(logs);
+    setConsoleProgress(task.progress || 100);
+    setConsoleStatus(task.status === 'completed' ? 'completed' : task.status === 'processing' ? 'running' : 'failed');
+    setIsConsoleOpen(true);
+  };
+
+  // Cancel an in-progress background task
+  const handleCancelTask = async (taskId: string) => {
+    showCustomConfirm(
+      "Cancel Background Task",
+      "Are you sure you want to stop this background task? Any remaining recipients will not be sent emails.",
+      async () => {
+        try {
+          const token = localStorage.getItem('admin_token');
+          const res = await fetch(`${API_BASE_URL}/api/admin/tasks/${taskId}/cancel`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (res.ok) {
+            showCustomAlert("Task Cancelled", "The background task cancellation request was submitted.");
+            fetchActiveTask();
+            setConsoleStatus('failed');
+            setConsoleLogs(prev => [...prev, "[CANCELLED] Task cancelled by user."]);
+          }
+        } catch (e: any) {
+          showCustomAlert("Error", e.message);
+        }
+      },
+      'danger',
+      'Cancel Task'
+    );
+  };
+
+  // Unified SSE stream reader for bulk operations
+  const handleStreamResponse = async (response: Response, fallbackTitle: string) => {
+    if (fallbackTitle) {
+      setConsoleTitle(fallbackTitle);
+    }
+    if (!response.ok) {
+      const errBody = await response.json().catch(() => null);
+      const errMsg = errBody?.error || errBody?.message || 'Failed to establish stream connection.';
+      throw new Error(`${errMsg} (Status: ${response.status})`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new Error('Readable stream not supported.');
+    }
+    streamReaderRef.current = reader;
+
+    const decoder = new TextDecoder();
+    let partialChunk = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value, { stream: true });
+      const lines = (partialChunk + chunk).split('\n\n');
+      partialChunk = lines.pop() || '';
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data.type === 'INIT') {
+              if (data.taskId) setActiveTaskId(data.taskId);
+              if (data.title) setConsoleTitle(data.title);
+              if (Array.isArray(data.logs)) setConsoleLogs(data.logs);
+              if (data.progress !== undefined) setConsoleProgress(data.progress);
+              if (data.status === 'completed') setConsoleStatus('completed');
+              else if (data.status === 'failed' || data.status === 'cancelled') setConsoleStatus('failed');
+              else setConsoleStatus('running');
+              fetchActiveTask();
+            } else if (data.error) {
+              setConsoleLogs(prev => [...prev, `[ERROR] ${data.error}`]);
+              setConsoleStatus('failed');
+            } else {
+              if (data.taskId) setActiveTaskId(data.taskId);
+              if (data.message) {
+                setConsoleLogs(prev => [...prev, data.message]);
+              }
+              if (data.progress !== undefined) {
+                setConsoleProgress(data.progress);
+              }
+              if (data.isDone) {
+                setConsoleStatus(data.status === 'failed' || data.isError ? 'failed' : 'completed');
+                fetchActiveTask();
+                fetchApplications();
+              }
+            }
+          } catch (e) {
+            console.error("JSON parse error on SSE line:", line, e);
+          }
+        }
+      }
+    }
+
+    fetchApplications();
+    fetchActiveTask();
+  };
+
   const executeBulkSendOffers = async () => {
-    // Reset console states
     setConsoleLogs([]);
     setConsoleProgress(0);
     setConsoleStatus('running');
@@ -341,52 +544,7 @@ export const AdminDashboardPage: React.FC = () => {
         }
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to establish stream connection.');
-      }
-
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error('Readable stream not supported.');
-      }
-
-      const decoder = new TextDecoder();
-      let partialChunk = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = (partialChunk + chunk).split('\n\n');
-        partialChunk = lines.pop() || '';
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              if (data.error) {
-                setConsoleLogs(prev => [...prev, `[ERROR] ${data.error}`]);
-                setConsoleStatus('failed');
-              } else {
-                if (data.message) {
-                  setConsoleLogs(prev => [...prev, data.message]);
-                }
-                if (data.progress !== undefined) {
-                  setConsoleProgress(data.progress);
-                }
-                if (data.isDone) {
-                  setConsoleStatus('completed');
-                }
-              }
-            } catch (e) {
-              console.error("JSON parse error on SSE line:", line, e);
-            }
-          }
-        }
-      }
-
-      fetchApplications();
+      await handleStreamResponse(response, "Bulk Dispatch: Offer Letters");
     } catch (err: any) {
       setConsoleLogs(prev => [...prev, `[ERROR] ${err.message}`]);
       setConsoleStatus('failed');
@@ -398,13 +556,12 @@ export const AdminDashboardPage: React.FC = () => {
   const handleBulkSendOffers = () => {
     showCustomConfirm(
       "Send Offer Letters",
-      "Are you sure you want to generate and email offer letters to all APPROVED student coordinators who haven't received them yet?",
+      "Are you sure you want to generate and email offer letters to all APPROVED student coordinators who haven't received them yet? (This task runs in the background even if you close the browser)",
       executeBulkSendOffers
     );
   };
 
   const executeBulkSendCertificates = async () => {
-    // Reset console states
     setConsoleLogs([]);
     setConsoleProgress(0);
     setConsoleStatus('running');
@@ -426,54 +583,7 @@ export const AdminDashboardPage: React.FC = () => {
         })
       });
 
-      if (!response.ok) {
-        const errBody = await response.json().catch(() => null);
-        const errMsg = errBody?.error || errBody?.message || 'Failed to establish stream connection.';
-        throw new Error(`${errMsg} (Status: ${response.status})`);
-      }
-
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error('Readable stream not supported.');
-      }
-
-      const decoder = new TextDecoder();
-      let partialChunk = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = (partialChunk + chunk).split('\n\n');
-        partialChunk = lines.pop() || '';
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              if (data.error) {
-                setConsoleLogs(prev => [...prev, `[ERROR] ${data.error}`]);
-                setConsoleStatus('failed');
-              } else {
-                if (data.message) {
-                  setConsoleLogs(prev => [...prev, data.message]);
-                }
-                if (data.progress !== undefined) {
-                  setConsoleProgress(data.progress);
-                }
-                if (data.isDone) {
-                  setConsoleStatus('completed');
-                }
-              }
-            } catch (e) {
-              console.error("JSON parse error on SSE line:", line, e);
-            }
-          }
-        }
-      }
-
-      fetchApplications();
+      await handleStreamResponse(response, `Bulk Dispatch: ${eventFilter}`);
     } catch (err: any) {
       setConsoleLogs(prev => [...prev, `[ERROR] ${err.message}`]);
       setConsoleStatus('failed');
@@ -495,7 +605,6 @@ export const AdminDashboardPage: React.FC = () => {
   };
 
   const executeBulkSendHackathonCertificates = async () => {
-    // Reset console states
     setConsoleLogs([]);
     setConsoleProgress(0);
     setConsoleStatus('running');
@@ -517,54 +626,7 @@ export const AdminDashboardPage: React.FC = () => {
         })
       });
 
-      if (!response.ok) {
-        const errBody = await response.json().catch(() => null);
-        const errMsg = errBody?.error || errBody?.message || 'Failed to establish stream connection.';
-        throw new Error(`${errMsg} (Status: ${response.status})`);
-      }
-
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error('Readable stream not supported.');
-      }
-
-      const decoder = new TextDecoder();
-      let partialChunk = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = (partialChunk + chunk).split('\n\n');
-        partialChunk = lines.pop() || '';
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              if (data.error) {
-                setConsoleLogs(prev => [...prev, `[ERROR] ${data.error}`]);
-                setConsoleStatus('failed');
-              } else {
-                if (data.message) {
-                  setConsoleLogs(prev => [...prev, data.message]);
-                }
-                if (data.progress !== undefined) {
-                  setConsoleProgress(data.progress);
-                }
-                if (data.isDone) {
-                  setConsoleStatus('completed');
-                }
-              }
-            } catch (e) {
-              console.error("JSON parse error on SSE line:", line, e);
-            }
-          }
-        }
-      }
-
-      fetchApplications();
+      await handleStreamResponse(response, `Bulk Dispatch Hackathon Certificates: ${hackathonFilter}`);
     } catch (err: any) {
       setConsoleLogs(prev => [...prev, `[ERROR] ${err.message}`]);
       setConsoleStatus('failed');
@@ -591,13 +653,12 @@ export const AdminDashboardPage: React.FC = () => {
       `Attendance Check for "${hackathonFilter}":\n\n` +
       `• Eligible: ${eligibleTeams.length} approved team(s) marked Present.\n` +
       `• Excluded: ${excludedTeams.length} team(s) marked Absent or Pending.\n\n` +
-      `Only teams marked Present will receive certificates. Proceed with dispatch?`,
+      `Only teams marked Present will receive certificates in the background. Proceed with dispatch?`,
       executeBulkSendHackathonCertificates
     );
   };
 
   const executeBulkSendRecognitionCertificates = async () => {
-    // Reset console states
     setConsoleLogs([]);
     setConsoleProgress(0);
     setConsoleStatus('running');
@@ -615,58 +676,11 @@ export const AdminDashboardPage: React.FC = () => {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({ 
-          eventName: eventFilter === 'all' ? undefined : eventFilter
+          eventTitle: eventFilter === 'all' ? undefined : eventFilter
         })
       });
 
-      if (!response.ok) {
-        const errBody = await response.json().catch(() => null);
-        const errMsg = errBody?.error || errBody?.message || 'Failed to establish stream connection.';
-        throw new Error(`${errMsg} (Status: ${response.status})`);
-      }
-
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error('Readable stream not supported.');
-      }
-
-      const decoder = new TextDecoder();
-      let partialChunk = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = (partialChunk + chunk).split('\n\n');
-        partialChunk = lines.pop() || '';
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              if (data.error) {
-                setConsoleLogs(prev => [...prev, `[ERROR] ${data.error}`]);
-                setConsoleStatus('failed');
-              } else {
-                if (data.message) {
-                  setConsoleLogs(prev => [...prev, data.message]);
-                }
-                if (data.progress !== undefined) {
-                  setConsoleProgress(data.progress);
-                }
-                if (data.isDone) {
-                  setConsoleStatus('completed');
-                }
-              }
-            } catch (e) {
-              console.error("JSON parse error on SSE line:", line, e);
-            }
-          }
-        }
-      }
-
-      fetchApplications();
+      await handleStreamResponse(response, eventFilter === 'all' ? "Bulk Dispatch: All Recognition Certificates" : `Bulk Dispatch Recognition: ${eventFilter}`);
     } catch (err: any) {
       setConsoleLogs(prev => [...prev, `[ERROR] ${err.message}`]);
       setConsoleStatus('failed');
@@ -682,13 +696,12 @@ export const AdminDashboardPage: React.FC = () => {
 
     showCustomConfirm(
       "Send Recognition Certificates",
-      `Are you sure you want to generate and dispatch official recognition certificates to ${scopeDesc} who haven't received them yet?`,
+      `Are you sure you want to generate and dispatch official recognition certificates to ${scopeDesc} who haven't received them yet? (Runs continuously in background)`,
       executeBulkSendRecognitionCertificates
     );
   };
 
   const executeBulkSendVolunteerCertificates = async () => {
-    // Reset console states
     setConsoleLogs([]);
     setConsoleProgress(0);
     setConsoleStatus('running');
@@ -705,57 +718,13 @@ export const AdminDashboardPage: React.FC = () => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({})
+        body: JSON.stringify({
+          eventTitle: eventFilter === 'all' ? undefined : eventFilter,
+          volunteerRole: volunteerRoleFilter === 'all' ? undefined : volunteerRoleFilter
+        })
       });
 
-      if (!response.ok) {
-        const errBody = await response.json().catch(() => null);
-        const errMsg = errBody?.error || errBody?.message || 'Failed to establish stream connection.';
-        throw new Error(`${errMsg} (Status: ${response.status})`);
-      }
-
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error('Readable stream not supported.');
-      }
-
-      const decoder = new TextDecoder();
-      let partialChunk = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = (partialChunk + chunk).split('\n\n');
-        partialChunk = lines.pop() || '';
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              if (data.error) {
-                setConsoleLogs(prev => [...prev, `[ERROR] ${data.error}`]);
-                setConsoleStatus('failed');
-              } else {
-                if (data.message) {
-                  setConsoleLogs(prev => [...prev, data.message]);
-                }
-                if (data.progress !== undefined) {
-                  setConsoleProgress(data.progress);
-                }
-                if (data.isDone) {
-                  setConsoleStatus('completed');
-                }
-              }
-            } catch (e) {
-              console.error("JSON parse error on SSE line:", line, e);
-            }
-          }
-        }
-      }
-
-      fetchApplications();
+      await handleStreamResponse(response, "Bulk Dispatch: Volunteer Certificates");
     } catch (err: any) {
       setConsoleLogs(prev => [...prev, `[ERROR] ${err.message}`]);
       setConsoleStatus('failed');
@@ -1265,6 +1234,132 @@ export const AdminDashboardPage: React.FC = () => {
 
   return (
     <AdminLayout>
+      {/* Active Background Task Persistent Banner */}
+      {activeTask && (activeTask.status === 'processing' || activeTask.status === 'pending') && (
+        <div style={{
+          background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4338ca 100%)',
+          borderRadius: '0.75rem',
+          padding: '1.25rem 1.5rem',
+          marginBottom: '1.5rem',
+          boxShadow: '0 10px 25px -5px rgba(67, 56, 202, 0.3)',
+          color: '#fff',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '1rem',
+          border: '1px solid rgba(199, 210, 254, 0.2)'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <div style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '50%',
+                backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0
+              }}>
+                <Loader2 size={22} className="spinner-icon" style={{ color: '#a5b4fc' }} />
+              </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <span style={{
+                    backgroundColor: '#10b981',
+                    color: '#fff',
+                    padding: '0.15rem 0.6rem',
+                    borderRadius: '9999px',
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem'
+                  }}>
+                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#fff', display: 'inline-block' }}></span>
+                    Processing in Background
+                  </span>
+                  <span style={{ fontSize: '0.8rem', color: '#c7d2fe' }}>
+                    Runs even if browser or tab is closed
+                  </span>
+                </div>
+                <h3 style={{ margin: '0.25rem 0 0', fontSize: '1.1rem', fontWeight: 600, color: '#fff' }}>
+                  {activeTask.title}
+                </h3>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <button
+                onClick={() => connectToTaskStream(activeTask.id, activeTask.title)}
+                className="btn btn-primary"
+                style={{
+                  backgroundColor: '#fff',
+                  color: '#312e81',
+                  fontWeight: 600,
+                  fontSize: '0.85rem',
+                  padding: '0.5rem 1rem',
+                  borderRadius: '0.5rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  border: 'none',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                  cursor: 'pointer'
+                }}
+              >
+                <Terminal size={15} /> Open Live Monitor
+              </button>
+              <button
+                onClick={() => handleCancelTask(activeTask.id)}
+                className="btn"
+                style={{
+                  backgroundColor: 'rgba(239, 68, 68, 0.2)',
+                  color: '#fca5a5',
+                  borderColor: 'rgba(239, 68, 68, 0.4)',
+                  fontSize: '0.85rem',
+                  padding: '0.5rem 0.85rem',
+                  borderRadius: '0.5rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  cursor: 'pointer'
+                }}
+              >
+                <X size={15} /> Cancel Task
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: '#c7d2fe', marginBottom: '0.4rem' }}>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }}>
+                Step: {activeTask.current_step || 'Processing batch...'}
+              </span>
+              <span>
+                <strong>{activeTask.progress}%</strong> ({activeTask.processed_items} of {activeTask.total_items} items)
+              </span>
+            </div>
+            <div style={{
+              width: '100%',
+              height: '8px',
+              backgroundColor: 'rgba(255, 255, 255, 0.2)',
+              borderRadius: '9999px',
+              overflow: 'hidden'
+            }}>
+              <div style={{
+                width: `${activeTask.progress}%`,
+                height: '100%',
+                background: 'linear-gradient(90deg, #34d399 0%, #10b981 100%)',
+                borderRadius: '9999px',
+                transition: 'width 0.4s ease-out'
+              }} />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Stats Cards */}
       <div className="admin-stats-grid">
         <div className="admin-stat-card">
@@ -1633,6 +1728,19 @@ export const AdminDashboardPage: React.FC = () => {
               )}
             </button>
           )}
+
+          <button 
+            onClick={() => {
+              fetchTasksHistory();
+              setIsHistoryModalOpen(true);
+            }} 
+            className="admin-btn-export" 
+            style={{ height: '38px', display: 'flex', alignItems: 'center', gap: '0.5rem', backgroundColor: '#f8fafc', color: 'var(--text-main)', border: '1px solid var(--border)' }}
+            title="View background task processing history, logs, and status"
+          >
+            <History size={16} color="var(--primary)" />
+            <span>Task History</span>
+          </button>
 
           <button onClick={handleExportCSV} className="admin-btn-export" style={{ height: '38px', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Download size={16} />
@@ -2728,6 +2836,21 @@ export const AdminDashboardPage: React.FC = () => {
                   <span className={consoleStatus === 'running' ? "pulse" : ""} style={{ backgroundColor: consoleStatus === 'completed' ? '#22c55e' : consoleStatus === 'failed' ? '#ef4444' : '#64748b' }}></span>
                   <span style={{ textTransform: 'capitalize', fontWeight: 500 }}>{consoleStatus}</span>
                 </span>
+                <button
+                  onClick={() => setIsConsoleOpen(false)}
+                  title="Minimize monitor (processing continues in background)"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#64748b',
+                    cursor: 'pointer',
+                    padding: '0.2rem',
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}
+                >
+                  <Minimize2 size={16} />
+                </button>
               </div>
             </div>
 
@@ -2796,28 +2919,217 @@ export const AdminDashboardPage: React.FC = () => {
               backgroundColor: '#f8fafc',
               borderTop: '1px solid var(--border)',
               display: 'flex',
-              justifyContent: 'flex-end',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
               gap: '0.5rem'
             }}>
-              <button
-                onClick={() => {
-                  setIsConsoleOpen(false);
-                  setConsoleLogs([]);
-                  setConsoleProgress(0);
-                  setConsoleStatus('idle');
-                }}
-                disabled={consoleStatus === 'running'}
-                className="btn btn-primary"
-                style={{
-                  padding: '0.5rem 1.25rem',
-                  fontSize: '0.875rem',
-                  borderRadius: '0.375rem',
-                  cursor: consoleStatus === 'running' ? 'not-allowed' : 'pointer',
-                  opacity: consoleStatus === 'running' ? 0.6 : 1
-                }}
-              >
-                Close Monitor
-              </button>
+              <div style={{ fontSize: '0.75rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                {consoleStatus === 'running' ? (
+                  <>
+                    <Zap size={13} color="#4f46e5" />
+                    <span>Running in background. Closing this window will not stop processing.</span>
+                  </>
+                ) : (
+                  <span>Task finished.</span>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                {consoleStatus === 'running' && activeTaskId && (
+                  <button
+                    onClick={() => handleCancelTask(activeTaskId)}
+                    className="btn btn-secondary"
+                    style={{
+                      padding: '0.5rem 0.85rem',
+                      fontSize: '0.8125rem',
+                      borderRadius: '0.375rem',
+                      cursor: 'pointer',
+                      color: '#dc2626',
+                      borderColor: '#fca5a5',
+                      backgroundColor: '#fef2f2'
+                    }}
+                  >
+                    Cancel Task
+                  </button>
+                )}
+
+                <button
+                  onClick={() => {
+                    setIsConsoleOpen(false);
+                    if (consoleStatus !== 'running') {
+                      setConsoleLogs([]);
+                      setConsoleProgress(0);
+                      setConsoleStatus('idle');
+                    }
+                  }}
+                  className="btn btn-primary"
+                  style={{
+                    padding: '0.5rem 1.25rem',
+                    fontSize: '0.875rem',
+                    borderRadius: '0.375rem',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {consoleStatus === 'running' ? 'Minimize / Run in Background' : 'Close Monitor'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Background Task History Modal */}
+      {isHistoryModalOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.45)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1100,
+          padding: '1.5rem'
+        }}>
+          <div style={{
+            width: '100%',
+            maxWidth: '820px',
+            backgroundColor: '#fff',
+            borderRadius: '0.75rem',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+            border: '1px solid var(--border)',
+            display: 'flex',
+            flexDirection: 'column',
+            maxHeight: '85vh',
+            overflow: 'hidden'
+          }}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '1.25rem 1.75rem',
+              borderBottom: '1px solid var(--border)',
+              backgroundColor: '#f8fafc'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <History size={20} color="var(--primary)" />
+                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                  Background Task Processing History
+                </h3>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <button
+                  onClick={fetchTasksHistory}
+                  disabled={isLoadingHistory}
+                  className="btn btn-secondary btn-sm"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.65rem', fontSize: '0.8rem' }}
+                >
+                  <RotateCcw size={13} className={isLoadingHistory ? 'spinner-icon' : ''} /> Refresh
+                </button>
+                <button
+                  onClick={() => setIsHistoryModalOpen(false)}
+                  className="btn btn-secondary btn-sm"
+                  style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem' }}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+
+            <div style={{ padding: '1.25rem 1.75rem', overflowY: 'auto', flex: 1 }}>
+              {isLoadingHistory ? (
+                <div style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--text-muted)' }}>
+                  <Loader2 size={24} className="spinner-icon" style={{ margin: '0 auto 0.5rem' }} />
+                  Loading task execution history...
+                </div>
+              ) : taskHistory.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                  No background tasks recorded yet.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                  {taskHistory.map((task) => {
+                    const isProcessing = task.status === 'processing' || task.status === 'pending';
+                    const isSuccess = task.status === 'completed';
+                    const isFailed = task.status === 'failed';
+                    const isCancelled = task.status === 'cancelled';
+
+                    return (
+                      <div
+                        key={task.id}
+                        style={{
+                          padding: '1rem 1.25rem',
+                          border: '1px solid #e2e8f0',
+                          borderRadius: '0.5rem',
+                          backgroundColor: isProcessing ? '#f0fdf4' : '#fff',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          flexWrap: 'wrap',
+                          gap: '0.75rem'
+                        }}
+                      >
+                        <div style={{ flex: 1, minWidth: '240px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
+                            <span style={{
+                              fontSize: '0.75rem',
+                              fontWeight: 700,
+                              padding: '0.15rem 0.5rem',
+                              borderRadius: '4px',
+                              textTransform: 'uppercase',
+                              backgroundColor: isProcessing ? '#dbeafe' : isSuccess ? '#dcfce7' : isCancelled ? '#f1f5f9' : isFailed ? '#fee2e2' : '#f8fafc',
+                              color: isProcessing ? '#1d4ed8' : isSuccess ? '#15803d' : isCancelled ? '#64748b' : isFailed ? '#b91c1c' : '#475569'
+                            }}>
+                              {task.status}
+                            </span>
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                              {new Date(task.created_at).toLocaleString()}
+                            </span>
+                          </div>
+                          <div style={{ fontWeight: 600, color: 'var(--text-main)', fontSize: '0.95rem' }}>
+                            {task.title}
+                          </div>
+                          <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                            Progress: {task.progress}% | Items: {task.processed_items}/{task.total_items} ({task.success_count} succeeded, {task.failure_count} failed)
+                          </div>
+                          {task.error && (
+                            <div style={{ fontSize: '0.75rem', color: '#dc2626', marginTop: '0.25rem' }}>
+                              Error: {task.error}
+                            </div>
+                          )}
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                          {isProcessing ? (
+                            <button
+                              onClick={() => {
+                                setIsHistoryModalOpen(false);
+                                connectToTaskStream(task.id, task.title);
+                              }}
+                              className="btn btn-primary btn-sm"
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem' }}
+                            >
+                              <Terminal size={14} /> View Live
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setIsHistoryModalOpen(false);
+                                viewHistoricalTaskLogs(task);
+                              }}
+                              className="btn btn-secondary btn-sm"
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem' }}
+                            >
+                              <FileText size={14} /> View Logs
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </div>
