@@ -3080,6 +3080,33 @@ Render's free tier blocks outgoing SMTP ports (25, 465, 587) to prevent spam, wh
      * For `tcekrdcell@gmail.com`: Configure as `DRIVE_UPLOAD_PROXY_URL` and add to `GMAIL_HTTP_PROXY_URL`.
      * For auxiliary accounts: Append to `GMAIL_HTTP_PROXY_URL` separated by commas.
 
+#### Institutional Google Accounts & Role Mapping
+
+The platform orchestrates multiple Google accounts, each serving a distinct, strictly isolated operational role:
+
+| Google Account ID | Assigned Role | Configuration Variable | Deployment Web App URL | Storage / Quota Scope |
+| :--- | :--- | :--- | :--- | :--- |
+| **`tcekrdcell@gmail.com`** | **Official Google Drive Submission Vault** & Primary Sender | `DRIVE_UPLOAD_PROXY_URL`<br/>`SENDER_EMAIL`<br/>(also in `GMAIL_HTTP_PROXY_URL`) | `https://script.google.com/macros/s/AKfycbzo4grUGKumfJ1CJpWXaD3IOjUooel7msY-yAN7sVmeOtH_QJ9dnX4gwGiGwwB_KMFX/exec` | **Exclusively stores all student pitch decks & presentations (PPT/PDF)** in institutional Drive (`R&D Cell - Project Submissions`). Also provides 100 emails/day to the dispatch pool. |
+| **`team.tcekrdcell@gmail.com`** | **Auxiliary Email Dispatch Proxy** | Listed in `GMAIL_HTTP_PROXY_URL` | `https://script.google.com/macros/s/AKfycbygAq0eTP3EPLzc4mRNJWleiQO7AIftKRQYaRTMZkYwlrym175XxDq6n2VgFBtEjjrBQQ/exec` | Provides an additional 100 emails/day quota for bulk certificates and notification broadcasts. |
+| **`trinityrd39@gmail.com`** | **Auxiliary Email Dispatch Proxy** | Listed in `GMAIL_HTTP_PROXY_URL` | `https://script.google.com/macros/s/AKfycbyISD6l0jyrjADV_lO7IyrVL-F_eX5uCqNpVQMsJ-r4mAMLBgh05pMqE13DIXrdv_5uwA/exec` | Provides an additional 100 emails/day quota in the failover pool. |
+| *(Additional Failover Proxies)* | **Secondary Rotation Proxies** | Listed in `GMAIL_HTTP_PROXY_URL` | `..._RAAO-QnOg/exec`<br/>`...a0TattqJ/exec` | Tertiary proxies in the cluster ensuring combined capacity of 400–500+ emails/day. |
+
+#### Headless & Unattended Server Execution (Does it work if you are not on the website?)
+
+**YES, 100%. The system operates completely independently of the administrator's active browser session:**
+
+1. **Student Project Submissions (PPT/PDF Uploads)**:
+   * When students upload their project presentations on `https://tcek-rd.web.app/apply`, the request is handled directly between the student's browser and the cloud backend on Render (`https://rd-backend-kbsm.onrender.com`).
+   * The backend streams the file to `tcekrdcell@gmail.com`'s Google Drive and updates the Turso database immediately.
+   * **The admin does NOT need to be on the website or have their computer running.**
+
+2. **Bulk Certificate Generation & Email Dispatches**:
+   * Heavy batch operations are managed by the **Background Task Manager (`taskManager.ts`)**.
+   * Once triggered from the Admin Dashboard, the job executes asynchronously inside the Docker container on Render.
+   * **You can close your browser tab, shut down your laptop, or navigate away without interrupting the task.**
+   * Task state, item counts, and step-by-step logs are persisted in Turso DB (`task_records`).
+   * When you log back in at any time, click **"Task History"** on the Admin Dashboard to review real-time status, completed items, or historical logs.
+
 ---
 
 ### C. UptimeRobot Monitoring
