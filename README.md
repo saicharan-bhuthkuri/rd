@@ -1862,12 +1862,25 @@ The system is split into distinct functional modules:
 * **What it does**: Adds a show/hide password visibility toggle directly inside the admin login credentials form to enhance usability and prevent entry mistakes.
 * **Implementation Location**: [`AdminLoginPage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/frontend/src/pages/AdminLoginPage.tsx)
 
-### B. Partially Implemented Features
-* **Nodemailer SMTP Fallback**: Configured to send email via standard SMTP on host port 587 using the `transporter` client, but is generally blocked on cloud environments like Render. Render deployments must use `GMAIL_HTTP_PROXY_URL`.
-* **Activity Logs Audit**: Database records are added to `activity_logs` for login/event creation/branch modifications, but there is no admin interface inside the dashboard to view them (requiring direct DB queries).
+#### 10. Background Task Processing Engine & Real-Time Console Monitor
+* **What it does**: Decouples heavy, long-running batch operations (such as compiling hundreds of PPTX templates into PDFs and dispatching certificates via email) from the HTTP request-response cycle. Uses an asynchronous `TaskManager` that persists task records in the database (`task_records`), streams real-time step-by-step progress and logs to the browser via Server-Sent Events (SSE: `GET /api/tasks/:id/stream`), allows live cancellation/abort, and provides an interactive Historical Task Logs Viewer on the Admin Dashboard.
+* **Implementation Location**: [`backend/src/taskManager.ts`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/src/taskManager.ts), [`backend/src/index.ts`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/src/index.ts), and [`AdminDashboardPage.tsx`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/frontend/src/pages/AdminDashboardPage.tsx)
+* **Backend APIs**: `POST /api/tasks/start`, `GET /api/tasks/:id/stream`, `GET /api/tasks/history`, `POST /api/tasks/:id/cancel`
+* **Database Table**: `task_records`
 
-### C. Planned/Future Features
-* **Interactive Log Viewer**: A dashboard screen listing rows from the `activity_logs` table.
+#### 11. Centralized Google Drive Project Submission Vault
+* **What it does**: Ensures all student hackathon team submissions, presentation decks, and project files are automatically organized and archived exclusively in the official Google Drive of `tcekrdcell@gmail.com` under `R&D Cell - Project Submissions > [Event] > [Team]`. Sets view-only sharing permissions and registers public drive links in the database.
+* **Implementation Location**: [`backend/src/index.ts`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/src/index.ts#L2095) and [`backend/google_drive_proxy.gs`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/google_drive_proxy.gs)
+* **Configuration**: Bound via `DRIVE_UPLOAD_PROXY_URL`
+
+#### 12. Multi-Account Email Failover Cluster
+* **What it does**: Bypasses cloud host SMTP blocks by pooling multiple Google Apps Script Web App proxies (`tcekrdcell@gmail.com`, `team.tcekrdcell@gmail.com`, `trinityrd39@gmail.com`, etc.). If any proxy exhausts its daily quota (100 emails/day), the cluster automatically marks it inactive for 24 hours and fails over to the next proxy in line, followed by Brevo REST API (300 emails/day) and Nodemailer direct SMTP.
+* **Implementation Location**: [`backend/src/index.ts`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/src/index.ts#L1188-L1240)
+* **Configuration**: Set via comma-separated `GMAIL_HTTP_PROXY_URL`
+
+### B. Partially Implemented Features
+* **Nodemailer SMTP Fallback**: Configured to send email via standard SMTP on host port 587 using the `transporter` client, but is generally blocked on cloud environments like Render. Cloud deployments rely primarily on the `GMAIL_HTTP_PROXY_URL` multi-proxy pool and Brevo API.
+* **Activity Logs Audit**: Database records are added to `activity_logs` for login/event creation/branch modifications, viewable via database queries or task history.
 
 ---
 
@@ -2380,7 +2393,7 @@ CER/
 │   ├── package.json                            # Backend dependencies, scripts, and runtime engines
 │   ├── package-lock.json                       # Exact dependency lockfile
 │   ├── tsconfig.json                           # TypeScript compiler configurations (target: ES2022, outDir: dist)
-│   ├── google_drive_proxy.gs                   # Google Apps Script proxy for Drive submissions & Gmail relay
+│   ├── google_drive_proxy.gs                   # Google Apps Script proxy (Drive upload & multi-proxy email dispatch)
 │   ├── insert_sih_registrations.js             # Data migration script seeding hackathon participants
 │   ├── clear_db.js                             # Database sanitization and auto-increment reset utility
 │   ├── update_db_templates.js                  # In-database PPTX template synchronizer (Base64 blobs)
@@ -2392,7 +2405,8 @@ CER/
 │   ├── uploads/                                # Local file upload cache
 │   │   └── submissions/                        # Uploaded presentation slides and project document buffers
 │   └── src/                                    # Backend TypeScript source directory
-│       └── index.ts                            # Core backend monolithic server (60 endpoints, 16 tables, engines)
+│       ├── index.ts                            # Core backend server (REST API, SSE sync, auth, templates)
+│       └── taskManager.ts                      # Background task processing engine (SSE streaming & persistent execution logs)
 │
 └── frontend/                                   # Client Single Page Application (React 19, Vite, TypeScript)
     ├── .env.development                        # Local dev environment API URL (http://localhost:5000)
@@ -2980,9 +2994,11 @@ Below are the environment variables defined within [`backend/src/index.ts`](file
 | `TURSO_URL` | Cloud Turso edge SQLite endpoint. | **Yes** | `https://rd-saicharan.aws-ap.turso.io` | `@libsql/client` |
 | `TURSO_TOKEN` | Auth credential for database endpoints. | **Yes** | `eyJhbGciOiJFUzI1NiIsImt...` | `@libsql/client` |
 | `JWT_SECRET` | Secret key used to sign session cookies. | No (defaults fallback) | `rdcell_secret_key_2026` | JWT Sign / Verification |
-| `SENDER_EMAIL` | Sender address used for email dispatches. | No (defaults fallback) | `tcekrd@gmail.com` | Nodemailer & HTTP payload |
-| `SENDER_PASSWORD`| Gmail app password. | No (defaults fallback) | `tewheruxhrdwzqmu` | Nodemailer client auth |
-| `GMAIL_HTTP_PROXY_URL`| Google Apps Script deployment URL. Bypasses Render SMTP port blocks. | **Yes (in Cloud)** | `https://script.google.com/macros/s/AKfyc...` | Express Dispatch Client |
+| `SENDER_EMAIL` | Primary sender address used for email dispatches. | No (defaults fallback) | `tcekrdcell@gmail.com` | Nodemailer & Apps Script payload |
+| `SENDER_PASSWORD`| Gmail app password for direct SMTP fallback. | No (defaults fallback) | `qtpt qryw kyct ekzo` | Nodemailer client auth |
+| `DRIVE_UPLOAD_PROXY_URL`| Dedicated Google Apps Script proxy strictly bound to `tcekrdcell@gmail.com` Google Drive. Uploads and organizes all student presentations (PPT/PDF). | **Yes (for Submissions)** | `https://script.google.com/macros/s/AKfycbzo...` | Google Drive Submission Dispatcher |
+| `GMAIL_HTTP_PROXY_URL`| Comma-separated list of Google Apps Script proxy URLs. Automatic multi-account rotation and 24h quota exhaustion failover pool (100 emails/day per account). | **Yes (in Cloud)** | `https://script.google.com/macros/s/AKfyc...,https://...` | Email Dispatch Failover Pool |
+| `BREVO_API_KEY` | Optional Brevo (Sendinblue) API key for automatic secondary failover when all Google proxies exhaust daily quotas (300 emails/day free). | No | `xkeysib-...` | Secondary Email Failover |
 | `FRONTEND_URL` | The public URL of the deployed frontend web app. Used as the recovery link origin fallback. | No (defaults to `https://tcek-rd.web.app`) | `https://tcek-rd.web.app` | Forgot Password link origin |
 | `GROQ_MODELS` | Optional models check used in health checks. | No | `["llama3-8b"]` | `GET /api/health` |
 
@@ -3031,50 +3047,38 @@ The backend API server requires a Linux container to execute headless LibreOffic
 ### B. Google Apps Script Email Proxy
 Render's free tier blocks outgoing SMTP ports (25, 465, 587) to prevent spam, which prevents standard Nodemailer configurations from sending certificate emails. To resolve this, the system is designed to bypass SMTP blocks entirely by sending Base64-encoded PDF attachments via standard HTTPS POST request over port 443 to a custom Google Apps Script Web App.
 
-* **Purpose**: Bypasses SMTP outgoing port locks.
-* **Operation Flow**: Express Server $\rightarrow$ HTTP POST payload $\rightarrow$ Google Apps Script Proxy $\rightarrow$ Gmail Service API $\rightarrow$ Recipient inbox.
-* **Apps Script Source Code**:
-  Create a new project at [script.google.com](https://script.google.com/) and paste the following implementation:
-  ```javascript
-  function doPost(e) {
-    try {
-      var data = JSON.parse(e.postData.contents);
-      
-      // Map base64 strings back to file blobs
-      var attachments = (data.attachments || []).map(function(att) {
-        return Utilities.newBlob(
-          Utilities.base64Decode(att.base64), 
-          att.mimeType || 'application/pdf', 
-          att.filename || 'attachment.pdf'
-        );
-      });
-      
-      // Dispatch via Google's native MailApp supporting optional HTML body
-      MailApp.sendEmail({
-        to: data.to,
-        subject: data.subject,
-        body: data.text || "",
-        htmlBody: data.html,
-        attachments: attachments
-      });
-      
-      return ContentService.createTextOutput(JSON.stringify({ success: true }))
-        .setMimeType(ContentService.MimeType.JSON);
-    } catch (err) {
-      return ContentService.createTextOutput(JSON.stringify({ success: false, error: err.message }))
-        .setMimeType(ContentService.MimeType.JSON);
-    }
-  }
-  ```
+* **Purpose**: Bypasses cloud host SMTP locks (port 587/465) and eliminates cloud storage costs by leveraging Google Drive for student presentations and Gmail MailApp for reliable delivery.
+* **Source Script**: See [`backend/google_drive_proxy.gs`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/google_drive_proxy.gs) for the complete production Apps Script implementation.
+
+#### Dual-Function Architecture:
+
+1. **Centralized Google Drive Submission Vault (`DRIVE_UPLOAD_PROXY_URL`)**:
+   * **Strictly Bound Account**: `tcekrdcell@gmail.com`
+   * **Workflow**: When students submit hackathon pitch presentations (PPTX/PDF), the backend encodes the buffer to Base64 and transmits it via HTTPS POST to the dedicated `tcekrdcell@gmail.com` Apps Script Web App.
+   * **Drive Structure**: Automatically maintains the hierarchical folder tree:
+     ```
+     📁 R&D Cell - Project Submissions/
+     └── 📁 [Event Name]/               (e.g., SIH 2026 Internal Hackathon)
+         └── 📁 [Team Folder Name]/      (e.g., Team 01 – Miaow Trinity)
+             └── 📄 Presentation.pdf
+     ```
+   * **Access Control**: Programmatically sets `ANYONE_WITH_LINK` (view-only) permissions and returns persistent Drive file and folder URLs stored in Turso DB.
+
+2. **Multi-Account Email Dispatch Pool (`GMAIL_HTTP_PROXY_URL`)**:
+   * **Failover Cluster**: Comma-separated list of Web App URLs deployed across multiple institutional and department Google accounts (`tcekrdcell@gmail.com`, `team.tcekrdcell@gmail.com`, `trinityrd39@gmail.com`, etc.).
+   * **Daily Quota Management**: Google limits free accounts to 100 emails/day. If any proxy hits quota exhaustion (`Service invoked too many times`), the backend marks it exhausted for 24 hours and instantly fails over to the next proxy in the cluster.
+   * **Fallback Chain**: `Apps Script Proxy #1` $\rightarrow$ `Proxy #2` $\rightarrow$ `...` $\rightarrow$ `Brevo API (300/day)` $\rightarrow$ `Direct SMTP`.
+
 * **Deployment Steps**:
-  1. Click **Deploy > New Deployment**.
-  2. Select type: **Web App**.
-  3. Configure parameters:
-     * **Execute as**: *Me (your_gmail_address@gmail.com)*
-     * **Who has access**: *Anyone* (This allows the Render backend server to post requests).
-  4. Click **Deploy** and authorize permissions.
-  5. Copy the generated **Web App URL** and configure it as `GMAIL_HTTP_PROXY_URL` in the Render environment variables.
-* **Authentication**: Credentials are managed natively by Google Apps Script within your Google account workspace. No secret API keys or OAuth client secrets are stored on Render, minimizing security risks.
+  1. Open [script.google.com](https://script.google.com/) under the target Google account.
+  2. Paste code from [`backend/google_drive_proxy.gs`](file:///c:/Users/bhuth/OneDrive/Desktop/CER/backend/google_drive_proxy.gs).
+  3. Run `authorizeAll()` once in the top toolbar to grant MailApp and DriveApp scopes.
+  4. Click **Deploy > New Deployment** $\rightarrow$ **Web App**.
+     * **Execute as**: *Me*
+     * **Who has access**: *Anyone*
+  5. Copy Web App URL:
+     * For `tcekrdcell@gmail.com`: Configure as `DRIVE_UPLOAD_PROXY_URL` and add to `GMAIL_HTTP_PROXY_URL`.
+     * For auxiliary accounts: Append to `GMAIL_HTTP_PROXY_URL` separated by commas.
 
 ---
 
@@ -3133,9 +3137,12 @@ PORT=5000
 TURSO_URL=your_turso_database_url
 TURSO_TOKEN=your_turso_auth_token
 JWT_SECRET=your_jwt_signing_key
-SENDER_EMAIL=tcekrd@gmail.com
+SENDER_EMAIL=tcekrdcell@gmail.com
 SENDER_PASSWORD=your_gmail_app_password
-GMAIL_HTTP_PROXY_URL=your_google_script_deployment_url
+# Dedicated Drive Upload Proxy (tcekrdcell@gmail.com ONLY)
+DRIVE_UPLOAD_PROXY_URL=https://script.google.com/macros/s/AKfycbzo4grUGKumfJ1CJpWXaD3IOjUooel7msY-yAN7sVmeOtH_QJ9dnX4gwGiGwwB_KMFX/exec
+# Comma-separated rotation pool of Google Apps Script proxies for email
+GMAIL_HTTP_PROXY_URL=https://script.google.com/macros/s/AKfycbzo...,https://script.google.com/macros/s/AKfycbyg...,https://script.google.com/macros/s/AKfycbyI...
 ```
 
 ### Step 3: Run Setup Scripts
