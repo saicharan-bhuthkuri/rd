@@ -1223,21 +1223,24 @@ async function sendEmailWithFailover(options: SendEmailOptions): Promise<{ succe
       const errMsg = (res && res.error) ? String(res.error) : 'Unknown Apps Script error';
       if (errMsg.toLowerCase().includes('service invoked too many times') || errMsg.toLowerCase().includes('quota') || res?.quotaExceeded) {
         console.warn(`[Email Dispatch] Proxy #${i + 1} daily quota exhausted: ${errMsg}`);
-        quotaExhaustedProxies.set(url, now + 24 * 60 * 60 * 1000);
+        quotaExhaustedProxies.set(url, now + 60 * 60 * 1000); // 1-hour cooldown instead of 24h
         continue; // Try next proxy in the list
       }
 
-      throw new Error(`Google Apps Script Proxy #${i + 1} failed: ${errMsg}`);
+      console.warn(`[Email Dispatch] Proxy #${i + 1} returned error: ${errMsg}. Trying next proxy...`);
+      continue;
     } catch (err: any) {
-      if (err.message.toLowerCase().includes('service invoked too many times') || err.message.toLowerCase().includes('quota')) {
-        quotaExhaustedProxies.set(url, now + 24 * 60 * 60 * 1000);
-        continue; // Try next proxy
-      }
-      if (i < allUrls.length - 1) {
-        console.warn(`[Email Dispatch] Proxy #${i + 1} error: ${err.message}. Failing over to next proxy...`);
+      if (err.message && (err.message.toLowerCase().includes('service invoked too many times') || err.message.toLowerCase().includes('quota'))) {
+        console.warn(`[Email Dispatch] Proxy #${i + 1} quota limit reached: ${err.message}`);
+        quotaExhaustedProxies.set(url, now + 60 * 60 * 1000);
         continue;
       }
-      throw err;
+      if (err.message && err.message.includes('403')) {
+        console.warn(`[Email Dispatch] Proxy #${i + 1} returned 403 Forbidden! The Google Apps Script deployment must have 'Who has access' set to 'Anyone'.`);
+        continue;
+      }
+      console.warn(`[Email Dispatch] Proxy #${i + 1} error: ${err.message}. Failing over to next proxy...`);
+      continue;
     }
   }
 
@@ -5561,7 +5564,8 @@ app.post('/api/admin/bulk-send/hackathon-certificates', authenticateToken, async
 
   (async () => {
     try {
-      taskManager.sendLog(task.id, "Initializing email service...", 5);
+      quotaExhaustedProxies.clear();
+      taskManager.sendLog(task.id, "Initializing email service and checking proxy pool...", 5);
 
       // 1. Fetch template from DB
       let templateRes = await db.execute({
