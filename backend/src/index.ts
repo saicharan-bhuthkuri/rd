@@ -4648,6 +4648,49 @@ app.post('/api/admin/messaging/send', authenticateToken, async (req: Authenticat
   }
 });
 
+// Helper to resolve event date dynamically from the database without any hardcoded dates
+async function getEventDateFromDb(eventName?: string, fallbackRowDate?: string): Promise<string> {
+  if (eventName && eventName.trim() !== '' && eventName.toLowerCase() !== 'all') {
+    try {
+      const cleanName = eventName.trim();
+      // Try exact or case-insensitive match on events table
+      const evRes = await db.execute({
+        sql: "SELECT date FROM events WHERE LOWER(TRIM(title)) = LOWER(?) LIMIT 1",
+        args: [cleanName]
+      });
+      if (evRes.rows.length > 0 && evRes.rows[0].date && String(evRes.rows[0].date).trim() !== '') {
+        return String(evRes.rows[0].date).trim();
+      }
+
+      // Try LIKE match if exact match wasn't found
+      const likeRes = await db.execute({
+        sql: "SELECT date FROM events WHERE LOWER(title) LIKE LOWER(?) LIMIT 1",
+        args: [`%${cleanName}%`]
+      });
+      if (likeRes.rows.length > 0 && likeRes.rows[0].date && String(likeRes.rows[0].date).trim() !== '') {
+        return String(likeRes.rows[0].date).trim();
+      }
+    } catch (e: any) {
+      console.warn("Notice: could not query event date from database:", e.message);
+    }
+  }
+
+  // If application or registration record has an explicit event_date saved, use it
+  if (fallbackRowDate && fallbackRowDate.trim() !== '') {
+    return fallbackRowDate.trim();
+  }
+
+  // Final fallback: fetch the most recent event date in the database
+  try {
+    const latestEv = await db.execute("SELECT date FROM events WHERE date IS NOT NULL AND TRIM(date) != '' ORDER BY id DESC LIMIT 1");
+    if (latestEv.rows.length > 0 && latestEv.rows[0].date) {
+      return String(latestEv.rows[0].date).trim();
+    }
+  } catch (e) {}
+
+  return '';
+}
+
 // XML-aware text replacement inside PPTX files
 function replacePlaceholdersInPptx(templateBuffer: Buffer, outputPath: string, replacements: Record<string, string>) {
   const zip = new PizZip(templateBuffer);
@@ -5319,13 +5362,8 @@ app.post('/api/admin/bulk-send/certificates', authenticateToken, async (req: Aut
         ? Buffer.from(appTemplateRes.rows[0].data_base64 as string, 'base64')
         : partTemplateBuffer;
 
-      // 2. Fetch event details from DB
-      const eventRes = await db.execute({
-        sql: "SELECT date FROM events WHERE title = ?",
-        args: [eventTitle]
-      });
-
-      const eventDate = eventRes.rows.length > 0 ? eventRes.rows[0].date as string : '03 August 2026';
+      // 2. Fetch event details dynamically from DB
+      const eventDate = await getEventDateFromDb(eventTitle);
 
       taskManager.sendLog(task.id, "Fetching recipient details...", 10);
 
@@ -5592,12 +5630,8 @@ app.post('/api/admin/bulk-send/hackathon-certificates', authenticateToken, async
 
       const templateBuffer = Buffer.from(templateRes.rows[0].data_base64 as string, 'base64');
 
-      // 2. Fetch hackathon details from DB for date
-      const eventRes = await db.execute({
-        sql: "SELECT date FROM events WHERE title = ?",
-        args: [hackathonName]
-      });
-      const hackathonDate = eventRes.rows.length > 0 ? eventRes.rows[0].date as string : 'September 11-13, 2026';
+      // 2. Fetch hackathon date dynamically from DB
+      const hackathonDate = await getEventDateFromDb(hackathonName);
 
       taskManager.sendLog(task.id, "Fetching approved unsent team registrations...", 10);
 
@@ -5961,14 +5995,24 @@ app.post('/api/admin/bulk-send/recognition-certificates', authenticateToken, asy
 
       let successCount = 0;
 
+      // Pre-resolve event dates dynamically from database
+      const eventDateCache = new Map<string, string>();
+      for (const app of applications) {
+        const evName = (app.event_name as string) || '';
+        if (evName && !eventDateCache.has(evName)) {
+          const resolvedDate = await getEventDateFromDb(evName, app.event_date as string);
+          eventDateCache.set(evName, resolvedDate);
+        }
+      }
+
       // 3. Generate customized PPTX files on disk
       taskManager.sendLog(task.id, "Generating customized PowerPoint templates...", 20);
       const tasks = applications.map((app: any) => {
         const id = app.id as number;
         const judgeName = app.full_name as string;
         const recipientEmail = app.email as string;
-        const eventName = app.event_name as string;
-        const eventDate = app.event_date || 'September 14, 2026';
+        const eventName = (app.event_name as string) || '';
+        const eventDate = eventDateCache.get(eventName) || (app.event_date as string) || '';
         const designation = app.designation as string;
         const organization = app.organization as string;
 
@@ -6193,14 +6237,24 @@ app.post('/api/admin/bulk-send/volunteer-certificates', authenticateToken, async
 
       let successCount = 0;
 
+      // Pre-resolve event dates dynamically from database for all unique events
+      const volunteerEventDateCache = new Map<string, string>();
+      for (const app of applications) {
+        const evName = (app.event_name as string) || (eventTitle && eventTitle !== 'all' ? eventTitle : '');
+        if (evName && !volunteerEventDateCache.has(evName)) {
+          const resolvedDate = await getEventDateFromDb(evName);
+          volunteerEventDateCache.set(evName, resolvedDate);
+        }
+      }
+
       // 3. Generate customized PPTX files on disk
       taskManager.sendLog(task.id, "Generating customized PowerPoint templates...", 20);
       const tasks = applications.map((app: any) => {
         const id = app.id as number;
         const volunteerName = app.full_name as string;
         const recipientEmail = app.email as string;
-        const eventName = app.event_name || 'R&D Technical Symposium';
-        const eventDate = 'September 14, 2026';
+        const eventName = (app.event_name as string) || (eventTitle && eventTitle !== 'all' ? eventTitle : '');
+        const eventDate = volunteerEventDateCache.get(eventName) || '';
         const volunteerRole = app.volunteer_role as string;
 
         const safeName = volunteerName.replace(/[^a-zA-Z0-9_\s]/g, '').trim();
@@ -6648,16 +6702,8 @@ app.get('/api/verify-certificate/*', sensitiveLimiter, async (req, res) => {
           : (reg.status || 'Participation');
     const id = reg.id as number;
 
-    // Fetch event details to get the exact event date
-    const eventRes = await db.execute({
-      sql: "SELECT date FROM events WHERE title = ?",
-      args: [eventTitle]
-    });
-    const eventDate = isVolunteer
-      ? 'September 14, 2026'
-      : (eventRes.rows.length > 0 
-          ? eventRes.rows[0].date as string 
-          : (reg.event_date || (isHackathon ? 'September 11-13, 2026' : '03 August 2026')));
+    // Fetch event details dynamically from the database
+    const eventDate = await getEventDateFromDb(eventTitle, reg.event_date as string);
 
     const certId = reg.certificate_id || `TCEK/RD/2026/${String(id).padStart(4, '0')}`;
 
